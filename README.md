@@ -1,6 +1,6 @@
-# Systems Network
+# Hybrid System Network
 
-Network layer of agentic systems, other systems, and other information sources. It provides a message-passing architecture for agent-human-machine hybrid systems.
+Network layer for a hybrid of agentic systems, other systems, and other information sources. It provides a message-passing architecture for agent-human-machine hybrid systems.
 
 
 ## Setup (Developer)
