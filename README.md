@@ -7,7 +7,7 @@ A simple and light-weight network layer for a hybrid of agentic systems, other s
 
 ```bash
 conda create -n snet python=3.14 -y &&\
-conda activate snet &&\
+conda activate sssn &&\
 pip install -r requirements.txt &&\
-python -m ipykernel install --user --name "snet" --display-name "Python (snet)"
+python -m ipykernel install --user --name "sssn" --display-name "Python (sssn)"
 ```
