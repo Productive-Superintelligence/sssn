@@ -1,4 +1,4 @@
-# Hybrid System Network
+# Systems Network
 
 Network layer for a hybrid of agentic systems, other systems, and other information sources. It provides a message-passing architecture for agent-human-machine hybrid systems.
 
