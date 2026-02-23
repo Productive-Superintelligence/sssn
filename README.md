@@ -3,11 +3,11 @@
 Network layer of agentic systems, other systems, and other information sources. 
 
 
-## Setup
+## Setup (Developer)
 
 ```bash
-conda create -n gsa python=3.14 -y &&\
-conda activate gsa &&\
+conda create -n snet python=3.14 -y &&\
+conda activate snet &&\
 pip install -r requirements.txt &&\
-python -m ipykernel install --user --name "gsa" --display-name "Python (gsa)"
+python -m ipykernel install --user --name "snet" --display-name "Python (snet)"
 ```
