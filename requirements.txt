@@ -1,2 +1,7 @@
 git+https://github.com/Productive-Superintelligence/lllm.git 
 pydantic
+fastapi
+uvicorn
+pytest
+pytest-asyncio 
+httpx
