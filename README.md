@@ -26,3 +26,8 @@ pip install -r requirements.txt &&\
 python -m ipykernel install --user --name "sssn" --display-name "Python (sssn)"
 ```
 
+## Setup (Install package from Git)
+
+```bash
+pip install "git+https://github.com/Productive-Superintelligence/sssn.git"
+```
