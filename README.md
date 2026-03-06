@@ -1,6 +1,8 @@
 # Simple System of Systems Network
 
-A simple and light-weight network layer for a hybrid of agentic systems, other systems, and other information sources. It provides a message-passing architecture for agent-human-machine hybrid systems. This is for creating complex multi-system agentic systems in a simple way.
+A simple and light-weight network layer for a hybrid of agentic systems, other systems, and other information sources.
+It provides a lightweight, flat communication layer to build **distributed information supply chains** for AI agents, humans, and machines.
+<!-- It provides a message-passing peer-to-peer network architecture for agent-human-machine hybrid systems.  -->
 
 ## Overview
 
