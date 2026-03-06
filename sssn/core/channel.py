@@ -93,7 +93,7 @@ class BaseChannel(abc.ABC):
         max_workers: int = 10,
         host: str = "0.0.0.0",  
         port: Optional[int] = None,  
-        # vary naive access control, Need to be improved.
+        # vary naive whitelist access control, Need to be improved.
         readable_by: Optional[List[str]] = None, 
         writable_by: Optional[List[str]] = None,      
     ):

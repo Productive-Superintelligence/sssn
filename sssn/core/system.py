@@ -13,6 +13,13 @@ class SystemState(Enum):
 
 # --- 2. The Abstract System Base Class ---
 class BaseSystem(abc.ABC):
+    """
+    Abstract base class for systems. It forms a holonic network of systems.
+
+    The design pattern is that: atomic systems do the heavy lifting, and non-atomic systems are just for management and coordination.
+    e.g., a non-leaf may have the launch script to launch the children, or may do complex work like A->B->C->D->E, which may skip the channels,
+    it is allowed, but not encouraged, to skip the channels and do the work directly.
+    """
     def __init__(
         self, 
         system_id: str, 
