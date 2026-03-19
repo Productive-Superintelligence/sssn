@@ -1,0 +1,101 @@
+site_name: SSSN
+site_url: https://sssn.one
+site_description: Simple System of Systems Network — a minimal two-abstraction framework for building composable, distributed AI agents.
+site_author: Productive Superintelligence
+repo_url: https://github.com/Productive-Superintelligence/sssn
+repo_name: sssn
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  custom_dir: docs/overrides
+  logo: assets/logo-white.svg
+  favicon: assets/logo-white.svg
+  font:
+    text: Inter
+    code: JetBrains Mono
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.instant.progress
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.indexes
+    - navigation.top
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+
+plugins:
+  - search
+  - autorefs
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/Productive-Superintelligence/sssn
+
+nav:
+  - Home: index.md
+  - Concepts:
+    - concepts/index.md
+    - Channel: concepts/channel.md
+    - Channel Types: concepts/channel-types.md
+    - System: concepts/system.md
+    - Security: concepts/security.md
+    - Transport & Client: concepts/transport.md
+  - Tutorials:
+    - tutorials/index.md
+    - "1 · First Channel": tutorials/01-first-channel.md
+    - "2 · Broadcast Bus": tutorials/02-broadcast.md
+    - "3 · Work Queue": tutorials/03-work-queue.md
+    - "4 · Multi-System": tutorials/04-multi-system.md
+    - "5 · Securing Channels": tutorials/05-securing-channels.md
+  - Examples:
+    - examples/index.md
+    - Data Pipeline: examples/data-pipeline.md
+    - Request–Response: examples/request-response.md
+    - Service Discovery: examples/discovery.md

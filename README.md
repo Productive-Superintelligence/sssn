@@ -1,35 +1,159 @@
-# Simple System of Systems Network
+# SSSN — Simple System of Systems Network
 
-A simple and light-weight network layer for a hybrid of agentic systems, other systems, and other information sources.
-It provides a lightweight, flat communication layer to build **distributed information supply chains** for AI agents, humans, and machines.
-<!-- It provides a message-passing peer-to-peer network architecture for agent-human-machine hybrid systems.  -->
+[![PyPI version](https://img.shields.io/pypi/v/sssn.svg)](https://pypi.org/project/sssn/)
+[![Python](https://img.shields.io/pypi/pyversions/sssn.svg)](https://pypi.org/project/sssn/)
+[![License](https://img.shields.io/github/license/Productive-Superintelligence/sssn.svg)](LICENSE)
+[![Docs](https://img.shields.io/badge/docs-sssn.one-indigo)](https://sssn.one)
 
-## Overview
+A minimal Python framework for building composable, distributed AI agent networks.
 
-Sssn models a **distributed information supply chain** from source (the external world) to the sink (the end user/information consumers or another system outside sssn). It forms a **decentralized, peer-to-peer “holonic” non-hierarchical network**. It provides a **message-passing** architecture (using fast IPCWires for high-speed local communication) for agent-human-machine collaborations.
+Two abstractions. One graph.
 
-There are only two cases conceptually, for simplicity, local and public. Public is the domain for cross-(local)network communication (i.e., accessing resources on another network via the public internet, such as via a RESTful API). By saying "access the resource," it means accessing a channel within a (local) network. When publishing a network to the public net, it needs to be exposed via something like nginx so it can be found.
-
-The conceptual participants/information suppliers in the network are:
-
-* Humans: like social media, newspapers, reports, papers, etc., any human information  
-* “Machines”: any computer programs, devices, robots, ML models, etc.  
-* Agents: any LLM agents, it's also a machine, but just separate it for convenience
-
-It's overall an agent-centric network, so many designs are optimized for agentic systems (otherwise, we can just use the network we already have today). There are only two core abstractions: **System (node) and Channel (edge)**. External information flows into the network and is delivered as AI-processed information or products.
-
-
-## Setup (Developer)
-
-```bash
-conda create -n sssn python=3.14 -y &&\
-conda activate sssn &&\
-pip install -r requirements.txt &&\
-python -m ipykernel install --user --name "sssn" --display-name "Python (sssn)"
+```
+System ──writes──► Channel ──reads──► System
 ```
 
-## Setup (Install package from Git)
+A **Channel** is a typed, secured, persistent message store.
+A **System** is an autonomous agent that owns channels, wires itself to the network, and runs a tick loop.
+
+---
+
+## Install
 
 ```bash
-pip install "git+https://github.com/Productive-Superintelligence/sssn.git"
+pip install sssn
 ```
+
+Requires Python 3.10+.
+
+---
+
+## Quick start
+
+```python
+import asyncio
+from sssn.channels.broadcast import BroadcastChannel
+from sssn.core.system import BaseSystem
+
+class Sensor(BaseSystem):
+    async def setup(self):
+        self.readings = BroadcastChannel(id="readings", name="Readings")
+        self.add_channel(self.readings)
+
+    async def step(self):
+        await self.write_channel("readings", data={"celsius": 22.4})
+
+class Monitor(BaseSystem):
+    async def step(self):
+        msgs = await self.read_channel("readings")
+        for msg in msgs:
+            print(msg.content)
+
+async def main():
+    sensor  = Sensor(id="sensor",  name="Sensor")
+    monitor = Monitor(id="monitor", name="Monitor")
+    await sensor.setup()
+    sensor.add_subsystem(monitor, channels=["readings"])
+    await asyncio.gather(sensor.launch())
+
+asyncio.run(main())
+```
+
+---
+
+## Channel types
+
+| Channel | Pattern |
+|---------|---------|
+| `BroadcastChannel` | Fan-out — every consumer sees every message |
+| `WorkQueueChannel` | Competing consumers — each message claimed once |
+| `MailboxChannel` | Per-recipient inbox |
+| `PeriodicChannel` | Active poll loop for external data sources |
+| `DiscoveryChannel` | Service registry with TTL-based expiry |
+| `PassthroughChannel` | Base class — inline write, no loop |
+
+---
+
+## Documentation
+
+Full documentation at **[sssn.one](https://sssn.one)**:
+
+- [Concepts](https://sssn.one/concepts/) — Channel, System, Security, Transport
+- [Tutorials](https://sssn.one/tutorials/) — Step-by-step from first channel to secured multi-system network
+- [Examples](https://sssn.one/examples/) — Data pipeline, request-response, service discovery
+
+---
+
+## Development setup
+
+```bash
+git clone https://github.com/Productive-Superintelligence/sssn.git
+cd sssn
+pip install -e ".[dev]"
+pytest
+```
+
+Build and preview the docs locally:
+
+```bash
+pip install -e ".[docs]"
+mkdocs serve          # http://127.0.0.1:8000
+mkdocs build --strict # production build → site/
+```
+
+---
+
+## Release
+
+```bash
+# 1. Bump version in pyproject.toml, then:
+python -m build
+python -m twine upload dist/*
+
+# 2. Tag and push
+git tag -a v0.0.1 -m "Release 0.0.1"
+git push origin main --tags
+```
+
+
+
+<!-- 
+git status          # ensure no stray files you don’t want in the sdist
+rm -rf dist build *.egg-info    # clean
+
+python -m build     # creates dist/lllm-<version>.tar.gz and .whl
+
+# test locally
+python -m venv /tmp/lllm-release
+source /tmp/lllm-release/bin/activate
+pip install dist/lllm_core-<version>-py3-none-any.whl
+python -c "import lllm; print(lllm.__version__)"
+deactivate
+
+# upload
+python -m twine upload dist/*
+
+# push tag
+git tag -a v0.0.1.3 -m "Release 0.0.1.3"
+git push origin main --tags 
+
+# update doc
+mkdocs build --strict
+mkdocs gh-deploy --force --clean
+
+
+# test doc
+
+# Install deps (one-time)
+pip install mkdocs-material mkdocstrings-python
+
+
+# Live-reload dev server — visit http://127.0.0.1:8000
+mkdocs serve
+
+# Strict build (same flags CI uses — catches broken links/anchors)
+python -m mkdocs build --strict
+
+
+-->
+

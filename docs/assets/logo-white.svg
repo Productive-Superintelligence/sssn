@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 32" fill="none">
+  <!-- Nodes -->
+  <circle cx="8"  cy="16" r="5" fill="white" opacity="0.9"/>
+  <circle cx="28" cy="8"  r="5" fill="white" opacity="0.9"/>
+  <circle cx="28" cy="24" r="5" fill="white" opacity="0.9"/>
+  <circle cx="48" cy="16" r="5" fill="white" opacity="0.9"/>
+  <!-- Edges -->
+  <line x1="13" y1="13" x2="23" y2="10" stroke="white" stroke-width="1.5" opacity="0.6"/>
+  <line x1="13" y1="19" x2="23" y2="22" stroke="white" stroke-width="1.5" opacity="0.6"/>
+  <line x1="33" y1="10" x2="43" y2="13" stroke="white" stroke-width="1.5" opacity="0.6"/>
+  <line x1="33" y1="22" x2="43" y2="19" stroke="white" stroke-width="1.5" opacity="0.6"/>
+  <!-- Wordmark -->
+  <text x="60" y="21" font-family="Inter, system-ui, sans-serif" font-weight="700" font-size="16" fill="white" letter-spacing="-0.5">SSSN</text>
+</svg>
