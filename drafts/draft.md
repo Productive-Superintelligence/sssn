@@ -82,3 +82,5 @@ Genesys is a distributed system that runs LLM-based AlphaEvolve-style genetic pr
   - Proposer-reviewer is modeled as an agent group (i.e., LLLM agent) that directly communicates by dialog, and it watches the DC channel for inputs  
   - Implementer is designed as another group, where an internal channel that keep pull non-repeat unimplemented from the evo tree as inputs  
   - Both directly send output to the DR channel (Implementer may even deliver every module in a module-by-module delivery)
+
+
