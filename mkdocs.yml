@@ -8,42 +8,40 @@ edit_uri: edit/main/docs/
 
 theme:
   name: material
-  custom_dir: docs/overrides
   logo: assets/logo-white.svg
   favicon: assets/logo-white.svg
+  # 1. Typography: Switching to modern fonts instantly elevates the look
   font:
-    text: Inter
+    text: Inter 
     code: JetBrains Mono
+  # 2. Modern UI Features
+  features:
+    # - navigation.tabs           # Moves top-level sections (Home, Core, etc.) to a modern top bar
+    - navigation.tabs.sticky    # Keeps the top bar visible when scrolling down
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top            # Adds a smooth "Back to top" button
+    - navigation.tracking       # Updates the URL hash as users scroll through headers
+    - content.code.copy
+    - search.suggest
+    - search.highlight
+  # 3. Refined Color Palettes
   palette:
-    - media: "(prefers-color-scheme: light)"
-      scheme: default
-      primary: indigo
-      accent: indigo
+    - scheme: default
+      primary: white
+      accent: black
       toggle:
         icon: material/weather-night
         name: Switch to dark mode
-    - media: "(prefers-color-scheme: dark)"
-      scheme: slate
-      primary: indigo
-      accent: indigo
+    - scheme: slate
+      primary: black
+      accent: white
       toggle:
         icon: material/weather-sunny
         name: Switch to light mode
-  features:
-    - navigation.instant
-    - navigation.instant.progress
-    - navigation.tabs
-    - navigation.tabs.sticky
-    - navigation.sections
-    - navigation.expand
-    - navigation.indexes
-    - navigation.top
-    - toc.follow
-    - search.suggest
-    - search.highlight
-    - content.code.copy
-    - content.code.annotate
-    - content.tabs.link
+extra_css:
+  - stylesheets/custom.css
+
 
 plugins:
   - search
