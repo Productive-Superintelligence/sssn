@@ -1,11 +1,22 @@
 # SSSN — Simple System of Systems Network
 
+<!-- Logo -->
+![SSSN Logo](docs/assets/SSSN_logo_txt.png)
+
+
+<div align="center">
+  <img src="https://raw.githubusercontent.com/Productive-Superintelligence/sssn/main/docs/assets/SSSN_logo_txt.png" alt="SSSN Logo" width="600"/>
+  <br>
+  <h1>Simple System of Systems Network (SSSN) </h1>
+  <h4>A minimal Python framework for building composable, distributed AI agent networks.</h4>
+</div>
+
 [![PyPI version](https://img.shields.io/pypi/v/sssn.svg)](https://pypi.org/project/sssn/)
 [![Python](https://img.shields.io/pypi/pyversions/sssn.svg)](https://pypi.org/project/sssn/)
 [![License](https://img.shields.io/github/license/Productive-Superintelligence/sssn.svg)](LICENSE)
 [![Docs](https://img.shields.io/badge/docs-sssn.one-indigo)](https://sssn.one)
 
-A minimal Python framework for building composable, distributed AI agent networks.
+
 
 Two abstractions. One graph.
 

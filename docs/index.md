@@ -1,5 +1,8 @@
 # SSSN
 
+<!-- Logo -->
+![SSSN Logo](assets/SSSN_logo_txt.png)
+
 **Simple System of Systems Network** — a minimal Python framework for building composable, distributed AI agents.
 
 ---
