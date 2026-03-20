@@ -1,7 +1,6 @@
 # SSSN — Simple System of Systems Network
 
 <!-- Logo -->
-![SSSN Logo](docs/assets/SSSN_logo_txt.png)
 
 
 <div align="center">
