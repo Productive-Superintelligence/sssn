@@ -1,4 +1,3 @@
-# SSSN — Simple System of Systems Network
 
 <!-- Logo -->
 
