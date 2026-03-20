@@ -99,38 +99,7 @@ Full documentation at **[sssn.one](https://sssn.one)**:
 - [Tutorials](https://sssn.one/tutorials/) — Step-by-step from first channel to secured multi-system network
 - [Examples](https://sssn.one/examples/) — Data pipeline, request-response, service discovery
 
----
 
-## Development setup
-
-```bash
-git clone https://github.com/Productive-Superintelligence/sssn.git
-cd sssn
-pip install -e ".[dev]"
-pytest
-```
-
-Build and preview the docs locally:
-
-```bash
-pip install -e ".[docs]"
-mkdocs serve          # http://127.0.0.1:8000
-mkdocs build --strict # production build → site/
-```
-
----
-
-## Release
-
-```bash
-# 1. Bump version in pyproject.toml, then:
-python -m build
-python -m twine upload dist/*
-
-# 2. Tag and push
-git tag -a v0.0.1 -m "Release 0.0.1"
-git push origin main --tags
-```
 
 
 
