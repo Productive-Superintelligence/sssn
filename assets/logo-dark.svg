@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
-  <g fill="none" stroke="white" stroke-width="7" stroke-linejoin="round">
+  <g fill="none" stroke="black" stroke-width="7" stroke-linejoin="round">
     <!-- Outer bounding circle -->
     <circle cx="100" cy="100" r="90"/>
     <!-- 4 inner circles: each passes through center (100,100),
