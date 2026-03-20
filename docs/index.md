@@ -1,4 +1,4 @@
-<!-- # SSSN -->
+# Welcome to SSSN
 
 <!-- Logo -->
 <p align="center">
