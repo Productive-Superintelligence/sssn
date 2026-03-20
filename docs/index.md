@@ -1,6 +1,5 @@
 # Welcome to SSSN
 
-<!-- Logo -->
 <p align="center">
   <img src="assets/SSSN-logo-txt-dark.png#only-light" alt="SSSN Logo" width="600"/>
   <img src="assets/SSSN-logo-txt-white.png#only-dark" alt="SSSN Logo" width="600"/>
