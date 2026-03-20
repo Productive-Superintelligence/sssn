@@ -10,12 +10,20 @@
   <h1>Simple System of Systems Network (SSSN) </h1>
   <h4>A minimal Python framework for building composable, distributed AI agent networks.</h4>
 </div>
-
-[![PyPI version](https://img.shields.io/pypi/v/sssn.svg)](https://pypi.org/project/sssn/)
-[![Python](https://img.shields.io/pypi/pyversions/sssn.svg)](https://pypi.org/project/sssn/)
-[![License](https://img.shields.io/github/license/Productive-Superintelligence/sssn.svg)](LICENSE)
-[![Docs](https://img.shields.io/badge/docs-sssn.one-indigo)](https://sssn.one)
-
+<p align="center">
+  <a href="https://sssn.one">
+    <img alt="Docs" src="https://img.shields.io/badge/API-docs-red">
+  </a>
+  <a href="https://github.com/Productive-Superintelligence/sssn/tree/main/examples">
+    <img alt="Examples" src="https://img.shields.io/badge/API-examples-994B00">
+  </a>
+  <a href="https://pypi.org/project/sssn/">
+    <img alt="Pypi" src="https://img.shields.io/pypi/v/sssn.svg">
+  </a>
+  <a href="https://github.com/Productive-Superintelligence/sssn/blob/main/LICENSE">
+    <img alt="GitHub License" src="https://img.shields.io/github/license/Productive-Superintelligence/sssn">
+  </a>
+</p>
 
 
 Two abstractions. One graph.
