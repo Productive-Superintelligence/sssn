@@ -3,7 +3,7 @@
 
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/Productive-Superintelligence/sssn/main/docs/assets/SSSN_logo_txt.png" alt="SSSN Logo" width="600"/>
+  <img src="https://raw.githubusercontent.com/Productive-Superintelligence/sssn/main/docs/assets/SSSN-logo-txt-dark.png" alt="SSSN Logo" width="600"/>
   <br>
   <h1>Simple System of Systems Network (SSSN) </h1>
   <h4>A minimal Python framework for building composable, distributed AI agent networks.</h4>
