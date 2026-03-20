@@ -9,7 +9,7 @@ edit_uri: edit/main/docs/
 theme:
   name: material
   logo: assets/logo-dark.svg
-  favicon: assets/logo-dark.svg
+  favicon: assets/logo-white.svg
   # 1. Typography: Switching to modern fonts instantly elevates the look
   font:
     text: Inter 
