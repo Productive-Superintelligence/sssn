@@ -5,7 +5,8 @@
   <img src="assets/SSSN-logo-txt-white.png#only-dark" alt="SSSN Logo" width="600"/>
 </p>
 
-**Simple System of Systems Network** — a minimal Python framework for building composable, distributed AI agents.
+**Simple System of Systems Network** — a minimal Python framework and protocols for distributed and continuous AI agent networks.
+
 
 ---
 
