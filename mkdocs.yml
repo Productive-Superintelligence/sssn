@@ -84,6 +84,7 @@ nav:
     - Channel Types: concepts/channel-types.md
     - System: concepts/system.md
     - Security: concepts/security.md
+    - Guarantees & Non-Goals: concepts/guarantees.md
     - Transport & Client: concepts/transport.md
   - Tutorials:
     - tutorials/index.md

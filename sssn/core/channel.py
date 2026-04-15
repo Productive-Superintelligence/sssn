@@ -8,7 +8,7 @@ import uuid
 from enum import Enum
 from typing import Any, Callable
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, SerializeAsAny
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +55,7 @@ class ChannelMessage(BaseModel):
     id: str
     timestamp: float                                       # Unix epoch seconds
     sender_id: str                                         # Who wrote this
-    content: MessageContent                                # Always serialisable
+    content: SerializeAsAny[MessageContent]                # Preserve concrete content type on serialisation
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     # Optional fields that enable common patterns

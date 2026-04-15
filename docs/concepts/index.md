@@ -26,4 +26,5 @@ The graph formed by wiring Systems and Channels together is a **holonic network*
 - [Channel Types](channel-types.md) — the six built-in channel variants and when to use each
 - [System](system.md) — `setup`, `step`, `run`, `launch`, `publish`, subsystem topology
 - [Security](security.md) — `OpenSecurity`, `ACLSecurity`, `JWTChannelSecurity`
+- [Guarantees & Non-Goals](guarantees.md) — the semantics SSSN commits to today, and the ones it deliberately leaves to higher layers
 - [Transport & Client](transport.md) — in-process and HTTP transport, `ChannelClient`

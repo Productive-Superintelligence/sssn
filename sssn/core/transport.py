@@ -7,6 +7,13 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from sssn.core.channel import BaseChannel, ChannelMessage
 
+try:
+    from fastapi import APIRouter, HTTPException, Request
+except ImportError:
+    APIRouter = None
+    HTTPException = None
+    Request = None
+
 logger = logging.getLogger(__name__)
 
 
@@ -106,14 +113,11 @@ class HttpTransport(ChannelTransport):
     # ------------------------------------------------------------------
 
     def _register_routes(self, channel: BaseChannel) -> None:
-        try:
-            from fastapi import APIRouter, HTTPException, Request  # noqa: PLC0415
-            from fastapi.responses import JSONResponse  # noqa: PLC0415
-        except ImportError as exc:
+        if APIRouter is None or HTTPException is None or Request is None:
             raise ImportError(
                 "fastapi is required for HttpTransport. "
                 "Install it with: pip install fastapi"
-            ) from exc
+            )
 
         router = APIRouter()
         ch_id = channel.id
