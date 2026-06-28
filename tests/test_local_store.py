@@ -25,6 +25,36 @@ def test_store_initializes_deterministic_layout(tmp_path):
     assert store.artifacts_dir.is_dir()
 
 
+def test_store_reopens_persisted_resources(tmp_path):
+    root = tmp_path / "store"
+    store = LocalStore(root)
+    channel = store.create_channel({"name": "events", "schema": "demo.schemas:Event"})
+    event = store.append_event({"channel": "events", "payload": {"status": "ok"}})
+    subscription = store.create_subscription(
+        "events",
+        subscription_id="worker",
+        consumer="analyzer",
+    )
+    artifact = store.write_artifact(
+        b"payload",
+        channel="events",
+        media_type="text/plain",
+        event_ids=(event.id,),
+    )
+    snapshot = store.put_snapshot(
+        {"name": "latest", "channel": "events", "value": {"status": "ok"}}
+    )
+
+    reopened = LocalStore(root)
+
+    assert reopened.list_channels() == (channel,)
+    assert reopened.get_event(event.id) == event
+    assert reopened.get_subscription(subscription.id) == subscription
+    assert reopened.get_artifact(artifact.id) == artifact
+    assert reopened.read_artifact(artifact.id) == b"payload"
+    assert reopened.get_snapshot(snapshot.name) == snapshot
+
+
 def test_channel_create_list_get_and_errors(tmp_path):
     store = LocalStore(tmp_path / "store")
     channel = store.create_channel(
