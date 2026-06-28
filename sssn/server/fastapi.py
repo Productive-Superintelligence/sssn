@@ -21,6 +21,7 @@ from ..core import (
     SSSNError,
     Snapshot,
     SnapshotNotFoundError,
+    SubscriptionExistsError,
     SubscriptionNotFoundError,
 )
 from ..stores import LocalStore
@@ -310,7 +311,7 @@ def _http_error(exc: Exception):
         ),
     ):
         status_code = 404
-    elif isinstance(exc, ChannelExistsError):
+    elif isinstance(exc, (ChannelExistsError, SubscriptionExistsError)):
         status_code = 409
     elif isinstance(exc, SSSNError):
         status_code = 400

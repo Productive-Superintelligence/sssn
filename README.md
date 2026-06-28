@@ -130,7 +130,8 @@ event = await client.append_event({"channel": channel.name, "payload": {"ok": Tr
 `SSSNClient` provides the same shape for synchronous code.
 Subscription creation accepts an optional `subscription_id`; if that id already
 exists, the existing subscription is returned so processors can keep a stable
-cursor across restarts.
+cursor across restarts. Reusing an id for a different channel returns a stable
+conflict error.
 When `write_artifact()` receives `bytes`, HTTP clients send base64 so binary
 payloads round-trip through the portable API. Artifact writes also accept
 `metadata` and `event_ids` so larger payloads can stay linked to the events

@@ -7,6 +7,7 @@ from .errors import (
     InvalidPayloadError,
     SSSNError,
     SnapshotNotFoundError,
+    SubscriptionExistsError,
     SubscriptionNotFoundError,
 )
 from .models import Artifact, Channel, ChannelForm, Event, Snapshot, Subscription
@@ -24,5 +25,6 @@ __all__ = [
     "Snapshot",
     "SnapshotNotFoundError",
     "Subscription",
+    "SubscriptionExistsError",
     "SubscriptionNotFoundError",
 ]

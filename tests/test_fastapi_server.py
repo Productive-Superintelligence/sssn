@@ -38,6 +38,13 @@ def test_fastapi_channel_event_subscription_flow(tmp_path):
     )
     queried = request(app, "GET", "/events", params={"channel": "events"})
     sub = request(app, "POST", "/subscriptions", json={"channel": "events"})
+    request(app, "POST", "/channels", json={"name": "other-events"})
+    conflicting_sub = request(
+        app,
+        "POST",
+        "/subscriptions",
+        json={"id": sub.json()["id"], "channel": "other-events"},
+    )
     pulled = request(
         app,
         "POST",
@@ -58,6 +65,8 @@ def test_fastapi_channel_event_subscription_flow(tmp_path):
     assert listed.json()[0]["name"] == "events"
     assert event.json()["payload"] == {"n": 1}
     assert queried.json()[0]["id"] == event.json()["id"]
+    assert conflicting_sub.status_code == 409
+    assert conflicting_sub.json()["detail"]["error"]["type"] == "SubscriptionExistsError"
     assert [item["id"] for item in pulled.json()] == [event.json()["id"]]
     assert loaded_sub.json()["cursor"] == event.json()["cursor"]
     assert pulled_again.json() == []

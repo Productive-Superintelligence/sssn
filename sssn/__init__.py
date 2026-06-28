@@ -13,6 +13,7 @@ from .core import (
     Snapshot,
     SnapshotNotFoundError,
     Subscription,
+    SubscriptionExistsError,
     SubscriptionNotFoundError,
 )
 from .stores import LocalStore
@@ -41,6 +42,7 @@ __all__ = [
     "Snapshot",
     "SnapshotNotFoundError",
     "Subscription",
+    "SubscriptionExistsError",
     "SubscriptionNotFoundError",
     "__version__",
     "channel_resource",

@@ -10,6 +10,7 @@ from sssn import (
     LocalStore,
     Snapshot,
     SnapshotNotFoundError,
+    SubscriptionExistsError,
     SubscriptionNotFoundError,
 )
 
@@ -106,6 +107,9 @@ def test_subscription_pull_advances_cursor(tmp_path):
     reused = store.create_subscription("events", subscription_id="worker-events")
     assert reused.id == sub.id
     assert reused.cursor == first.cursor
+    store.create_channel({"name": "other-events"})
+    with pytest.raises(SubscriptionExistsError):
+        store.create_subscription("other-events", subscription_id="worker-events")
     assert [event.id for event in store.pull_subscription(sub.id)] == [second.id]
     assert store.get_subscription(sub.id).cursor == second.cursor
     assert store.pull_subscription(sub.id) == ()

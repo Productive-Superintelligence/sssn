@@ -29,3 +29,7 @@ class SnapshotNotFoundError(SSSNError):
 
 class SubscriptionNotFoundError(SSSNError):
     """Raised when a subscription does not exist."""
+
+
+class SubscriptionExistsError(SSSNError):
+    """Raised when creating a conflicting duplicate subscription."""

@@ -21,6 +21,7 @@ from ..core import (
     Snapshot,
     SnapshotNotFoundError,
     Subscription,
+    SubscriptionExistsError,
     SubscriptionNotFoundError,
 )
 
@@ -144,9 +145,16 @@ class LocalStore:
         self.get_channel(channel)
         if subscription_id is not None:
             try:
-                return self.get_subscription(subscription_id)
+                existing = self.get_subscription(subscription_id)
             except SubscriptionNotFoundError:
                 pass
+            else:
+                if existing.channel != channel:
+                    raise SubscriptionExistsError(
+                        "Subscription already exists for a different channel: "
+                        f"{subscription_id}"
+                    )
+                return existing
         payload: dict[str, Any] = {
             "channel": channel,
             "consumer": consumer,

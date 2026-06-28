@@ -385,3 +385,26 @@ def test_async_client_maps_server_errors(tmp_path):
     assert exc_info.value.status_code == 404
     assert exc_info.value.error_type == "ChannelNotFoundError"
     assert exc_info.value.message == "Channel not found: missing"
+
+
+def test_async_client_maps_subscription_conflicts(tmp_path):
+    app = create_app(LocalStore(tmp_path / "store"))
+
+    async def run():
+        client = AsyncSSSNClient(
+            "http://testserver",
+            transport=httpx.ASGITransport(app=app),
+        )
+        await client.create_channel({"name": "events"})
+        await client.create_channel({"name": "other-events"})
+        await client.create_subscription("events", subscription_id="worker-events")
+        await client.create_subscription(
+            "other-events",
+            subscription_id="worker-events",
+        )
+
+    with pytest.raises(SSSNClientError) as exc_info:
+        asyncio.run(run())
+
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.error_type == "SubscriptionExistsError"
