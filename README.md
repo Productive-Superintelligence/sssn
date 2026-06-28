@@ -149,6 +149,7 @@ event.
 ```bash
 sssn --store .sssn create-channel events
 sssn --store .sssn append events '{"text":"hello"}'
+sssn --store .sssn append events '{"text":"child"}' --schema demo.Event --metadata '{"role":"child"}' --correlation-id corr-1 --parent-id <event-id>
 sssn --store .sssn query-events events --limit 10
 sssn --store .sssn get-event <event-id>
 sssn --store .sssn create-subscription events --id worker --kind event

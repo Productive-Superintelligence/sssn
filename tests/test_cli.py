@@ -30,11 +30,26 @@ def test_cli_create_list_and_append(tmp_path, capsys):
                 '{"n": 2}',
                 "--kind",
                 "analysis",
+                "--source",
+                "cli-test",
+                "--schema",
+                "demo.schemas:Analysis",
+                "--metadata",
+                '{"role": "analysis"}',
+                "--correlation-id",
+                "corr-1",
+                "--parent-id",
+                event["id"],
             ]
         )
         == 0
     )
     analysis = json.loads(capsys.readouterr().out)
+    assert analysis["source"] == "cli-test"
+    assert analysis["schema"] == "demo.schemas:Analysis"
+    assert analysis["metadata"] == {"role": "analysis"}
+    assert analysis["correlation_id"] == "corr-1"
+    assert analysis["parent_ids"] == [event["id"]]
 
     assert main(["--store", str(store), "query-events", "events"]) == 0
     events = [json.loads(line) for line in capsys.readouterr().out.splitlines()]

@@ -43,6 +43,11 @@ def main(argv: list[str] | None = None) -> int:
     append.add_argument("payload")
     append.add_argument("--kind", default="event")
     append.add_argument("--source")
+    append.add_argument("--schema")
+    append.add_argument("--timestamp", type=float)
+    append.add_argument("--metadata", type=_json_object)
+    append.add_argument("--correlation-id")
+    append.add_argument("--parent-id", dest="parent_ids", action="append")
 
     query_events = subcommands.add_parser("query-events", help="Query channel events")
     query_events.add_argument("channel")
@@ -133,13 +138,20 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "append":
+        event_data = {
+            "channel": args.channel,
+            "kind": args.kind,
+            "source": args.source,
+            "payload": json.loads(args.payload),
+            "schema": args.schema,
+            "metadata": args.metadata or {},
+            "correlation_id": args.correlation_id,
+            "parent_ids": tuple(args.parent_ids or ()),
+        }
+        if args.timestamp is not None:
+            event_data["timestamp"] = args.timestamp
         event = store.append_event(
-            Event(
-                channel=args.channel,
-                kind=args.kind,
-                source=args.source,
-                payload=json.loads(args.payload),
-            )
+            Event(**event_data)
         )
         print(event.model_dump_json(by_alias=True))
         return 0
