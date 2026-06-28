@@ -1,4 +1,5 @@
 import importlib.util
+import re
 from pathlib import Path
 
 import pytest
@@ -15,6 +16,21 @@ def load_module(path: Path, name: str):
     assert spec.loader is not None
     spec.loader.exec_module(module)
     return module
+
+
+def test_documented_example_paths_exist():
+    pattern = re.compile(r"`(examples/[^`]+)`")
+    text_paths = [ROOT / "README.md"]
+    text_paths.extend((ROOT / "docs").rglob("*.md"))
+
+    missing = []
+    for path in sorted(text_paths):
+        for match in pattern.finditer(path.read_text(encoding="utf-8")):
+            example_path = ROOT / match.group(1)
+            if not example_path.exists():
+                missing.append(f"{path.relative_to(ROOT)} -> {match.group(1)}")
+
+    assert missing == []
 
 
 def test_channel_processor_example_reads_and_writes_channels(tmp_path):
