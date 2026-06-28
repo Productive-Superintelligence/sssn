@@ -171,6 +171,8 @@ def test_public_text_does_not_use_staging_name():
 
     for path in text_paths:
         text = path.read_text(encoding="utf-8")
+        assert "LLLM v2" not in text, path
+        assert "lllmv2" not in text, path
         assert "SSSN v2" not in text, path
         assert "sssnv2" not in text, path
 

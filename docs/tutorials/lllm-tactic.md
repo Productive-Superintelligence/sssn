@@ -10,7 +10,7 @@ The same flow is available as an executable example at
 
 ```bash
 python -m pip install -e ".[dev]"
-python -m pip install -e ../lllmv2
+python -m pip install lllm
 ```
 
 ## Files Used
