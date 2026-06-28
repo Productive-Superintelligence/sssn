@@ -16,12 +16,14 @@ from .core import (
 )
 from .stores import LocalStore
 from .server import create_app
+from .client import AsyncSSSNClient, SSSNClient, SSSNClientError
 
 __version__ = "0.1.0"
 
 __all__ = [
     "Artifact",
     "ArtifactNotFoundError",
+    "AsyncSSSNClient",
     "Channel",
     "ChannelExistsError",
     "ChannelForm",
@@ -29,6 +31,8 @@ __all__ = [
     "Event",
     "LocalStore",
     "SSSNError",
+    "SSSNClient",
+    "SSSNClientError",
     "Snapshot",
     "SnapshotNotFoundError",
     "Subscription",

@@ -55,3 +55,15 @@ Portable HTTP endpoints include:
 - `POST /subscriptions`, `POST /subscriptions/{id}/pull`
 - `POST /artifacts`, `GET /artifacts/{id}`
 - `PUT /snapshots/{name}`, `GET /snapshots/{name}`
+
+## Call A Server
+
+```python
+from sssn import AsyncSSSNClient
+
+client = AsyncSSSNClient("http://127.0.0.1:7700")
+channel = await client.create_channel({"name": "events"})
+event = await client.append_event({"channel": channel.name, "payload": {"ok": True}})
+```
+
+`SSSNClient` provides the same shape for synchronous code.
