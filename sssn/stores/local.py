@@ -256,6 +256,7 @@ class LocalStore:
     ) -> Artifact:
         if channel is not None:
             self.get_channel(channel)
+        self._require_events(event_ids)
         sha = hashlib.sha256(data).hexdigest()
         artifact = Artifact(
             channel=channel,
@@ -317,6 +318,8 @@ class LocalStore:
         value = _model(Snapshot, snapshot, "snapshot")
         if value.channel is not None:
             self.get_channel(value.channel)
+        if value.source_event_id is not None:
+            self._require_events((value.source_event_id,))
         with self._connect() as db:
             db.execute(
                 """
@@ -369,6 +372,10 @@ class LocalStore:
         if row is None:
             return 0
         return int(row["rowid"])
+
+    def _require_events(self, event_ids: tuple[str, ...]) -> None:
+        for event_id in event_ids:
+            self.get_event(event_id)
 
     def _connect(self) -> sqlite3.Connection:
         db = sqlite3.connect(self.db_path)

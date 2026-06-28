@@ -128,6 +128,16 @@ def test_fastapi_artifact_and_snapshot_flow(tmp_path):
             "media_type": "text/plain",
         },
     )
+    dangling_artifact = request(
+        app,
+        "POST",
+        "/artifacts",
+        json={
+            "data": "hello",
+            "encoding": "text",
+            "event_ids": ["missing-event"],
+        },
+    )
     invalid_base64 = request(
         app,
         "POST",
@@ -153,10 +163,18 @@ def test_fastapi_artifact_and_snapshot_flow(tmp_path):
         "/snapshots/latest",
         json={"channel": "state", "value": {"status": "ok"}},
     )
+    dangling_snapshot = request(
+        app,
+        "PUT",
+        "/snapshots/dangling",
+        json={"value": {"status": "bad"}, "source_event_id": "missing-event"},
+    )
     loaded = request(app, "GET", "/snapshots/latest")
     missing_snapshot = request(app, "GET", "/snapshots/missing")
 
     assert artifact.status_code == 200
+    assert dangling_artifact.status_code == 404
+    assert dangling_artifact.json()["detail"]["error"]["type"] == "EventNotFoundError"
     assert invalid_base64.status_code == 400
     assert invalid_base64.json()["detail"]["error"]["type"] == "InvalidPayloadError"
     assert artifact_data.content == b"hello"
@@ -166,6 +184,8 @@ def test_fastapi_artifact_and_snapshot_flow(tmp_path):
     assert missing_artifact.status_code == 404
     assert missing_artifact_metadata.status_code == 404
     assert snapshot.json()["name"] == "latest"
+    assert dangling_snapshot.status_code == 404
+    assert dangling_snapshot.json()["detail"]["error"]["type"] == "EventNotFoundError"
     assert loaded.json()["value"] == {"status": "ok"}
     assert missing_snapshot.status_code == 404
 

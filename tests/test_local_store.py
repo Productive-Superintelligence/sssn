@@ -153,21 +153,28 @@ def test_subscription_validates_batch_size_and_pull_limit(tmp_path):
 def test_artifact_write_read_and_missing(tmp_path):
     store = LocalStore(tmp_path / "store")
     store.create_channel({"name": "artifacts", "form": "artifact-index"})
+    event = store.append_event(
+        {"channel": "artifacts", "payload": {"name": "greeting"}}
+    )
     artifact = store.write_artifact(
         b"hello",
         channel="artifacts",
         media_type="text/plain",
         metadata={"name": "greeting"},
+        event_ids=(event.id,),
     )
 
     assert artifact.size == 5
     assert artifact.sha256 is not None
+    assert artifact.event_ids == (event.id,)
     assert store.get_artifact(artifact.id) == artifact
     assert store.read_artifact(artifact.id) == b"hello"
     with pytest.raises(ArtifactNotFoundError):
         store.read_artifact("missing")
     with pytest.raises(ArtifactNotFoundError):
         store.get_artifact("missing")
+    with pytest.raises(EventNotFoundError):
+        store.write_artifact(b"bad-link", event_ids=("missing",))
 
 
 def test_snapshot_put_get_and_missing(tmp_path):
@@ -186,5 +193,9 @@ def test_snapshot_put_get_and_missing(tmp_path):
     assert store.get_snapshot("latest") == snapshot
     updated = store.put_snapshot({"name": "latest", "value": {"status": "new"}})
     assert store.get_snapshot("latest").value == updated.value
+    with pytest.raises(EventNotFoundError):
+        store.put_snapshot(
+            {"name": "dangling", "value": {"status": "bad"}, "source_event_id": "missing"}
+        )
     with pytest.raises(SnapshotNotFoundError):
         store.get_snapshot("missing")
