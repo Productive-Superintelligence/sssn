@@ -68,6 +68,15 @@ event = await client.append_event({"channel": channel.name, "payload": {"ok": Tr
 
 `SSSNClient` provides the same shape for synchronous code.
 
+## CLI
+
+```bash
+sssn --store .sssn create-channel events
+sssn --store .sssn append events '{"text":"hello"}'
+sssn --store .sssn channels
+sssn --store .sssn serve --host 127.0.0.1 --port 7700
+```
+
 ## Service-Style Processing
 
 `examples/channel_processor` shows the intended service shape: a process pulls

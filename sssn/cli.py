@@ -26,6 +26,11 @@ def main(argv: list[str] | None = None) -> int:
     append.add_argument("--kind", default="event")
     append.add_argument("--source")
 
+    serve = subcommands.add_parser("serve", help="Serve a local SSSN store")
+    serve.add_argument("--host", default="127.0.0.1")
+    serve.add_argument("--port", type=int, default=7700)
+    serve.add_argument("--log-level", default="info")
+
     args = parser.parse_args(argv)
     store = LocalStore(args.store)
 
@@ -51,6 +56,19 @@ def main(argv: list[str] | None = None) -> int:
             )
         )
         print(event.model_dump_json(by_alias=True))
+        return 0
+
+    if args.command == "serve":
+        import uvicorn
+
+        from .server import create_app
+
+        uvicorn.run(
+            create_app(store),
+            host=args.host,
+            port=args.port,
+            log_level=args.log_level,
+        )
         return 0
 
     parser.error(f"Unknown command: {args.command}")
