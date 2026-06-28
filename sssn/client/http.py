@@ -146,9 +146,30 @@ class SSSNClient:
     def read_artifact(self, artifact_id: str) -> bytes:
         return self._request("GET", f"/artifacts/{artifact_id}").content
 
-    def put_snapshot(self, name: str, value: dict[str, Any]) -> Snapshot:
+    def put_snapshot(
+        self,
+        name: str,
+        value: Any = None,
+        *,
+        channel: str | None = None,
+        timestamp: float | None = None,
+        schema: str | None = None,
+        source_event_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> Snapshot:
         return Snapshot.model_validate(
-            self._request("PUT", f"/snapshots/{name}", json=value).json()
+            self._request(
+                "PUT",
+                f"/snapshots/{name}",
+                json=_snapshot_payload(
+                    value,
+                    channel=channel,
+                    timestamp=timestamp,
+                    schema=schema,
+                    source_event_id=source_event_id,
+                    metadata=metadata,
+                ),
+            ).json()
         )
 
     def get_snapshot(self, name: str) -> Snapshot:
@@ -288,9 +309,32 @@ class AsyncSSSNClient:
     async def read_artifact(self, artifact_id: str) -> bytes:
         return (await self._request("GET", f"/artifacts/{artifact_id}")).content
 
-    async def put_snapshot(self, name: str, value: dict[str, Any]) -> Snapshot:
+    async def put_snapshot(
+        self,
+        name: str,
+        value: Any = None,
+        *,
+        channel: str | None = None,
+        timestamp: float | None = None,
+        schema: str | None = None,
+        source_event_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> Snapshot:
         return Snapshot.model_validate(
-            (await self._request("PUT", f"/snapshots/{name}", json=value)).json()
+            (
+                await self._request(
+                    "PUT",
+                    f"/snapshots/{name}",
+                    json=_snapshot_payload(
+                        value,
+                        channel=channel,
+                        timestamp=timestamp,
+                        schema=schema,
+                        source_event_id=source_event_id,
+                        metadata=metadata,
+                    ),
+                )
+            ).json()
         )
 
     async def get_snapshot(self, name: str) -> Snapshot:
@@ -330,6 +374,40 @@ def _artifact_payload(data: bytes | str) -> dict[str, str]:
             "encoding": "base64",
         }
     return {"data": data, "encoding": "text"}
+
+
+def _snapshot_payload(
+    value: Any,
+    *,
+    channel: str | None,
+    timestamp: float | None,
+    schema: str | None,
+    source_event_id: str | None,
+    metadata: dict[str, Any] | None,
+) -> dict[str, Any]:
+    raw_keys = {"channel", "timestamp", "value", "schema", "source_event_id", "metadata"}
+    if (
+        isinstance(value, dict)
+        and raw_keys.intersection(value)
+        and channel is None
+        and timestamp is None
+        and schema is None
+        and source_event_id is None
+        and metadata is None
+    ):
+        return value
+    payload: dict[str, Any] = {"value": value}
+    if channel is not None:
+        payload["channel"] = channel
+    if timestamp is not None:
+        payload["timestamp"] = timestamp
+    if schema is not None:
+        payload["schema"] = schema
+    if source_event_id is not None:
+        payload["source_event_id"] = source_event_id
+    if metadata is not None:
+        payload["metadata"] = metadata
+    return payload
 
 
 def _raise_for_error(response: Any) -> None:

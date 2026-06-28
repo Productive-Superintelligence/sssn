@@ -42,7 +42,13 @@ def test_async_client_calls_fastapi_server(tmp_path):
             channel="events",
         )
         binary_artifact_data = await client.read_artifact(binary_artifact.id)
-        snapshot = await client.put_snapshot("latest", {"channel": "events", "value": {"n": 1}})
+        snapshot = await client.put_snapshot(
+            "latest",
+            {"n": 1},
+            channel="events",
+            source_event_id=event.id,
+            metadata={"role": "latest"},
+        )
         loaded_snapshot = await client.get_snapshot("latest")
         channels = await client.list_channels()
         loaded_channel = await client.get_channel("events")
@@ -78,6 +84,9 @@ def test_async_client_calls_fastapi_server(tmp_path):
     assert result["artifact_data"] == b"hello"
     assert result["binary_artifact_data"] == b"\xff\x00binary"
     assert result["snapshot"].name == "latest"
+    assert result["snapshot"].value == {"n": 1}
+    assert result["snapshot"].source_event_id == result["event"].id
+    assert result["snapshot"].metadata == {"role": "latest"}
     assert result["loaded_snapshot"].value == {"n": 1}
     assert result["channels"][0].name == "events"
     assert result["loaded_channel"].name == "events"
@@ -135,6 +144,48 @@ def test_sync_client_sends_artifact_metadata_and_event_ids():
 
     assert artifact.metadata == {"role": "raw"}
     assert artifact.event_ids == ("event-1",)
+
+
+def test_sync_client_sends_snapshot_metadata_and_source_event():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "PUT"
+        assert request.url.path == "/snapshots/latest"
+        body = json.loads(request.content.decode("utf-8"))
+        assert body == {
+            "value": {"status": "ok"},
+            "channel": "events",
+            "schema": "demo.schemas:State",
+            "source_event_id": "event-1",
+            "metadata": {"role": "latest"},
+        }
+        return httpx.Response(
+            200,
+            json={
+                "name": "latest",
+                "channel": "events",
+                "timestamp": 1.0,
+                "value": {"status": "ok"},
+                "schema": "demo.schemas:State",
+                "source_event_id": "event-1",
+                "metadata": {"role": "latest"},
+            },
+        )
+
+    client = SSSNClient("http://testserver", transport=httpx.MockTransport(handler))
+
+    snapshot = client.put_snapshot(
+        "latest",
+        {"status": "ok"},
+        channel="events",
+        schema="demo.schemas:State",
+        source_event_id="event-1",
+        metadata={"role": "latest"},
+    )
+
+    assert snapshot.value == {"status": "ok"}
+    assert snapshot.schema == "demo.schemas:State"
+    assert snapshot.source_event_id == "event-1"
+    assert snapshot.metadata == {"role": "latest"}
 
 
 def test_async_client_maps_server_errors(tmp_path):
