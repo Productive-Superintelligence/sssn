@@ -26,6 +26,12 @@ def main(argv: list[str] | None = None) -> int:
     append.add_argument("--kind", default="event")
     append.add_argument("--source")
 
+    query_events = subcommands.add_parser("query-events", help="Query channel events")
+    query_events.add_argument("channel")
+    query_events.add_argument("--after-cursor", type=int, default=0)
+    query_events.add_argument("--limit", type=int, default=100)
+    query_events.add_argument("--kind")
+
     get_event = subcommands.add_parser("get-event", help="Read one event by id")
     get_event.add_argument("id")
 
@@ -59,6 +65,16 @@ def main(argv: list[str] | None = None) -> int:
             )
         )
         print(event.model_dump_json(by_alias=True))
+        return 0
+
+    if args.command == "query-events":
+        for event in store.query_events(
+            args.channel,
+            after_cursor=args.after_cursor,
+            limit=args.limit,
+            kind=args.kind,
+        ):
+            print(event.model_dump_json(by_alias=True))
         return 0
 
     if args.command == "get-event":

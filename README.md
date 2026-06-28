@@ -149,6 +149,7 @@ event.
 ```bash
 sssn --store .sssn create-channel events
 sssn --store .sssn append events '{"text":"hello"}'
+sssn --store .sssn query-events events --limit 10
 sssn --store .sssn get-event <event-id>
 sssn --store .sssn channels
 sssn --store .sssn serve --host 127.0.0.1 --port 7700
