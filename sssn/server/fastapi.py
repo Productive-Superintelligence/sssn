@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import binascii
 import inspect
 import re
 from collections.abc import Callable, Sequence
@@ -16,6 +17,7 @@ from ..core import (
     ChannelExistsError,
     ChannelNotFoundError,
     Event,
+    InvalidPayloadError,
     SSSNError,
     Snapshot,
     SnapshotNotFoundError,
@@ -52,7 +54,10 @@ class ArtifactWriteRequest(BaseModel):
 
     def bytes(self) -> bytes:
         if self.encoding == "base64":
-            return base64.b64decode(self.data.encode("ascii"))
+            try:
+                return base64.b64decode(self.data.encode("ascii"), validate=True)
+            except (binascii.Error, ValueError) as exc:
+                raise InvalidPayloadError("Invalid base64 artifact data.") from exc
         return self.data.encode("utf-8")
 
 

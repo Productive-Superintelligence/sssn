@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 from typing import Any
 
 from ..core import Artifact, Channel, Event, Snapshot, Subscription
@@ -111,14 +112,14 @@ class SSSNClient:
         channel: str | None = None,
         media_type: str = "application/octet-stream",
     ) -> Artifact:
-        text = data.decode("utf-8") if isinstance(data, bytes) else data
+        payload = _artifact_payload(data)
         return Artifact.model_validate(
             self._request(
                 "POST",
                 "/artifacts",
                 json={
-                    "data": text,
-                    "encoding": "text",
+                    "data": payload["data"],
+                    "encoding": payload["encoding"],
                     "channel": channel,
                     "media_type": media_type,
                 },
@@ -238,15 +239,15 @@ class AsyncSSSNClient:
         channel: str | None = None,
         media_type: str = "application/octet-stream",
     ) -> Artifact:
-        text = data.decode("utf-8") if isinstance(data, bytes) else data
+        payload = _artifact_payload(data)
         return Artifact.model_validate(
             (
                 await self._request(
                     "POST",
                     "/artifacts",
                     json={
-                        "data": text,
-                        "encoding": "text",
+                        "data": payload["data"],
+                        "encoding": payload["encoding"],
                         "channel": channel,
                         "media_type": media_type,
                     },
@@ -290,6 +291,15 @@ def _dump_event(event: Event | dict[str, Any]) -> dict[str, Any]:
     if isinstance(event, Event):
         return event.model_dump(mode="json", by_alias=True)
     return event
+
+
+def _artifact_payload(data: bytes | str) -> dict[str, str]:
+    if isinstance(data, bytes):
+        return {
+            "data": base64.b64encode(data).decode("ascii"),
+            "encoding": "base64",
+        }
+    return {"data": data, "encoding": "text"}
 
 
 def _raise_for_error(response: Any) -> None:

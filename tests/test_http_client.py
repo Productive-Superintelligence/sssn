@@ -22,6 +22,11 @@ def test_async_client_calls_fastapi_server(tmp_path):
         pulled = await client.pull_subscription(sub.id)
         artifact = await client.write_artifact("hello", channel="events")
         artifact_data = await client.read_artifact(artifact.id)
+        binary_artifact = await client.write_artifact(
+            b"\xff\x00binary",
+            channel="events",
+        )
+        binary_artifact_data = await client.read_artifact(binary_artifact.id)
         snapshot = await client.put_snapshot("latest", {"channel": "events", "value": {"n": 1}})
         loaded_snapshot = await client.get_snapshot("latest")
         channels = await client.list_channels()
@@ -32,6 +37,7 @@ def test_async_client_calls_fastapi_server(tmp_path):
             "events": events,
             "pulled": pulled,
             "artifact_data": artifact_data,
+            "binary_artifact_data": binary_artifact_data,
             "snapshot": snapshot,
             "loaded_snapshot": loaded_snapshot,
             "channels": channels,
@@ -45,6 +51,7 @@ def test_async_client_calls_fastapi_server(tmp_path):
     assert result["events"][0].id == result["event"].id
     assert result["pulled"][0].id == result["event"].id
     assert result["artifact_data"] == b"hello"
+    assert result["binary_artifact_data"] == b"\xff\x00binary"
     assert result["snapshot"].name == "latest"
     assert result["loaded_snapshot"].value == {"n": 1}
     assert result["channels"][0].name == "events"

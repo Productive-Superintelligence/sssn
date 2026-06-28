@@ -112,6 +112,16 @@ def test_fastapi_artifact_and_snapshot_flow(tmp_path):
             "media_type": "text/plain",
         },
     )
+    invalid_base64 = request(
+        app,
+        "POST",
+        "/artifacts",
+        json={
+            "data": "not base64!",
+            "encoding": "base64",
+            "channel": "state",
+        },
+    )
     artifact_data = request(app, "GET", f"/artifacts/{artifact.json()['id']}")
     missing_artifact = request(app, "GET", "/artifacts/missing")
 
@@ -125,6 +135,8 @@ def test_fastapi_artifact_and_snapshot_flow(tmp_path):
     missing_snapshot = request(app, "GET", "/snapshots/missing")
 
     assert artifact.status_code == 200
+    assert invalid_base64.status_code == 400
+    assert invalid_base64.json()["detail"]["error"]["type"] == "InvalidPayloadError"
     assert artifact_data.content == b"hello"
     assert artifact_data.headers["content-type"] == "application/octet-stream"
     assert missing_artifact.status_code == 404

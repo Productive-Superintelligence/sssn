@@ -123,6 +123,8 @@ event = await client.append_event({"channel": channel.name, "payload": {"ok": Tr
 ```
 
 `SSSNClient` provides the same shape for synchronous code.
+When `write_artifact()` receives `bytes`, HTTP clients send base64 so binary
+payloads round-trip through the portable API.
 
 ## CLI
 
