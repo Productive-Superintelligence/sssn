@@ -60,6 +60,60 @@ class endpoint:
             tags=tags,
         )
 
+    @staticmethod
+    def put(
+        path: str,
+        *,
+        name: str | None = None,
+        scope: EndpointScope = "store",
+        description: str = "",
+        tags: Sequence[str] = (),
+    ) -> Callable[[F], F]:
+        return _attach(
+            "PUT",
+            path,
+            name=name,
+            scope=scope,
+            description=description,
+            tags=tags,
+        )
+
+    @staticmethod
+    def patch(
+        path: str,
+        *,
+        name: str | None = None,
+        scope: EndpointScope = "store",
+        description: str = "",
+        tags: Sequence[str] = (),
+    ) -> Callable[[F], F]:
+        return _attach(
+            "PATCH",
+            path,
+            name=name,
+            scope=scope,
+            description=description,
+            tags=tags,
+        )
+
+    @staticmethod
+    def delete(
+        path: str,
+        *,
+        name: str | None = None,
+        scope: EndpointScope = "store",
+        description: str = "",
+        tags: Sequence[str] = (),
+    ) -> Callable[[F], F]:
+        return _attach(
+            "DELETE",
+            path,
+            name=name,
+            scope=scope,
+            description=description,
+            tags=tags,
+        )
+
 
 def endpoint_spec(fn: Callable[..., Any]) -> StoreEndpointSpec | None:
     spec = getattr(fn, "__sssn_endpoint__", None)

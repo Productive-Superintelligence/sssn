@@ -208,15 +208,49 @@ def test_fastapi_mounts_custom_channel_endpoint(tmp_path):
     def count_events(store: LocalStore, name: str):
         return {"count": len(store.query_events(name))}
 
+    @endpoint.put("/channels/{name}/state")
+    def put_state(store: LocalStore, name: str, body=None):
+        return {"name": name, "body": body}
+
+    @endpoint.patch("/channels/{name}/state")
+    def patch_state(store: LocalStore, name: str, body=None):
+        return {"name": name, "patch": body}
+
+    @endpoint.delete("/channels/{name}/state")
+    def delete_state(store: LocalStore, name: str):
+        return {"name": name, "deleted": True}
+
     store = LocalStore(tmp_path / "store")
     store.create_channel({"name": "events"})
     store.append_event({"channel": "events", "payload": {"n": 1}})
-    app = create_app(store, custom_endpoints=[count_events])
+    app = create_app(
+        store,
+        custom_endpoints=[count_events, put_state, patch_state, delete_state],
+    )
 
     response = request(app, "GET", "/channels/events/count")
+    put_response = request(
+        app,
+        "PUT",
+        "/channels/events/state",
+        json={"mode": "replace"},
+    )
+    patch_response = request(
+        app,
+        "PATCH",
+        "/channels/events/state",
+        json={"mode": "merge"},
+    )
+    delete_response = request(app, "DELETE", "/channels/events/state")
 
     assert response.status_code == 200
     assert response.json() == {"count": 1}
+    assert put_response.status_code == 200
+    assert put_response.json() == {"name": "events", "body": {"mode": "replace"}}
+    assert patch_response.status_code == 200
+    assert patch_response.json() == {"name": "events", "patch": {"mode": "merge"}}
+    assert delete_response.status_code == 200
+    assert delete_response.json() == {"name": "events", "deleted": True}
 
 
 def test_fastapi_openapi_includes_portable_and_custom_routes(tmp_path):
@@ -224,7 +258,14 @@ def test_fastapi_openapi_includes_portable_and_custom_routes(tmp_path):
     def count_events(store: LocalStore, name: str):
         return {"count": len(store.query_events(name))}
 
-    app = create_app(LocalStore(tmp_path / "store"), custom_endpoints=[count_events])
+    @endpoint.put("/channels/{name}/state")
+    def put_state(store: LocalStore, name: str, body=None):
+        return {"name": name, "body": body}
+
+    app = create_app(
+        LocalStore(tmp_path / "store"),
+        custom_endpoints=[count_events, put_state],
+    )
     schema = app.openapi()
 
     for path in (
@@ -241,6 +282,8 @@ def test_fastapi_openapi_includes_portable_and_custom_routes(tmp_path):
         "/events/{event_id}",
         "/snapshots/{name}",
         "/channels/{name}/count",
+        "/channels/{name}/state",
     ):
         assert path in schema["paths"]
+    assert "put" in schema["paths"]["/channels/{name}/state"]
     assert schema["paths"]["/channels/{name}/count"]["get"]["summary"] == "Count Events"

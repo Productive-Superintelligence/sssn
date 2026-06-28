@@ -70,9 +70,10 @@ latest = snapshot_resource(
 ```
 
 Custom SSSN endpoint decorators can be included so generated package cards show
-domain routes alongside the portable channel API. Use `scope="channel"` on
-channel-specific routes and `scope="snapshot"` on latest-state routes so
-package cards can group them correctly.
+domain routes alongside the portable channel API. Use `@endpoint.get`,
+`@endpoint.post`, `@endpoint.put`, `@endpoint.patch`, or `@endpoint.delete`
+with `scope="channel"` on channel-specific routes and `scope="snapshot"` on
+latest-state routes so package cards can group them correctly.
 
 `examples/psihub_manifest` shows how to turn channel resources into a
 PsiHub-style manifest section:

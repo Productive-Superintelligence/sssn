@@ -38,6 +38,57 @@ def test_channel_resource_exports_metadata_and_custom_endpoints():
     }
 
 
+def test_channel_resource_exports_full_custom_endpoint_methods():
+    @endpoint.put("/channels/events/state", scope="channel", tags=("events",))
+    def put_state(store, body=None):
+        return body
+
+    @endpoint.patch(
+        "/channels/events/state",
+        scope="channel",
+        description="Patch channel state.",
+        tags=("events",),
+    )
+    def patch_state(store, body=None):
+        return body
+
+    @endpoint.delete("/channels/events/state", scope="channel", tags=("events",))
+    def delete_state(store):
+        return {"deleted": True}
+
+    resource = channel_resource(
+        Channel(name="events"),
+        custom_endpoints=[put_state, patch_state, delete_state],
+    )
+
+    assert resource["endpoints"] == [
+        {
+            "name": "put_state",
+            "method": "PUT",
+            "path": "/channels/events/state",
+            "scope": "channel",
+            "description": "",
+            "tags": ["events"],
+        },
+        {
+            "name": "patch_state",
+            "method": "PATCH",
+            "path": "/channels/events/state",
+            "scope": "channel",
+            "description": "Patch channel state.",
+            "tags": ["events"],
+        },
+        {
+            "name": "delete_state",
+            "method": "DELETE",
+            "path": "/channels/events/state",
+            "scope": "channel",
+            "description": "",
+            "tags": ["events"],
+        },
+    ]
+
+
 def test_snapshot_resource_exports_metadata_and_custom_endpoints():
     @endpoint.get(
         "/snapshots/latest",
