@@ -124,6 +124,8 @@ class SSSNClient:
         *,
         channel: str | None = None,
         media_type: str = "application/octet-stream",
+        metadata: dict[str, Any] | None = None,
+        event_ids: tuple[str, ...] = (),
     ) -> Artifact:
         payload = _artifact_payload(data)
         return Artifact.model_validate(
@@ -135,6 +137,8 @@ class SSSNClient:
                     "encoding": payload["encoding"],
                     "channel": channel,
                     "media_type": media_type,
+                    "metadata": metadata or {},
+                    "event_ids": list(event_ids),
                 },
             ).json()
         )
@@ -260,6 +264,8 @@ class AsyncSSSNClient:
         *,
         channel: str | None = None,
         media_type: str = "application/octet-stream",
+        metadata: dict[str, Any] | None = None,
+        event_ids: tuple[str, ...] = (),
     ) -> Artifact:
         payload = _artifact_payload(data)
         return Artifact.model_validate(
@@ -272,6 +278,8 @@ class AsyncSSSNClient:
                         "encoding": payload["encoding"],
                         "channel": channel,
                         "media_type": media_type,
+                        "metadata": metadata or {},
+                        "event_ids": list(event_ids),
                     },
                 )
             ).json()

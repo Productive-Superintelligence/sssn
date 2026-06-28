@@ -1,4 +1,5 @@
 import asyncio
+import json
 
 import httpx
 import pytest
@@ -29,7 +30,12 @@ def test_async_client_calls_fastapi_server(tmp_path):
             filters={"kind": "analysis"},
         )
         filtered = await client.pull_subscription(filtered_sub.id)
-        artifact = await client.write_artifact("hello", channel="events")
+        artifact = await client.write_artifact(
+            "hello",
+            channel="events",
+            metadata={"role": "raw"},
+            event_ids=(event.id,),
+        )
         artifact_data = await client.read_artifact(artifact.id)
         binary_artifact = await client.write_artifact(
             b"\xff\x00binary",
@@ -48,6 +54,7 @@ def test_async_client_calls_fastapi_server(tmp_path):
             "pulled": pulled,
             "loaded_sub": loaded_sub,
             "filtered": filtered,
+            "artifact": artifact,
             "artifact_data": artifact_data,
             "binary_artifact_data": binary_artifact_data,
             "snapshot": snapshot,
@@ -66,6 +73,8 @@ def test_async_client_calls_fastapi_server(tmp_path):
     assert result["pulled"][0].id == result["event"].id
     assert result["loaded_sub"].cursor == result["pulled"][-1].cursor
     assert [event.id for event in result["filtered"]] == [result["analysis"].id]
+    assert result["artifact"].metadata == {"role": "raw"}
+    assert result["artifact"].event_ids == (result["event"].id,)
     assert result["artifact_data"] == b"hello"
     assert result["binary_artifact_data"] == b"\xff\x00binary"
     assert result["snapshot"].name == "latest"
@@ -86,6 +95,46 @@ def test_sync_client_uses_portable_api_shape():
     client = SSSNClient("http://testserver", transport=httpx.MockTransport(handler))
 
     assert client.create_channel({"name": "events"}).name == "events"
+
+
+def test_sync_client_sends_artifact_metadata_and_event_ids():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == "/artifacts"
+        body = json.loads(request.content.decode("utf-8"))
+        assert body == {
+            "data": "hello",
+            "encoding": "text",
+            "channel": "events",
+            "media_type": "text/plain",
+            "metadata": {"role": "raw"},
+            "event_ids": ["event-1"],
+        }
+        return httpx.Response(
+            200,
+            json={
+                "id": "artifact-1",
+                "channel": "events",
+                "path": "artifacts/artifact-1",
+                "media_type": "text/plain",
+                "size": 5,
+                "metadata": {"role": "raw"},
+                "event_ids": ["event-1"],
+            },
+        )
+
+    client = SSSNClient("http://testserver", transport=httpx.MockTransport(handler))
+
+    artifact = client.write_artifact(
+        "hello",
+        channel="events",
+        media_type="text/plain",
+        metadata={"role": "raw"},
+        event_ids=("event-1",),
+    )
+
+    assert artifact.metadata == {"role": "raw"}
+    assert artifact.event_ids == ("event-1",)
 
 
 def test_async_client_maps_server_errors(tmp_path):
