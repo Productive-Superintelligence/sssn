@@ -78,6 +78,10 @@ def test_event_append_and_query_with_metadata(tmp_path):
     assert parent.metadata == {"a": "b"}
     with pytest.raises(ChannelNotFoundError):
         store.append_event({"channel": "missing", "payload": {}})
+    with pytest.raises(EventNotFoundError):
+        store.append_event(
+            {"channel": "events", "payload": {}, "parent_ids": ["missing"]}
+        )
     with pytest.raises(InvalidPayloadError, match="Invalid event"):
         store.append_event({"payload": {}})
     with pytest.raises(EventNotFoundError):

@@ -81,6 +81,7 @@ class LocalStore:
     def append_event(self, event: Event | dict[str, Any]) -> Event:
         value = _model(Event, event, "event")
         self.get_channel(value.channel)
+        self._require_events(value.parent_ids)
         with self._connect() as db:
             db.execute(
                 """

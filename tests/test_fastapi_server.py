@@ -36,6 +36,17 @@ def test_fastapi_channel_event_subscription_flow(tmp_path):
         "/events",
         json={"channel": "events", "kind": "raw", "payload": {"n": 1}},
     )
+    dangling_child = request(
+        app,
+        "POST",
+        "/events",
+        json={
+            "channel": "events",
+            "kind": "analysis",
+            "payload": {"n": 2},
+            "parent_ids": ["missing-event"],
+        },
+    )
     queried = request(app, "GET", "/events", params={"channel": "events"})
     loaded_event = request(app, "GET", f"/events/{event.json()['id']}")
     missing_event = request(app, "GET", "/events/missing")
@@ -66,6 +77,8 @@ def test_fastapi_channel_event_subscription_flow(tmp_path):
     assert duplicate.json()["detail"]["error"]["type"] == "ChannelExistsError"
     assert listed.json()[0]["name"] == "events"
     assert event.json()["payload"] == {"n": 1}
+    assert dangling_child.status_code == 404
+    assert dangling_child.json()["detail"]["error"]["type"] == "EventNotFoundError"
     assert queried.json()[0]["id"] == event.json()["id"]
     assert loaded_event.json()["id"] == event.json()["id"]
     assert missing_event.status_code == 404

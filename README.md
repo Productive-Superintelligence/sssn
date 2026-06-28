@@ -46,6 +46,7 @@ invalid request values. `after_cursor` starts at `0`, cursors must be
 non-negative integers, and subscription/query limits must be greater than `0`.
 Returned events include `cursor` when the backing store can provide one; pass
 that value back as `after_cursor` to continue a query.
+Local stores reject event `parent_ids` that do not point at existing events.
 Subscription filters currently support `{"kind": "..."}` for event-kind
 specific consumer loops. HTTP clients can call `get_subscription()` to inspect
 persisted cursor state.
