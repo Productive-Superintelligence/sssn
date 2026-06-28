@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import base64
+import inspect
+import re
+from collections.abc import Callable, Sequence
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
@@ -19,6 +22,7 @@ from ..core import (
     SubscriptionNotFoundError,
 )
 from ..stores import LocalStore
+from .endpoints import StoreEndpointSpec, endpoint_spec
 
 
 class ErrorDetail(BaseModel):
@@ -61,7 +65,11 @@ class SnapshotWriteRequest(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
-def create_app(store: LocalStore | None = None):
+def create_app(
+    store: LocalStore | None = None,
+    *,
+    custom_endpoints: Sequence[Callable[..., Any]] = (),
+):
     """Create a FastAPI app exposing a store's portable API."""
 
     try:
@@ -189,7 +197,79 @@ def create_app(store: LocalStore | None = None):
         except Exception as exc:
             raise _http_error(exc) from exc
 
+    for fn in custom_endpoints:
+        spec = endpoint_spec(fn)
+        if spec is not None:
+            _mount_custom_endpoint(app, local_store, spec, fn)
+
     return app
+
+
+def _mount_custom_endpoint(
+    app: Any,
+    store: LocalStore,
+    spec: StoreEndpointSpec,
+    fn: Callable[..., Any],
+) -> None:
+    from fastapi import Request
+    from fastapi.encoders import jsonable_encoder
+
+    async def route(request: Request):
+        try:
+            body = None
+            if request.method not in {"GET", "DELETE"}:
+                try:
+                    body = await request.json()
+                except Exception:
+                    body = None
+            result = fn(**_custom_kwargs(fn, store=store, body=body, path=request.path_params))
+            if inspect.isawaitable(result):
+                result = await result
+            return jsonable_encoder(result)
+        except Exception as exc:
+            raise _http_error(exc) from exc
+
+    route.__name__ = _route_name(spec.name)
+    route.__doc__ = spec.description
+    route.__annotations__ = {"request": Request}
+    app.add_api_route(
+        spec.path,
+        route,
+        methods=[spec.method],
+        summary=spec.name.replace("_", " ").title(),
+        description=spec.description,
+        tags=list(spec.tags),
+    )
+
+
+def _custom_kwargs(
+    fn: Callable[..., Any],
+    *,
+    store: LocalStore,
+    body: Any,
+    path: dict[str, Any],
+) -> dict[str, Any]:
+    signature = inspect.signature(fn)
+    kwargs: dict[str, Any] = {}
+    for name, parameter in signature.parameters.items():
+        if name == "store":
+            kwargs[name] = store
+        elif name == "body":
+            kwargs[name] = body
+        elif name in path:
+            kwargs[name] = path[name]
+        elif parameter.default is inspect.Parameter.empty:
+            raise TypeError(f"Cannot bind custom endpoint parameter: {name}")
+    return kwargs
+
+
+def _route_name(name: str) -> str:
+    value = re.sub(r"\W+", "_", name).strip("_")
+    if not value:
+        return "sssn_endpoint"
+    if value[0].isdigit():
+        return f"endpoint_{value}"
+    return value
 
 
 def _http_error(exc: Exception):

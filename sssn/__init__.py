@@ -15,7 +15,7 @@ from .core import (
     SubscriptionNotFoundError,
 )
 from .stores import LocalStore
-from .server import create_app
+from .server import StoreEndpointSpec, create_app, endpoint
 from .client import AsyncSSSNClient, SSSNClient, SSSNClientError
 
 __version__ = "0.1.0"
@@ -33,10 +33,12 @@ __all__ = [
     "SSSNError",
     "SSSNClient",
     "SSSNClientError",
+    "StoreEndpointSpec",
     "Snapshot",
     "SnapshotNotFoundError",
     "Subscription",
     "SubscriptionNotFoundError",
     "__version__",
     "create_app",
+    "endpoint",
 ]

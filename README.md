@@ -56,6 +56,18 @@ Portable HTTP endpoints include:
 - `POST /artifacts`, `GET /artifacts/{id}`
 - `PUT /snapshots/{name}`, `GET /snapshots/{name}`
 
+Custom endpoints can be mounted alongside the portable API:
+
+```python
+from sssn.server import create_app, endpoint
+
+@endpoint.get("/channels/{name}/count")
+def count_events(store, name: str):
+    return {"count": len(store.query_events(name))}
+
+app = create_app(LocalStore(".sssn"), custom_endpoints=[count_events])
+```
+
 ## Call A Server
 
 ```python

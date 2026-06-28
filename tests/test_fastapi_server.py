@@ -3,7 +3,7 @@ import asyncio
 import httpx
 
 from sssn import LocalStore
-from sssn.server import create_app
+from sssn.server import create_app, endpoint
 
 
 def request(app, method, path, **kwargs):
@@ -95,3 +95,19 @@ def test_fastapi_artifact_and_snapshot_flow(tmp_path):
     assert snapshot.json()["name"] == "latest"
     assert loaded.json()["value"] == {"status": "ok"}
     assert missing_snapshot.status_code == 404
+
+
+def test_fastapi_mounts_custom_channel_endpoint(tmp_path):
+    @endpoint.get("/channels/{name}/count")
+    def count_events(store: LocalStore, name: str):
+        return {"count": len(store.query_events(name))}
+
+    store = LocalStore(tmp_path / "store")
+    store.create_channel({"name": "events"})
+    store.append_event({"channel": "events", "payload": {"n": 1}})
+    app = create_app(store, custom_endpoints=[count_events])
+
+    response = request(app, "GET", "/channels/events/count")
+
+    assert response.status_code == 200
+    assert response.json() == {"count": 1}
