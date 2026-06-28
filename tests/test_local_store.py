@@ -1,3 +1,5 @@
+import sqlite3
+
 import pytest
 
 from sssn import (
@@ -211,6 +213,32 @@ def test_artifact_write_read_and_missing(tmp_path):
         store.get_artifact("missing")
     with pytest.raises(EventNotFoundError):
         store.write_artifact(b"bad-link", event_ids=("missing",))
+
+
+def test_artifact_read_rejects_payload_paths_outside_store(tmp_path):
+    store = LocalStore(tmp_path / "store")
+    outside = tmp_path / "outside.txt"
+    outside.write_bytes(b"secret")
+    with sqlite3.connect(store.db_path) as db:
+        db.execute(
+            """
+            insert into artifacts(id, channel, path, media_type, size, sha256, metadata, event_ids)
+            values (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "escaped",
+                None,
+                "../outside.txt",
+                "text/plain",
+                outside.stat().st_size,
+                None,
+                "{}",
+                "[]",
+            ),
+        )
+
+    with pytest.raises(ArtifactNotFoundError, match="outside artifact storage"):
+        store.read_artifact("escaped")
 
 
 def test_snapshot_put_get_and_missing(tmp_path):

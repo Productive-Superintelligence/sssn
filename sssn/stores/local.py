@@ -268,7 +268,7 @@ class LocalStore:
             metadata=metadata or {},
             event_ids=event_ids,
         )
-        path = self.root / artifact.path
+        path = self._artifact_payload_path(artifact.path)
         path.write_bytes(data)
         with self._connect() as db:
             db.execute(
@@ -297,7 +297,7 @@ class LocalStore:
             ).fetchone()
         if row is None:
             raise ArtifactNotFoundError(f"Artifact not found: {artifact_id}")
-        path = self.root / row["path"]
+        path = self._artifact_payload_path(row["path"])
         if not path.is_file():
             raise ArtifactNotFoundError(f"Artifact payload not found: {artifact_id}")
         return path.read_bytes()
@@ -382,6 +382,12 @@ class LocalStore:
         db = sqlite3.connect(self.db_path)
         db.row_factory = sqlite3.Row
         return db
+
+    def _artifact_payload_path(self, path: str) -> Path:
+        target = (self.root / path).resolve()
+        if not _is_relative_to(target, self.artifacts_dir):
+            raise ArtifactNotFoundError("Artifact payload path is outside artifact storage.")
+        return target
 
     def _init_db(self) -> None:
         with self._connect() as db:
@@ -500,6 +506,14 @@ def _positive_int(name: str, value: int) -> int:
     if value < 1:
         raise InvalidPayloadError(f"{name} must be greater than 0.")
     return value
+
+
+def _is_relative_to(path: Path, base_dir: Path) -> bool:
+    try:
+        path.relative_to(base_dir)
+    except ValueError:
+        return False
+    return True
 
 
 def _subscription_kind(filters: dict[str, Any]) -> str | None:
