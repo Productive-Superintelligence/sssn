@@ -129,3 +129,9 @@ sssn --store .sssn serve --host 127.0.0.1 --port 7700
 `examples/channel_processor` shows the intended service shape: a process pulls
 events from one channel subscription and appends derived events to another
 channel. The example is covered by the test suite so it stays executable.
+
+## Artifact And Snapshot Example
+
+`examples/artifact_snapshot` shows the local-store shape for larger payloads and
+latest-state materialization: append an event, write an event-linked artifact,
+then update a `latest` snapshot.

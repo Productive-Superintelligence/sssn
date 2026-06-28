@@ -63,3 +63,21 @@ def test_psihub_manifest_example_builds_channel_manifest():
         }
     ]
     assert manifest["runs"]["local"]["channels"] == ["raw", "analysis"]
+
+
+def test_artifact_snapshot_example_writes_artifact_and_latest_state(tmp_path):
+    module = load_module(
+        ROOT / "examples" / "artifact_snapshot" / "workflow.py",
+        "artifact_snapshot_workflow",
+    )
+    store = LocalStore(tmp_path / "store")
+
+    result = module.run_workflow(store)
+
+    assert result["artifact"].event_ids == (result["event"].id,)
+    assert result["artifact"].channel == "frames"
+    assert result["artifact_data"] == b"frame-one"
+    assert result["snapshot"].name == "latest"
+    assert result["snapshot"].source_event_id == result["event"].id
+    assert result["snapshot"].value["artifact_id"] == result["artifact"].id
+    assert store.get_snapshot("latest").value == result["snapshot"].value
