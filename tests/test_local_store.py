@@ -100,6 +100,22 @@ def test_subscription_pull_advances_cursor(tmp_path):
         store.pull_subscription("missing")
 
 
+def test_subscription_pull_applies_kind_filter(tmp_path):
+    store = LocalStore(tmp_path / "store")
+    store.create_channel({"name": "events"})
+    store.append_event({"channel": "events", "kind": "raw", "payload": {"n": 1}})
+    analysis = store.append_event(
+        {"channel": "events", "kind": "analysis", "payload": {"n": 2}}
+    )
+    store.append_event({"channel": "events", "kind": "raw", "payload": {"n": 3}})
+    sub = store.create_subscription("events", filters={"kind": "analysis"})
+
+    assert [event.id for event in store.pull_subscription(sub.id)] == [analysis.id]
+    assert store.pull_subscription(sub.id) == ()
+    with pytest.raises(InvalidPayloadError, match="kind"):
+        store.create_subscription("events", filters={"kind": 123})
+
+
 def test_subscription_validates_batch_size_and_pull_limit(tmp_path):
     store = LocalStore(tmp_path / "store")
     store.create_channel({"name": "events"})

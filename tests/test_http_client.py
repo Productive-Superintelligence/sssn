@@ -17,9 +17,17 @@ def test_async_client_calls_fastapi_server(tmp_path):
         )
         channel = await client.create_channel({"name": "events"})
         event = await client.append_event({"channel": "events", "payload": {"n": 1}})
+        analysis = await client.append_event(
+            {"channel": "events", "kind": "analysis", "payload": {"n": 2}}
+        )
         events = await client.query_events("events")
         sub = await client.create_subscription("events")
         pulled = await client.pull_subscription(sub.id)
+        filtered_sub = await client.create_subscription(
+            "events",
+            filters={"kind": "analysis"},
+        )
+        filtered = await client.pull_subscription(filtered_sub.id)
         artifact = await client.write_artifact("hello", channel="events")
         artifact_data = await client.read_artifact(artifact.id)
         binary_artifact = await client.write_artifact(
@@ -34,8 +42,10 @@ def test_async_client_calls_fastapi_server(tmp_path):
         return {
             "channel": channel,
             "event": event,
+            "analysis": analysis,
             "events": events,
             "pulled": pulled,
+            "filtered": filtered,
             "artifact_data": artifact_data,
             "binary_artifact_data": binary_artifact_data,
             "snapshot": snapshot,
@@ -50,6 +60,7 @@ def test_async_client_calls_fastapi_server(tmp_path):
     assert result["event"].payload == {"n": 1}
     assert result["events"][0].id == result["event"].id
     assert result["pulled"][0].id == result["event"].id
+    assert [event.id for event in result["filtered"]] == [result["analysis"].id]
     assert result["artifact_data"] == b"hello"
     assert result["binary_artifact_data"] == b"\xff\x00binary"
     assert result["snapshot"].name == "latest"

@@ -44,6 +44,8 @@ read from and write to.
 Store methods raise stable `SSSNError` subclasses for missing resources and
 invalid request values. `after_cursor` starts at `0`, cursors must be
 non-negative integers, and subscription/query limits must be greater than `0`.
+Subscription filters currently support `{"kind": "..."}` for event-kind
+specific consumer loops.
 
 HTTP clients raise `SSSNClientError` with `status_code`, `error_type`,
 `message`, and raw `detail` fields copied from the server error envelope.

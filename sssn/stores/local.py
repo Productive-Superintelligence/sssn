@@ -152,6 +152,7 @@ class LocalStore:
             },
             "subscription",
         )
+        _subscription_kind(sub.filters)
         with self._connect() as db:
             db.execute(
                 """
@@ -183,6 +184,7 @@ class LocalStore:
             sub.channel,
             after_cursor=sub.cursor,
             limit=limit if limit is not None else sub.batch_size,
+            kind=_subscription_kind(sub.filters),
         )
         if events:
             last_cursor = self._event_cursor(events[-1].id)
@@ -433,6 +435,15 @@ def _positive_int(name: str, value: int) -> int:
         raise InvalidPayloadError(f"{name} must be an integer.")
     if value < 1:
         raise InvalidPayloadError(f"{name} must be greater than 0.")
+    return value
+
+
+def _subscription_kind(filters: dict[str, Any]) -> str | None:
+    value = filters.get("kind")
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value:
+        raise InvalidPayloadError("subscription filter 'kind' must be a non-empty string.")
     return value
 
 

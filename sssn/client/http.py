@@ -82,12 +82,20 @@ class SSSNClient:
         *,
         consumer: str | None = None,
         batch_size: int = 100,
+        filters: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> Subscription:
         return Subscription.model_validate(
             self._request(
                 "POST",
                 "/subscriptions",
-                json={"channel": channel, "consumer": consumer, "batch_size": batch_size},
+                json={
+                    "channel": channel,
+                    "consumer": consumer,
+                    "batch_size": batch_size,
+                    "filters": filters or {},
+                    "metadata": metadata or {},
+                },
             ).json()
         )
 
@@ -201,6 +209,8 @@ class AsyncSSSNClient:
         *,
         consumer: str | None = None,
         batch_size: int = 100,
+        filters: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> Subscription:
         return Subscription.model_validate(
             (
@@ -211,6 +221,8 @@ class AsyncSSSNClient:
                         "channel": channel,
                         "consumer": consumer,
                         "batch_size": batch_size,
+                        "filters": filters or {},
+                        "metadata": metadata or {},
                     },
                 )
             ).json()
