@@ -102,6 +102,9 @@ manifest = {
 
 ## Serve The Store
 
+For a step-by-step local store walkthrough, see
+`docs/tutorials/first-channel.md`.
+
 ```python
 from sssn import LocalStore
 from sssn.server import create_app
