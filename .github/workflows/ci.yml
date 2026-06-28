@@ -17,6 +17,7 @@ jobs:
       - run: pytest
       - run: mkdocs build --strict
       - run: python -m build
+      - run: python -m twine check dist/*
       - run: |
           python -m venv /tmp/sssn-wheel-smoke
           /tmp/sssn-wheel-smoke/bin/python -m pip install -U pip
