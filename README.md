@@ -102,7 +102,7 @@ Portable HTTP endpoints include:
 - `POST /channels`, `GET /channels`, `GET /channels/{name}`
 - `POST /events`, `GET /events?channel=...`
 - `POST /subscriptions`, `GET /subscriptions/{id}`, `POST /subscriptions/{id}/pull`
-- `POST /artifacts`, `GET /artifacts/{id}`
+- `POST /artifacts`, `GET /artifacts/{id}`, `GET /artifacts/{id}/metadata`
 - `PUT /snapshots/{name}`, `GET /snapshots/{name}`
 
 Custom endpoints can be mounted alongside the portable API:
@@ -131,7 +131,8 @@ event = await client.append_event({"channel": channel.name, "payload": {"ok": Tr
 When `write_artifact()` receives `bytes`, HTTP clients send base64 so binary
 payloads round-trip through the portable API. Artifact writes also accept
 `metadata` and `event_ids` so larger payloads can stay linked to the events
-that introduced them. Snapshot writes accept a plain value plus optional
+that introduced them. Use `get_artifact()` to inspect artifact metadata without
+downloading the payload. Snapshot writes accept a plain value plus optional
 `channel`, `schema`, `source_event_id`, and `metadata` fields, or a `Snapshot`
 model instance.
 

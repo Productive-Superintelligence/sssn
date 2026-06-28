@@ -271,6 +271,19 @@ class LocalStore:
             raise ArtifactNotFoundError(f"Artifact payload not found: {artifact_id}")
         return path.read_bytes()
 
+    def get_artifact(self, artifact_id: str) -> Artifact:
+        with self._connect() as db:
+            row = db.execute(
+                """
+                select id, channel, path, media_type, size, sha256, metadata, event_ids
+                from artifacts where id = ?
+                """,
+                (artifact_id,),
+            ).fetchone()
+        if row is None:
+            raise ArtifactNotFoundError(f"Artifact not found: {artifact_id}")
+        return _artifact(row)
+
     def put_snapshot(self, snapshot: Snapshot | dict[str, Any]) -> Snapshot:
         value = _model(Snapshot, snapshot, "snapshot")
         if value.channel is not None:
@@ -411,6 +424,19 @@ def _event(row: sqlite3.Row) -> Event:
         metadata=_loads(row["metadata"]),
         correlation_id=row["correlation_id"],
         parent_ids=tuple(_loads(row["parent_ids"])),
+    )
+
+
+def _artifact(row: sqlite3.Row) -> Artifact:
+    return Artifact(
+        id=row["id"],
+        channel=row["channel"],
+        path=row["path"],
+        media_type=row["media_type"],
+        size=row["size"],
+        sha256=row["sha256"],
+        metadata=_loads(row["metadata"]),
+        event_ids=tuple(_loads(row["event_ids"])),
     )
 
 

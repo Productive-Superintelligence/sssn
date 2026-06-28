@@ -125,7 +125,13 @@ def test_fastapi_artifact_and_snapshot_flow(tmp_path):
         },
     )
     artifact_data = request(app, "GET", f"/artifacts/{artifact.json()['id']}")
+    artifact_metadata = request(
+        app,
+        "GET",
+        f"/artifacts/{artifact.json()['id']}/metadata",
+    )
     missing_artifact = request(app, "GET", "/artifacts/missing")
+    missing_artifact_metadata = request(app, "GET", "/artifacts/missing/metadata")
 
     snapshot = request(
         app,
@@ -141,7 +147,10 @@ def test_fastapi_artifact_and_snapshot_flow(tmp_path):
     assert invalid_base64.json()["detail"]["error"]["type"] == "InvalidPayloadError"
     assert artifact_data.content == b"hello"
     assert artifact_data.headers["content-type"] == "application/octet-stream"
+    assert artifact_metadata.json()["media_type"] == "text/plain"
+    assert artifact_metadata.json()["size"] == 5
     assert missing_artifact.status_code == 404
+    assert missing_artifact_metadata.status_code == 404
     assert snapshot.json()["name"] == "latest"
     assert loaded.json()["value"] == {"status": "ok"}
     assert missing_snapshot.status_code == 404
@@ -181,6 +190,7 @@ def test_fastapi_openapi_includes_portable_and_custom_routes(tmp_path):
         "/subscriptions/{subscription_id}/pull",
         "/artifacts",
         "/artifacts/{artifact_id}",
+        "/artifacts/{artifact_id}/metadata",
         "/snapshots/{name}",
         "/channels/{name}/count",
     ):

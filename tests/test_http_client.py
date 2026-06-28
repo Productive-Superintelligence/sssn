@@ -36,6 +36,7 @@ def test_async_client_calls_fastapi_server(tmp_path):
             metadata={"role": "raw"},
             event_ids=(event.id,),
         )
+        loaded_artifact = await client.get_artifact(artifact.id)
         artifact_data = await client.read_artifact(artifact.id)
         binary_artifact = await client.write_artifact(
             b"\xff\x00binary",
@@ -71,6 +72,7 @@ def test_async_client_calls_fastapi_server(tmp_path):
             "loaded_sub": loaded_sub,
             "filtered": filtered,
             "artifact": artifact,
+            "loaded_artifact": loaded_artifact,
             "artifact_data": artifact_data,
             "binary_artifact_data": binary_artifact_data,
             "snapshot": snapshot,
@@ -92,6 +94,8 @@ def test_async_client_calls_fastapi_server(tmp_path):
     assert [event.id for event in result["filtered"]] == [result["analysis"].id]
     assert result["artifact"].metadata == {"role": "raw"}
     assert result["artifact"].event_ids == (result["event"].id,)
+    assert result["loaded_artifact"].id == result["artifact"].id
+    assert result["loaded_artifact"].metadata == {"role": "raw"}
     assert result["artifact_data"] == b"hello"
     assert result["binary_artifact_data"] == b"\xff\x00binary"
     assert result["snapshot"].name == "latest"
@@ -155,6 +159,33 @@ def test_sync_client_sends_artifact_metadata_and_event_ids():
         event_ids=("event-1",),
     )
 
+    assert artifact.metadata == {"role": "raw"}
+    assert artifact.event_ids == ("event-1",)
+
+
+def test_sync_client_gets_artifact_metadata():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == "/artifacts/artifact-1/metadata"
+        return httpx.Response(
+            200,
+            json={
+                "id": "artifact-1",
+                "channel": "events",
+                "path": "artifacts/artifact-1",
+                "media_type": "text/plain",
+                "size": 5,
+                "sha256": "abc123",
+                "metadata": {"role": "raw"},
+                "event_ids": ["event-1"],
+            },
+        )
+
+    client = SSSNClient("http://testserver", transport=httpx.MockTransport(handler))
+
+    artifact = client.get_artifact("artifact-1")
+
+    assert artifact.media_type == "text/plain"
     assert artifact.metadata == {"role": "raw"}
     assert artifact.event_ids == ("event-1",)
 

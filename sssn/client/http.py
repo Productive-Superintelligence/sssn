@@ -146,6 +146,11 @@ class SSSNClient:
     def read_artifact(self, artifact_id: str) -> bytes:
         return self._request("GET", f"/artifacts/{artifact_id}").content
 
+    def get_artifact(self, artifact_id: str) -> Artifact:
+        return Artifact.model_validate(
+            self._request("GET", f"/artifacts/{artifact_id}/metadata").json()
+        )
+
     def put_snapshot(
         self,
         name: str,
@@ -308,6 +313,11 @@ class AsyncSSSNClient:
 
     async def read_artifact(self, artifact_id: str) -> bytes:
         return (await self._request("GET", f"/artifacts/{artifact_id}")).content
+
+    async def get_artifact(self, artifact_id: str) -> Artifact:
+        return Artifact.model_validate(
+            (await self._request("GET", f"/artifacts/{artifact_id}/metadata")).json()
+        )
 
     async def put_snapshot(
         self,

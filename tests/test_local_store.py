@@ -146,9 +146,12 @@ def test_artifact_write_read_and_missing(tmp_path):
 
     assert artifact.size == 5
     assert artifact.sha256 is not None
+    assert store.get_artifact(artifact.id) == artifact
     assert store.read_artifact(artifact.id) == b"hello"
     with pytest.raises(ArtifactNotFoundError):
         store.read_artifact("missing")
+    with pytest.raises(ArtifactNotFoundError):
+        store.get_artifact("missing")
 
 
 def test_snapshot_put_get_and_missing(tmp_path):

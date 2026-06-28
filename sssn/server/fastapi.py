@@ -193,6 +193,13 @@ def create_app(
         except Exception as exc:
             raise _http_error(exc) from exc
 
+    @app.get("/artifacts/{artifact_id}/metadata")
+    async def get_artifact(artifact_id: str) -> dict[str, Any]:
+        try:
+            return jsonable_encoder(local_store.get_artifact(artifact_id))
+        except Exception as exc:
+            raise _http_error(exc) from exc
+
     @app.put("/snapshots/{name}")
     async def put_snapshot(name: str, snapshot: SnapshotWriteRequest) -> dict[str, Any]:
         try:
