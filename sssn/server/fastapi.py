@@ -191,8 +191,9 @@ def create_app(
     @app.get("/artifacts/{artifact_id}")
     async def read_artifact(artifact_id: str):
         try:
+            artifact = local_store.get_artifact(artifact_id)
             data = local_store.read_artifact(artifact_id)
-            return Response(content=data, media_type="application/octet-stream")
+            return Response(content=data, media_type=artifact.media_type)
         except Exception as exc:
             raise _http_error(exc) from exc
 

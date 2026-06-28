@@ -155,7 +155,7 @@ def test_fastapi_artifact_and_snapshot_flow(tmp_path):
     assert invalid_base64.status_code == 400
     assert invalid_base64.json()["detail"]["error"]["type"] == "InvalidPayloadError"
     assert artifact_data.content == b"hello"
-    assert artifact_data.headers["content-type"] == "application/octet-stream"
+    assert artifact_data.headers["content-type"].startswith("text/plain")
     assert artifact_metadata.json()["media_type"] == "text/plain"
     assert artifact_metadata.json()["size"] == 5
     assert missing_artifact.status_code == 404
