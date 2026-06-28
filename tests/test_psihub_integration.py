@@ -4,7 +4,7 @@ from sssn.server import endpoint
 
 
 def test_channel_resource_exports_metadata_and_custom_endpoints():
-    @endpoint.get("/channels/events/range", tags=("events",))
+    @endpoint.get("/channels/events/range", scope="channel", tags=("events",))
     def event_range(store, body=None):
         return []
 
@@ -30,6 +30,7 @@ def test_channel_resource_exports_metadata_and_custom_endpoints():
                 "name": "event_range",
                 "method": "GET",
                 "path": "/channels/events/range",
+                "scope": "channel",
                 "description": "",
                 "tags": ["events"],
             }

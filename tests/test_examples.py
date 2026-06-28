@@ -57,6 +57,7 @@ def test_psihub_manifest_example_builds_channel_manifest():
             "name": "channel_tail",
             "method": "GET",
             "path": "/channels/{name}/tail",
+            "scope": "channel",
             "description": "Return the most recent events for a channel.",
             "tags": ["channels"],
         }

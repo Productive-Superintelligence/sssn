@@ -15,7 +15,7 @@ from .core import (
     SubscriptionNotFoundError,
 )
 from .stores import LocalStore
-from .server import StoreEndpointSpec, create_app, endpoint
+from .server import EndpointScope, StoreEndpointSpec, create_app, endpoint
 from .client import AsyncSSSNClient, SSSNClient, SSSNClientError
 from .integrations import channel_resource
 
@@ -29,6 +29,7 @@ __all__ = [
     "ChannelExistsError",
     "ChannelForm",
     "ChannelNotFoundError",
+    "EndpointScope",
     "Event",
     "LocalStore",
     "SSSNError",

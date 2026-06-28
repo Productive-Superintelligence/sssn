@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal, TypeVar
 
 HttpMethod = Literal["GET", "POST", "PUT", "PATCH", "DELETE"]
+EndpointScope = Literal["store", "channel", "subscription", "artifact", "snapshot"]
 F = TypeVar("F", bound=Callable[..., Any])
 
 
@@ -15,6 +16,7 @@ class StoreEndpointSpec:
     method: HttpMethod
     path: str
     name: str
+    scope: EndpointScope = "store"
     description: str = ""
     tags: tuple[str, ...] = field(default_factory=tuple)
 
@@ -27,20 +29,36 @@ class endpoint:
         path: str,
         *,
         name: str | None = None,
+        scope: EndpointScope = "store",
         description: str = "",
         tags: Sequence[str] = (),
     ) -> Callable[[F], F]:
-        return _attach("GET", path, name=name, description=description, tags=tags)
+        return _attach(
+            "GET",
+            path,
+            name=name,
+            scope=scope,
+            description=description,
+            tags=tags,
+        )
 
     @staticmethod
     def post(
         path: str,
         *,
         name: str | None = None,
+        scope: EndpointScope = "store",
         description: str = "",
         tags: Sequence[str] = (),
     ) -> Callable[[F], F]:
-        return _attach("POST", path, name=name, description=description, tags=tags)
+        return _attach(
+            "POST",
+            path,
+            name=name,
+            scope=scope,
+            description=description,
+            tags=tags,
+        )
 
 
 def endpoint_spec(fn: Callable[..., Any]) -> StoreEndpointSpec | None:
@@ -53,6 +71,7 @@ def _attach(
     path: str,
     *,
     name: str | None,
+    scope: EndpointScope,
     description: str,
     tags: Sequence[str],
 ) -> Callable[[F], F]:
@@ -66,6 +85,7 @@ def _attach(
                 method=method,
                 path=normalized,
                 name=name or fn.__name__,
+                scope=scope,
                 description=description or (fn.__doc__ or "").strip(),
                 tags=tuple(tags),
             ),

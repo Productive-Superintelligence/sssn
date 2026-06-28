@@ -31,6 +31,7 @@ def channel_resource(
                 "name": spec.name,
                 "method": spec.method,
                 "path": spec.path,
+                "scope": spec.scope,
                 "description": spec.description,
                 "tags": list(spec.tags),
             }

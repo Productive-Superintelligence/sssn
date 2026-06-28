@@ -1,6 +1,6 @@
 """SSSN service adapters."""
 
-from .endpoints import StoreEndpointSpec, endpoint
+from .endpoints import EndpointScope, StoreEndpointSpec, endpoint
 from .fastapi import create_app
 
-__all__ = ["StoreEndpointSpec", "create_app", "endpoint"]
+__all__ = ["EndpointScope", "StoreEndpointSpec", "create_app", "endpoint"]

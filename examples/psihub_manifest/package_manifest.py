@@ -5,6 +5,7 @@ from sssn import Channel, channel_resource, endpoint
 
 @endpoint.get(
     "/channels/{name}/tail",
+    scope="channel",
     description="Return the most recent events for a channel.",
     tags=("channels",),
 )

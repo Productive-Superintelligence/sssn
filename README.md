@@ -50,7 +50,8 @@ resource = channel_resource(Channel(name="events", schema="demo.schemas:Event"))
 ```
 
 Custom SSSN endpoint decorators can be included so generated package cards show
-domain routes alongside the portable channel API.
+domain routes alongside the portable channel API. Use `scope="channel"` on
+channel-specific routes so package cards can group them correctly.
 
 `examples/psihub_manifest` shows how to turn channel resources into a
 PsiHub-style manifest section:
