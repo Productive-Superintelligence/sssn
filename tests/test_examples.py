@@ -39,3 +39,26 @@ def test_channel_processor_example_reads_and_writes_channels(tmp_path):
     assert outputs[0].parent_ids == (raw.id,)
     assert outputs[0].correlation_id == "episode-1"
     assert store.query_events("analysis")[0].payload["source_event_id"] == raw.id
+
+
+def test_psihub_manifest_example_builds_channel_manifest():
+    module = load_module(
+        ROOT / "examples" / "psihub_manifest" / "package_manifest.py",
+        "psihub_manifest",
+    )
+
+    manifest = module.build_manifest()
+
+    assert manifest["package"]["primary"] == "channels.raw"
+    assert sorted(manifest["channels"]) == ["analysis", "raw"]
+    assert manifest["channels"]["raw"]["schema"] == "raw_event"
+    assert manifest["channels"]["raw"]["endpoints"] == [
+        {
+            "name": "channel_tail",
+            "method": "GET",
+            "path": "/channels/{name}/tail",
+            "description": "Return the most recent events for a channel.",
+            "tags": ["channels"],
+        }
+    ]
+    assert manifest["runs"]["local"]["channels"] == ["raw", "analysis"]

@@ -52,6 +52,27 @@ resource = channel_resource(Channel(name="events", schema="demo.schemas:Event"))
 Custom SSSN endpoint decorators can be included so generated package cards show
 domain routes alongside the portable channel API.
 
+`examples/psihub_manifest` shows how to turn channel resources into a
+PsiHub-style manifest section:
+
+```python
+from sssn import Channel, channel_resource
+
+raw = channel_resource(
+    Channel(
+        name="raw",
+        schema="raw_event",
+        form="log",
+        description="Incoming events.",
+    )
+)
+
+manifest = {
+    "package": {"org": "demo", "name": "events", "kind": "channel"},
+    "channels": {raw["name"]: {k: v for k, v in raw.items() if k != "name"}},
+}
+```
+
 ## Serve The Store
 
 ```python
