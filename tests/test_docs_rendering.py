@@ -123,6 +123,7 @@ def test_docs_keep_light_brand_styles(tmp_path):
 
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     assert '<img src="assets/sssn-logo-text-dark.png" alt="SSSN" height="56">' in readme
+    assert (site_dir / "CNAME").read_text(encoding="utf-8").strip() == "sssn.one"
 
 
 def test_http_api_reference_distinguishes_artifact_payload_and_metadata():
