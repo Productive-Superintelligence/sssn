@@ -6,6 +6,20 @@ the tactic output back to an analysis channel.
 The same flow is available as an executable example at
 `examples/lllm_tactic_processor/workflow.py`.
 
+## Prerequisites
+
+```bash
+python -m pip install -e ".[dev]"
+python -m pip install -e ../lllmv2
+```
+
+## Files Used
+
+- `examples/lllm_tactic_processor/workflow.py` contains the runnable
+  composition.
+- `tests/test_examples.py` verifies the example when `lllm` is installed.
+- `sssn/stores/local.py` provides durable channels and subscription cursors.
+
 ## Boundary
 
 SSSN owns the durable data plane: channels, subscriptions, cursors, event
@@ -88,7 +102,7 @@ trace an LLLM result back to the SSSN input that produced it.
 python examples/lllm_tactic_processor/workflow.py
 ```
 
-Expected shape:
+Expected output:
 
 ```json
 {
@@ -98,3 +112,6 @@ Expected shape:
   "tactic": "analyze_message"
 }
 ```
+
+Next, replace the local tactic with a remote LLLM service while keeping the
+SSSN subscription and output-channel shape unchanged.

@@ -1,6 +1,6 @@
 # First Channel
 
-Build the smallest local SSSN channel, append an event, and read it back.
+Goal: build the smallest local SSSN channel, append an event, and read it back.
 
 The same flow is available as an executable example at
 `examples/first_channel/workflow.py`.
@@ -10,6 +10,13 @@ The same flow is available as an executable example at
 ```bash
 python -m pip install -e ".[dev]"
 ```
+
+## Files Used
+
+- `examples/first_channel/workflow.py` contains the runnable version of this
+  flow.
+- `tests/test_examples.py` keeps the example executable.
+- `sssn/stores/local.py` provides the local SQLite/filesystem store.
 
 ## Create A Store
 
