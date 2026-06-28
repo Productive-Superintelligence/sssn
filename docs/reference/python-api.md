@@ -22,5 +22,5 @@ from sssn import SSSNClient, AsyncSSSNClient
 Package helpers:
 
 ```python
-from sssn import channel_resource, snapshot_resource
+from sssn import channel_resource, endpoint, snapshot_resource
 ```

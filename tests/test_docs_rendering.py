@@ -146,6 +146,20 @@ def test_http_api_reference_lists_portable_endpoints():
         assert f"| `{endpoint}` |" in reference
 
 
+def test_psihub_package_guide_documents_endpoint_metadata():
+    guide = (ROOT / "docs" / "guides" / "psihub-packages.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "custom_endpoints=[channel_tail]" in guide
+    assert '"path": "/channels/{name}/tail"' in guide
+    assert "create_app(..., custom_endpoints=...)" in guide
+    assert (
+        "python -m pytest tests/test_psihub_integration.py tests/test_examples.py -q"
+        in guide
+    )
+
+
 def test_public_text_does_not_use_staging_name():
     text_paths = [ROOT / "README.md"]
     text_paths.extend((ROOT / "docs").rglob("*.md"))
