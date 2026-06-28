@@ -150,6 +150,13 @@ def create_app(
         except Exception as exc:
             raise _http_error(exc) from exc
 
+    @app.get("/subscriptions/{subscription_id}")
+    async def get_subscription(subscription_id: str) -> dict[str, Any]:
+        try:
+            return jsonable_encoder(local_store.get_subscription(subscription_id))
+        except Exception as exc:
+            raise _http_error(exc) from exc
+
     @app.post("/subscriptions/{subscription_id}/pull")
     async def pull_subscription(
         subscription_id: str,

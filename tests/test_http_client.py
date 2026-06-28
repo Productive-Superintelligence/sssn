@@ -23,6 +23,7 @@ def test_async_client_calls_fastapi_server(tmp_path):
         events = await client.query_events("events")
         sub = await client.create_subscription("events")
         pulled = await client.pull_subscription(sub.id)
+        loaded_sub = await client.get_subscription(sub.id)
         filtered_sub = await client.create_subscription(
             "events",
             filters={"kind": "analysis"},
@@ -45,6 +46,7 @@ def test_async_client_calls_fastapi_server(tmp_path):
             "analysis": analysis,
             "events": events,
             "pulled": pulled,
+            "loaded_sub": loaded_sub,
             "filtered": filtered,
             "artifact_data": artifact_data,
             "binary_artifact_data": binary_artifact_data,
@@ -62,6 +64,7 @@ def test_async_client_calls_fastapi_server(tmp_path):
     assert result["analysis"].cursor == 2
     assert result["events"][0].id == result["event"].id
     assert result["pulled"][0].id == result["event"].id
+    assert result["loaded_sub"].cursor == result["pulled"][-1].cursor
     assert [event.id for event in result["filtered"]] == [result["analysis"].id]
     assert result["artifact_data"] == b"hello"
     assert result["binary_artifact_data"] == b"\xff\x00binary"

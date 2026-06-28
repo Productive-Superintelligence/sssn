@@ -43,6 +43,7 @@ def test_fastapi_channel_event_subscription_flow(tmp_path):
         "POST",
         f"/subscriptions/{sub.json()['id']}/pull",
     )
+    loaded_sub = request(app, "GET", f"/subscriptions/{sub.json()['id']}")
     pulled_again = request(
         app,
         "POST",
@@ -58,6 +59,7 @@ def test_fastapi_channel_event_subscription_flow(tmp_path):
     assert event.json()["payload"] == {"n": 1}
     assert queried.json()[0]["id"] == event.json()["id"]
     assert [item["id"] for item in pulled.json()] == [event.json()["id"]]
+    assert loaded_sub.json()["cursor"] == event.json()["cursor"]
     assert pulled_again.json() == []
 
 
@@ -175,6 +177,7 @@ def test_fastapi_openapi_includes_portable_and_custom_routes(tmp_path):
         "/channels/{name}",
         "/events",
         "/subscriptions",
+        "/subscriptions/{subscription_id}",
         "/subscriptions/{subscription_id}/pull",
         "/artifacts",
         "/artifacts/{artifact_id}",

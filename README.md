@@ -47,7 +47,8 @@ non-negative integers, and subscription/query limits must be greater than `0`.
 Returned events include `cursor` when the backing store can provide one; pass
 that value back as `after_cursor` to continue a query.
 Subscription filters currently support `{"kind": "..."}` for event-kind
-specific consumer loops.
+specific consumer loops. HTTP clients can call `get_subscription()` to inspect
+persisted cursor state.
 
 HTTP clients raise `SSSNClientError` with `status_code`, `error_type`,
 `message`, and raw `detail` fields copied from the server error envelope.
@@ -100,7 +101,7 @@ Portable HTTP endpoints include:
 
 - `POST /channels`, `GET /channels`, `GET /channels/{name}`
 - `POST /events`, `GET /events?channel=...`
-- `POST /subscriptions`, `POST /subscriptions/{id}/pull`
+- `POST /subscriptions`, `GET /subscriptions/{id}`, `POST /subscriptions/{id}/pull`
 - `POST /artifacts`, `GET /artifacts/{id}`
 - `PUT /snapshots/{name}`, `GET /snapshots/{name}`
 

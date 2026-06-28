@@ -113,6 +113,11 @@ class SSSNClient:
         ).json()
         return tuple(Event.model_validate(item) for item in data)
 
+    def get_subscription(self, subscription_id: str) -> Subscription:
+        return Subscription.model_validate(
+            self._request("GET", f"/subscriptions/{subscription_id}").json()
+        )
+
     def write_artifact(
         self,
         data: bytes | str,
@@ -243,6 +248,11 @@ class AsyncSSSNClient:
             )
         ).json()
         return tuple(Event.model_validate(item) for item in data)
+
+    async def get_subscription(self, subscription_id: str) -> Subscription:
+        return Subscription.model_validate(
+            (await self._request("GET", f"/subscriptions/{subscription_id}")).json()
+        )
 
     async def write_artifact(
         self,
