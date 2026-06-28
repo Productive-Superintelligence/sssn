@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import argparse
+import base64
+import binascii
 import json
 
 from . import Channel, Event, LocalStore
@@ -13,6 +15,15 @@ def _json_object(raw: str) -> dict[str, object]:
     if not isinstance(value, dict):
         raise argparse.ArgumentTypeError("must be a JSON object")
     return value
+
+
+def _artifact_data(raw: str, encoding: str) -> bytes:
+    if encoding == "base64":
+        try:
+            return base64.b64decode(raw.encode("ascii"), validate=True)
+        except (binascii.Error, ValueError) as exc:
+            raise argparse.ArgumentTypeError("invalid base64 data") from exc
+    return raw.encode("utf-8")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -64,6 +75,31 @@ def main(argv: list[str] | None = None) -> int:
     )
     pull_subscription.add_argument("id")
     pull_subscription.add_argument("--limit", type=int)
+
+    write_artifact = subcommands.add_parser("write-artifact", help="Write an artifact")
+    write_artifact.add_argument("data")
+    write_artifact.add_argument("--encoding", choices=("text", "base64"), default="text")
+    write_artifact.add_argument("--channel")
+    write_artifact.add_argument("--media-type", default="application/octet-stream")
+    write_artifact.add_argument("--metadata", type=_json_object)
+    write_artifact.add_argument("--event-id", dest="event_ids", action="append")
+
+    get_artifact = subcommands.add_parser(
+        "get-artifact",
+        help="Read artifact metadata",
+    )
+    get_artifact.add_argument("id")
+
+    read_artifact = subcommands.add_parser(
+        "read-artifact",
+        help="Read artifact payload",
+    )
+    read_artifact.add_argument("id")
+    read_artifact.add_argument(
+        "--encoding",
+        choices=("text", "base64"),
+        default="text",
+    )
 
     put_snapshot = subcommands.add_parser("put-snapshot", help="Write a snapshot")
     put_snapshot.add_argument("name")
@@ -143,6 +179,34 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "pull-subscription":
         for event in store.pull_subscription(args.id, limit=args.limit):
             print(event.model_dump_json(by_alias=True))
+        return 0
+
+    if args.command == "write-artifact":
+        try:
+            data = _artifact_data(args.data, args.encoding)
+        except argparse.ArgumentTypeError as exc:
+            parser.error(str(exc))
+        artifact = store.write_artifact(
+            data,
+            channel=args.channel,
+            media_type=args.media_type,
+            metadata=args.metadata or {},
+            event_ids=tuple(args.event_ids or ()),
+        )
+        print(artifact.model_dump_json(by_alias=True))
+        return 0
+
+    if args.command == "get-artifact":
+        artifact = store.get_artifact(args.id)
+        print(artifact.model_dump_json(by_alias=True))
+        return 0
+
+    if args.command == "read-artifact":
+        data = store.read_artifact(args.id)
+        if args.encoding == "base64":
+            print(base64.b64encode(data).decode("ascii"))
+        else:
+            print(data.decode("utf-8"))
         return 0
 
     if args.command == "put-snapshot":

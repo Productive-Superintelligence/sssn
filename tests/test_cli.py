@@ -1,3 +1,4 @@
+import base64
 import json
 
 from sssn.cli import main
@@ -63,6 +64,54 @@ def test_cli_create_list_and_append(tmp_path, capsys):
     loaded = json.loads(capsys.readouterr().out)
     assert loaded["id"] == event["id"]
     assert loaded["payload"] == {"n": 1}
+
+    assert (
+        main(
+            [
+                "--store",
+                str(store),
+                "write-artifact",
+                "hello",
+                "--channel",
+                "events",
+                "--media-type",
+                "text/plain",
+                "--metadata",
+                '{"name": "greeting"}',
+                "--event-id",
+                event["id"],
+            ]
+        )
+        == 0
+    )
+    artifact = json.loads(capsys.readouterr().out)
+    assert artifact["channel"] == "events"
+    assert artifact["media_type"] == "text/plain"
+    assert artifact["metadata"] == {"name": "greeting"}
+    assert artifact["event_ids"] == [event["id"]]
+
+    assert main(["--store", str(store), "get-artifact", artifact["id"]]) == 0
+    loaded_artifact = json.loads(capsys.readouterr().out)
+    assert loaded_artifact["id"] == artifact["id"]
+    assert loaded_artifact["size"] == 5
+
+    assert main(["--store", str(store), "read-artifact", artifact["id"]]) == 0
+    assert capsys.readouterr().out == "hello\n"
+
+    assert (
+        main(
+            [
+                "--store",
+                str(store),
+                "read-artifact",
+                artifact["id"],
+                "--encoding",
+                "base64",
+            ]
+        )
+        == 0
+    )
+    assert capsys.readouterr().out.strip() == base64.b64encode(b"hello").decode("ascii")
 
     assert (
         main(
