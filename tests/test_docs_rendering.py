@@ -155,6 +155,31 @@ def test_http_api_reference_lists_portable_endpoints():
         assert f"| `{endpoint}` |" in reference
 
 
+def test_cli_reference_lists_portable_resource_commands():
+    reference = (ROOT / "docs" / "reference" / "cli.md").read_text(
+        encoding="utf-8"
+    )
+    expected = [
+        "create-channel events --schema demo.Event --metadata",
+        "append events",
+        "--correlation-id corr-1 --parent-id <event-id>",
+        "query-events events --limit 10",
+        "get-event <event-id>",
+        "create-subscription events --id worker --kind message",
+        "pull-subscription worker --limit 10",
+        "get-subscription worker",
+        "write-artifact 'hello' --media-type text/plain --event-id <event-id>",
+        "get-artifact <artifact-id>",
+        "read-artifact <artifact-id>",
+        "put-snapshot latest",
+        "--source-event-id <event-id>",
+        "get-snapshot latest",
+    ]
+
+    for command in expected:
+        assert command in reference
+
+
 def test_psihub_package_guide_documents_endpoint_metadata():
     guide = (ROOT / "docs" / "guides" / "psihub-packages.md").read_text(
         encoding="utf-8"
