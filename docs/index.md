@@ -55,11 +55,11 @@ assert store.query_events("events")[0].id == event.id
 
 ```mermaid
 flowchart LR
-  A[Service or robot] --> B[SSSN channel]
-  B --> C[SQLite metadata]
-  B --> D[Artifact files]
-  C --> E[Worker or app]
-  E --> F[Snapshot]
+  A["Service or robot"] --> B["SSSN channel"]
+  B --> C["SQLite metadata"]
+  B --> D["Artifact files"]
+  C --> E["Worker or app"]
+  E --> F["Snapshot"]
 ```
 
 ## Next
