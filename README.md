@@ -38,3 +38,20 @@ Default layout:
 
 SSSN does not control services. It provides the data plane those services can
 read from and write to.
+
+## Serve The Store
+
+```python
+from sssn import LocalStore
+from sssn.server import create_app
+
+app = create_app(LocalStore(".sssn"))
+```
+
+Portable HTTP endpoints include:
+
+- `POST /channels`, `GET /channels`, `GET /channels/{name}`
+- `POST /events`, `GET /events?channel=...`
+- `POST /subscriptions`, `POST /subscriptions/{id}/pull`
+- `POST /artifacts`, `GET /artifacts/{id}`
+- `PUT /snapshots/{name}`, `GET /snapshots/{name}`
