@@ -6,7 +6,7 @@ import time
 import uuid
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 ChannelForm = Literal[
     "log",
@@ -40,6 +40,11 @@ class Channel(BaseModel):
     def schema(self) -> str | None:
         return self.schema_ref
 
+    @model_validator(mode="after")
+    def _validate_name(self) -> "Channel":
+        _validate_segment(self.name, "channel.name")
+        return self
+
 
 class Event(BaseModel):
     """Timestamped semantic record in a channel."""
@@ -60,6 +65,12 @@ class Event(BaseModel):
     def schema(self) -> str | None:
         return self.schema_ref
 
+    @model_validator(mode="after")
+    def _validate_identity(self) -> "Event":
+        _validate_segment(self.id, "event.id")
+        _validate_segment(self.channel, "event.channel")
+        return self
+
 
 class Artifact(BaseModel):
     """Larger payload stored by reference."""
@@ -72,6 +83,12 @@ class Artifact(BaseModel):
     sha256: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
     event_ids: tuple[str, ...] = Field(default_factory=tuple)
+
+    @model_validator(mode="after")
+    def _validate_identity(self) -> "Artifact":
+        _validate_segment(self.id, "artifact.id")
+        _validate_optional_segment(self.channel, "artifact.channel")
+        return self
 
 
 class Snapshot(BaseModel):
@@ -89,6 +106,12 @@ class Snapshot(BaseModel):
     def schema(self) -> str | None:
         return self.schema_ref
 
+    @model_validator(mode="after")
+    def _validate_identity(self) -> "Snapshot":
+        _validate_segment(self.name, "snapshot.name")
+        _validate_optional_segment(self.channel, "snapshot.channel")
+        return self
+
 
 class Subscription(BaseModel):
     """Consumer cursor over one channel."""
@@ -100,3 +123,19 @@ class Subscription(BaseModel):
     batch_size: int = 100
     filters: dict[str, Any] = Field(default_factory=dict)
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _validate_identity(self) -> "Subscription":
+        _validate_segment(self.id, "subscription.id")
+        _validate_segment(self.channel, "subscription.channel")
+        return self
+
+
+def _validate_optional_segment(value: str | None, field_name: str) -> None:
+    if value is not None:
+        _validate_segment(value, field_name)
+
+
+def _validate_segment(value: str, field_name: str) -> None:
+    if not value or value in {".", ".."} or any(ch in value for ch in "/:\\"):
+        raise ValueError(f"{field_name} must be a non-empty path segment.")

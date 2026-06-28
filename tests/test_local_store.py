@@ -72,6 +72,25 @@ def test_channel_create_list_get_and_errors(tmp_path):
         store.get_channel("missing")
 
 
+@pytest.mark.parametrize("name", ["", ".", "..", "bad/name", r"bad\name", "bad:name"])
+def test_store_rejects_path_control_resource_names(tmp_path, name):
+    store = LocalStore(tmp_path / "store")
+
+    with pytest.raises(InvalidPayloadError, match="Invalid channel"):
+        store.create_channel({"name": name})
+
+    store.create_channel({"name": "events"})
+
+    with pytest.raises(InvalidPayloadError, match="Invalid event"):
+        store.append_event({"id": name, "channel": "events", "payload": {}})
+
+    with pytest.raises(InvalidPayloadError, match="Invalid subscription"):
+        store.create_subscription("events", subscription_id=name)
+
+    with pytest.raises(InvalidPayloadError, match="Invalid snapshot"):
+        store.put_snapshot({"name": name, "channel": "events", "value": {}})
+
+
 def test_event_append_and_query_with_metadata(tmp_path):
     store = LocalStore(tmp_path / "store")
     store.create_channel({"name": "events", "schema": "demo.schemas:Event"})
