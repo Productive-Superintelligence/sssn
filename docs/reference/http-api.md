@@ -11,6 +11,7 @@ Portable endpoints:
 | `GET /events?channel=...` | Query events. |
 | `GET /events/{id}` | Read one event. |
 | `POST /subscriptions` | Create a subscription. |
+| `GET /subscriptions/{id}` | Read subscription cursor and metadata. |
 | `POST /subscriptions/{id}/pull` | Pull pending events. |
 | `POST /artifacts` | Write artifact data. |
 | `GET /artifacts/{id}` | Read artifact payload bytes. |

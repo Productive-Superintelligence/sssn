@@ -110,3 +110,28 @@ def test_http_api_reference_distinguishes_artifact_payload_and_metadata():
         "| `GET /artifacts/{id}/metadata` | Read artifact metadata only. |"
         in reference
     )
+
+
+def test_http_api_reference_lists_portable_endpoints():
+    reference = (ROOT / "docs" / "reference" / "http-api.md").read_text(
+        encoding="utf-8"
+    )
+    expected = {
+        "POST /channels",
+        "GET /channels",
+        "GET /channels/{name}",
+        "POST /events",
+        "GET /events?channel=...",
+        "GET /events/{id}",
+        "POST /subscriptions",
+        "GET /subscriptions/{id}",
+        "POST /subscriptions/{id}/pull",
+        "POST /artifacts",
+        "GET /artifacts/{id}",
+        "GET /artifacts/{id}/metadata",
+        "PUT /snapshots/{name}",
+        "GET /snapshots/{name}",
+    }
+
+    for endpoint in expected:
+        assert f"| `{endpoint}` |" in reference
