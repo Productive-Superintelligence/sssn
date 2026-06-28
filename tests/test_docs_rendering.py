@@ -87,3 +87,15 @@ def test_docs_keep_light_brand_styles(tmp_path):
     assert 'securityLevel: "strict"' in mermaid_js
     assert "assets/logo.svg" in index_html
     assert "assets/sssn-logo-text-dark.png" in index_html
+
+
+def test_http_api_reference_distinguishes_artifact_payload_and_metadata():
+    reference = (ROOT / "docs" / "reference" / "http-api.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "| `GET /artifacts/{id}` | Read artifact payload bytes. |" in reference
+    assert (
+        "| `GET /artifacts/{id}/metadata` | Read artifact metadata only. |"
+        in reference
+    )

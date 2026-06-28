@@ -13,7 +13,7 @@ Portable endpoints:
 | `POST /subscriptions` | Create a subscription. |
 | `POST /subscriptions/{id}/pull` | Pull pending events. |
 | `POST /artifacts` | Write artifact data. |
-| `GET /artifacts/{id}` | Read artifact metadata. |
+| `GET /artifacts/{id}` | Read artifact payload bytes. |
 | `GET /artifacts/{id}/metadata` | Read artifact metadata only. |
 | `PUT /snapshots/{name}` | Write latest state. |
 | `GET /snapshots/{name}` | Read latest state. |
