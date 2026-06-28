@@ -20,7 +20,7 @@ from .core import (
 from .stores import LocalStore
 from .server import EndpointScope, StoreEndpointSpec, create_app, endpoint
 from .client import AsyncSSSNClient, SSSNClient, SSSNClientError
-from .integrations import channel_resource
+from .integrations import channel_resource, snapshot_resource
 
 __version__ = "0.1.0"
 
@@ -50,4 +50,5 @@ __all__ = [
     "channel_resource",
     "create_app",
     "endpoint",
+    "snapshot_resource",
 ]

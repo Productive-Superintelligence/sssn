@@ -1,7 +1,7 @@
 # PsiHub Manifest
 
-This example builds the channel portion of a PsiHub-style manifest from SSSN
-`Channel` objects.
+This example builds channel and snapshot portions of a PsiHub-style manifest
+from SSSN `Channel` and `Snapshot` objects.
 
 ```python
 from examples.psihub_manifest.package_manifest import build_manifest

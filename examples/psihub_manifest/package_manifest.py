@@ -1,6 +1,6 @@
 from typing import Any
 
-from sssn import Channel, channel_resource, endpoint
+from sssn import Channel, Snapshot, channel_resource, endpoint, snapshot_resource
 
 
 @endpoint.get(
@@ -11,6 +11,16 @@ from sssn import Channel, channel_resource, endpoint
 )
 def channel_tail(store, name: str, limit: int = 20):
     return store.query_events(name, limit=limit)
+
+
+@endpoint.get(
+    "/snapshots/latest-analysis",
+    scope="snapshot",
+    description="Return the latest derived analysis state.",
+    tags=("snapshots",),
+)
+def latest_analysis(store):
+    return store.get_snapshot("latest_analysis")
 
 
 RAW_CHANNEL = Channel(
@@ -27,6 +37,12 @@ ANALYSIS_CHANNEL = Channel(
     description="Derived analysis events.",
     metadata={"derived_from": "raw"},
 )
+LATEST_ANALYSIS = Snapshot(
+    name="latest_analysis",
+    channel="analysis",
+    schema="analysis_event",
+    metadata={"derived_from": "analysis"},
+)
 
 
 def build_channel_resources() -> dict[str, dict[str, Any]]:
@@ -41,6 +57,21 @@ def build_channel_resources() -> dict[str, dict[str, Any]]:
             if key != "name" and value not in (None, "", {}, [])
         }
         for resource in resources
+    }
+
+
+def build_snapshot_resources() -> dict[str, dict[str, Any]]:
+    resource = snapshot_resource(
+        LATEST_ANALYSIS,
+        description="Latest derived analysis event.",
+        custom_endpoints=[latest_analysis],
+    )
+    return {
+        resource["name"]: {
+            key: value
+            for key, value in resource.items()
+            if key != "name" and value not in (None, "", {}, [])
+        }
     }
 
 
@@ -60,9 +91,11 @@ def build_manifest() -> dict[str, Any]:
             "analysis_event": {"entry": "demo.schemas:AnalysisEvent"},
         },
         "channels": build_channel_resources(),
+        "snapshots": build_snapshot_resources(),
         "runs": {
             "local": {
                 "channels": ["raw", "analysis"],
+                "snapshots": ["latest_analysis"],
                 "description": "Create both channels in a local store.",
             }
         },

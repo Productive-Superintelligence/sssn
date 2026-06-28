@@ -51,6 +51,7 @@ def test_psihub_manifest_example_builds_channel_manifest():
 
     assert manifest["package"]["primary"] == "channels.raw"
     assert sorted(manifest["channels"]) == ["analysis", "raw"]
+    assert sorted(manifest["snapshots"]) == ["latest_analysis"]
     assert manifest["channels"]["raw"]["schema"] == "raw_event"
     assert manifest["channels"]["raw"]["endpoints"] == [
         {
@@ -62,7 +63,20 @@ def test_psihub_manifest_example_builds_channel_manifest():
             "tags": ["channels"],
         }
     ]
+    assert manifest["snapshots"]["latest_analysis"]["schema"] == "analysis_event"
+    assert manifest["snapshots"]["latest_analysis"]["channel"] == "analysis"
+    assert manifest["snapshots"]["latest_analysis"]["endpoints"] == [
+        {
+            "name": "latest_analysis",
+            "method": "GET",
+            "path": "/snapshots/latest-analysis",
+            "scope": "snapshot",
+            "description": "Return the latest derived analysis state.",
+            "tags": ["snapshots"],
+        }
+    ]
     assert manifest["runs"]["local"]["channels"] == ["raw", "analysis"]
+    assert manifest["runs"]["local"]["snapshots"] == ["latest_analysis"]
 
 
 def test_artifact_snapshot_example_writes_artifact_and_latest_state(tmp_path):

@@ -56,23 +56,29 @@ HTTP clients raise `SSSNClientError` with `status_code`, `error_type`,
 
 ## Package Metadata Helpers
 
-SSSN does not own `psi.toml`, but it can export channel metadata for PsiHub:
+SSSN does not own `psi.toml`, but it can export channel and snapshot metadata
+for PsiHub:
 
 ```python
-from sssn import Channel, channel_resource
+from sssn import Channel, Snapshot, channel_resource, snapshot_resource
 
 resource = channel_resource(Channel(name="events", schema="demo.schemas:Event"))
+latest = snapshot_resource(
+    Snapshot(name="latest", channel="events", schema="demo.schemas:Event"),
+    description="Latest event state.",
+)
 ```
 
 Custom SSSN endpoint decorators can be included so generated package cards show
 domain routes alongside the portable channel API. Use `scope="channel"` on
-channel-specific routes so package cards can group them correctly.
+channel-specific routes and `scope="snapshot"` on latest-state routes so
+package cards can group them correctly.
 
 `examples/psihub_manifest` shows how to turn channel resources into a
 PsiHub-style manifest section:
 
 ```python
-from sssn import Channel, channel_resource
+from sssn import Channel, Snapshot, channel_resource, snapshot_resource
 
 raw = channel_resource(
     Channel(
@@ -82,10 +88,14 @@ raw = channel_resource(
         description="Incoming events.",
     )
 )
+latest = snapshot_resource(
+    Snapshot(name="latest", channel="raw", schema="raw_event")
+)
 
 manifest = {
     "package": {"org": "demo", "name": "events", "kind": "channel"},
     "channels": {raw["name"]: {k: v for k, v in raw.items() if k != "name"}},
+    "snapshots": {latest["name"]: {k: v for k, v in latest.items() if k != "name"}},
 }
 ```
 
