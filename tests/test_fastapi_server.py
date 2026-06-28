@@ -111,3 +111,27 @@ def test_fastapi_mounts_custom_channel_endpoint(tmp_path):
 
     assert response.status_code == 200
     assert response.json() == {"count": 1}
+
+
+def test_fastapi_openapi_includes_portable_and_custom_routes(tmp_path):
+    @endpoint.get("/channels/{name}/count")
+    def count_events(store: LocalStore, name: str):
+        return {"count": len(store.query_events(name))}
+
+    app = create_app(LocalStore(tmp_path / "store"), custom_endpoints=[count_events])
+    schema = app.openapi()
+
+    for path in (
+        "/health",
+        "/channels",
+        "/channels/{name}",
+        "/events",
+        "/subscriptions",
+        "/subscriptions/{subscription_id}/pull",
+        "/artifacts",
+        "/artifacts/{artifact_id}",
+        "/snapshots/{name}",
+        "/channels/{name}/count",
+    ):
+        assert path in schema["paths"]
+    assert schema["paths"]["/channels/{name}/count"]["get"]["summary"] == "Count Events"
