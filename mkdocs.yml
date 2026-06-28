@@ -1,0 +1,66 @@
+site_name: SSSN
+site_description: Semantic data plane for Psi services.
+site_url: https://sssn.one/
+repo_name: Productive-Superintelligence/sssn
+repo_url: https://github.com/Productive-Superintelligence/sssn
+edit_uri: edit/v2/docs/
+
+theme:
+  name: material
+  logo: assets/logo.svg
+  favicon: assets/logo.svg
+  palette:
+    - scheme: default
+      primary: black
+      accent: black
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.instant
+    - navigation.top
+    - toc.follow
+    - content.code.copy
+    - content.tabs.link
+
+nav:
+  - Overview: index.md
+  - Getting Started: getting-started.md
+  - Concepts:
+      - Channels: concepts/channels.md
+      - Events, Artifacts, Snapshots: concepts/events-artifacts-snapshots.md
+      - Data Plane: concepts/data-plane.md
+  - Guides:
+      - Local Store: guides/local-store.md
+      - HTTP Client: guides/http-client.md
+      - PsiHub Packages: guides/psihub-packages.md
+  - Tutorials:
+      - Protocol Level:
+          - First Channel: tutorials/first-channel.md
+          - Event Envelope: tutorials/event-envelope.md
+      - Native Runtime:
+          - Local Store: tutorials/local-store.md
+      - Client Runtime:
+          - HTTP Client: tutorials/http-client.md
+  - Reference:
+      - Python API: reference/python-api.md
+      - HTTP API: reference/http-api.md
+      - CLI: reference/cli.md
+
+extra:
+  generator: false
+  homepage: https://sssn.one/
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/Productive-Superintelligence/sssn
+
+extra_css:
+  - stylesheets/custom.css
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
