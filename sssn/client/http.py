@@ -388,14 +388,17 @@ def _snapshot_payload(
     if isinstance(value, Snapshot):
         payload = value.model_dump(mode="json", by_alias=True, exclude_none=True)
         payload.pop("name", None)
-        return _snapshot_payload(
-            payload,
-            channel=channel,
-            timestamp=timestamp,
-            schema=schema,
-            source_event_id=source_event_id,
-            metadata=metadata,
-        )
+        if channel is not None:
+            payload["channel"] = channel
+        if timestamp is not None:
+            payload["timestamp"] = timestamp
+        if schema is not None:
+            payload["schema"] = schema
+        if source_event_id is not None:
+            payload["source_event_id"] = source_event_id
+        if metadata is not None:
+            payload["metadata"] = metadata
+        return payload
     raw_keys = {"channel", "timestamp", "value", "schema", "source_event_id", "metadata"}
     if (
         isinstance(value, dict)

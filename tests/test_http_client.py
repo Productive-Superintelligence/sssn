@@ -242,6 +242,51 @@ def test_sync_client_sends_snapshot_model_payload():
     assert snapshot.source_event_id == "event-1"
 
 
+def test_sync_client_snapshot_model_allows_field_overrides():
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content.decode("utf-8"))
+        assert body["channel"] == "override-channel"
+        assert body["schema"] == "demo.schemas:Override"
+        assert body["source_event_id"] == "override-event"
+        assert body["metadata"] == {"role": "override"}
+        assert body["value"] == {"status": "ok"}
+        assert "name" not in body
+        return httpx.Response(
+            200,
+            json={
+                "name": "latest",
+                "channel": body["channel"],
+                "timestamp": body["timestamp"],
+                "value": body["value"],
+                "schema": body["schema"],
+                "source_event_id": body["source_event_id"],
+                "metadata": body["metadata"],
+            },
+        )
+
+    client = SSSNClient("http://testserver", transport=httpx.MockTransport(handler))
+
+    snapshot = client.put_snapshot(
+        "latest",
+        Snapshot(
+            name="latest",
+            channel="events",
+            value={"status": "ok"},
+            source_event_id="event-1",
+            metadata={"role": "latest"},
+        ),
+        channel="override-channel",
+        schema="demo.schemas:Override",
+        source_event_id="override-event",
+        metadata={"role": "override"},
+    )
+
+    assert snapshot.channel == "override-channel"
+    assert snapshot.schema == "demo.schemas:Override"
+    assert snapshot.source_event_id == "override-event"
+    assert snapshot.metadata == {"role": "override"}
+
+
 def test_async_client_maps_server_errors(tmp_path):
     app = create_app(LocalStore(tmp_path / "store"))
 
