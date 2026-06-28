@@ -18,3 +18,8 @@ def test_cli_create_list_and_append(tmp_path, capsys):
     event = json.loads(capsys.readouterr().out)
     assert event["channel"] == "events"
     assert event["payload"] == {"n": 1}
+
+    assert main(["--store", str(store), "get-event", event["id"]]) == 0
+    loaded = json.loads(capsys.readouterr().out)
+    assert loaded["id"] == event["id"]
+    assert loaded["payload"] == {"n": 1}

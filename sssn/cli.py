@@ -26,6 +26,9 @@ def main(argv: list[str] | None = None) -> int:
     append.add_argument("--kind", default="event")
     append.add_argument("--source")
 
+    get_event = subcommands.add_parser("get-event", help="Read one event by id")
+    get_event.add_argument("id")
+
     serve = subcommands.add_parser("serve", help="Serve a local SSSN store")
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=7700)
@@ -55,6 +58,11 @@ def main(argv: list[str] | None = None) -> int:
                 payload=json.loads(args.payload),
             )
         )
+        print(event.model_dump_json(by_alias=True))
+        return 0
+
+    if args.command == "get-event":
+        event = store.get_event(args.id)
         print(event.model_dump_json(by_alias=True))
         return 0
 
