@@ -35,6 +35,29 @@ def main(argv: list[str] | None = None) -> int:
     get_event = subcommands.add_parser("get-event", help="Read one event by id")
     get_event.add_argument("id")
 
+    create_subscription = subcommands.add_parser(
+        "create-subscription",
+        help="Create or reuse a channel subscription",
+    )
+    create_subscription.add_argument("channel")
+    create_subscription.add_argument("--id")
+    create_subscription.add_argument("--consumer")
+    create_subscription.add_argument("--batch-size", type=int, default=100)
+    create_subscription.add_argument("--kind")
+
+    get_subscription = subcommands.add_parser(
+        "get-subscription",
+        help="Read subscription cursor state",
+    )
+    get_subscription.add_argument("id")
+
+    pull_subscription = subcommands.add_parser(
+        "pull-subscription",
+        help="Pull events from a subscription",
+    )
+    pull_subscription.add_argument("id")
+    pull_subscription.add_argument("--limit", type=int)
+
     serve = subcommands.add_parser("serve", help="Serve a local SSSN store")
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=7700)
@@ -80,6 +103,28 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "get-event":
         event = store.get_event(args.id)
         print(event.model_dump_json(by_alias=True))
+        return 0
+
+    if args.command == "create-subscription":
+        filters = {"kind": args.kind} if args.kind else None
+        subscription = store.create_subscription(
+            args.channel,
+            subscription_id=args.id,
+            consumer=args.consumer,
+            batch_size=args.batch_size,
+            filters=filters,
+        )
+        print(subscription.model_dump_json(by_alias=True))
+        return 0
+
+    if args.command == "get-subscription":
+        subscription = store.get_subscription(args.id)
+        print(subscription.model_dump_json(by_alias=True))
+        return 0
+
+    if args.command == "pull-subscription":
+        for event in store.pull_subscription(args.id, limit=args.limit):
+            print(event.model_dump_json(by_alias=True))
         return 0
 
     if args.command == "serve":

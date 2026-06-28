@@ -63,3 +63,83 @@ def test_cli_create_list_and_append(tmp_path, capsys):
     loaded = json.loads(capsys.readouterr().out)
     assert loaded["id"] == event["id"]
     assert loaded["payload"] == {"n": 1}
+
+    assert (
+        main(
+            [
+                "--store",
+                str(store),
+                "create-subscription",
+                "events",
+                "--id",
+                "analysis-worker",
+                "--consumer",
+                "worker",
+                "--batch-size",
+                "10",
+                "--kind",
+                "analysis",
+            ]
+        )
+        == 0
+    )
+    subscription = json.loads(capsys.readouterr().out)
+    assert subscription["id"] == "analysis-worker"
+    assert subscription["consumer"] == "worker"
+    assert subscription["filters"] == {"kind": "analysis"}
+
+    assert main(["--store", str(store), "pull-subscription", "analysis-worker"]) == 0
+    pulled = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert [item["id"] for item in pulled] == [analysis["id"]]
+
+    assert main(["--store", str(store), "get-subscription", "analysis-worker"]) == 0
+    loaded_subscription = json.loads(capsys.readouterr().out)
+    assert loaded_subscription["cursor"] == analysis["cursor"]
+
+    assert (
+        main(
+            [
+                "--store",
+                str(store),
+                "create-subscription",
+                "events",
+                "--id",
+                "analysis-worker",
+            ]
+        )
+        == 0
+    )
+    reused_subscription = json.loads(capsys.readouterr().out)
+    assert reused_subscription["cursor"] == analysis["cursor"]
+
+    assert (
+        main(
+            [
+                "--store",
+                str(store),
+                "append",
+                "events",
+                '{"n": 3}',
+                "--kind",
+                "analysis",
+            ]
+        )
+        == 0
+    )
+    next_analysis = json.loads(capsys.readouterr().out)
+
+    assert (
+        main(
+            [
+                "--store",
+                str(store),
+                "pull-subscription",
+                "analysis-worker",
+                "--limit",
+                "1",
+            ]
+        )
+        == 0
+    )
+    pulled_again = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert [item["id"] for item in pulled_again] == [next_analysis["id"]]
