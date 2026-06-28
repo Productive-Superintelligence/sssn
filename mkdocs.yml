@@ -42,6 +42,8 @@ nav:
           - Local Store: tutorials/local-store.md
       - Client Runtime:
           - HTTP Client: tutorials/http-client.md
+      - Composition:
+          - LLLM Tactic Processor: tutorials/lllm-tactic.md
   - Reference:
       - Python API: reference/python-api.md
       - HTTP API: reference/http-api.md

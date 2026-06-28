@@ -1,6 +1,8 @@
 import importlib.util
 from pathlib import Path
 
+import pytest
+
 from sssn import LocalStore
 
 
@@ -111,3 +113,23 @@ def test_artifact_snapshot_example_writes_artifact_and_latest_state(tmp_path):
     assert result["snapshot"].source_event_id == result["event"].id
     assert result["snapshot"].value["artifact_id"] == result["artifact"].id
     assert store.get_snapshot("latest").value == result["snapshot"].value
+
+
+def test_lllm_tactic_processor_example_composes_tactic_and_channels(tmp_path):
+    pytest.importorskip("lllm")
+    module = load_module(
+        ROOT / "examples" / "lllm_tactic_processor" / "workflow.py",
+        "lllm_tactic_processor_workflow",
+    )
+    store = LocalStore(tmp_path / "store")
+
+    result = module.run_workflow(store)
+    analysis = result["analysis"]
+
+    assert result["raw"].channel == "raw"
+    assert len(analysis) == 1
+    assert analysis[0].channel == "analysis"
+    assert analysis[0].parent_ids == (result["raw"].id,)
+    assert analysis[0].correlation_id == "episode-1"
+    assert analysis[0].payload == {"summary": "HELLO FROM SSSN", "length": 15}
+    assert result["tactic_info"].name == "analyze_message"

@@ -102,6 +102,14 @@ manifest = {
 }
 ```
 
+## LLLM Composition
+
+SSSN channels compose with LLLM tactics through a small processor loop: pull
+pending raw events, run the event payload through a tactic, then append the
+tactic output to an analysis channel with the raw event as its parent.
+`examples/lllm_tactic_processor/workflow.py` shows this path without external
+services or provider keys.
+
 ## Serve The Store
 
 For a step-by-step local store walkthrough, see
