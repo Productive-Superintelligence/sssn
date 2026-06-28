@@ -22,6 +22,7 @@ def test_async_client_calls_fastapi_server(tmp_path):
             {"channel": "events", "kind": "analysis", "payload": {"n": 2}}
         )
         events = await client.query_events("events")
+        loaded_event = await client.get_event(event.id)
         sub = await client.create_subscription(
             "events",
             subscription_id="worker-events",
@@ -75,6 +76,7 @@ def test_async_client_calls_fastapi_server(tmp_path):
             "event": event,
             "analysis": analysis,
             "events": events,
+            "loaded_event": loaded_event,
             "pulled": pulled,
             "loaded_sub": loaded_sub,
             "reused_sub": reused_sub,
@@ -97,6 +99,8 @@ def test_async_client_calls_fastapi_server(tmp_path):
     assert result["event"].cursor == 1
     assert result["analysis"].cursor == 2
     assert result["events"][0].id == result["event"].id
+    assert result["loaded_event"].id == result["event"].id
+    assert result["loaded_event"].payload == {"n": 1}
     assert result["pulled"][0].id == result["event"].id
     assert result["loaded_sub"].cursor == result["pulled"][-1].cursor
     assert result["reused_sub"].id == "worker-events"
@@ -239,6 +243,36 @@ def test_sync_client_gets_artifact_metadata():
     assert artifact.media_type == "text/plain"
     assert artifact.metadata == {"role": "raw"}
     assert artifact.event_ids == ("event-1",)
+
+
+def test_sync_client_gets_event_by_id():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == "/events/event-1"
+        return httpx.Response(
+            200,
+            json={
+                "id": "event-1",
+                "cursor": 7,
+                "channel": "events",
+                "timestamp": 1.0,
+                "source": "test",
+                "kind": "raw",
+                "payload": {"n": 1},
+                "schema": None,
+                "metadata": {},
+                "correlation_id": None,
+                "parent_ids": [],
+            },
+        )
+
+    client = SSSNClient("http://testserver", transport=httpx.MockTransport(handler))
+
+    event = client.get_event("event-1")
+
+    assert event.id == "event-1"
+    assert event.cursor == 7
+    assert event.payload == {"n": 1}
 
 
 def test_sync_client_sends_snapshot_metadata_and_source_event():

@@ -17,6 +17,7 @@ from ..core import (
     ChannelExistsError,
     ChannelNotFoundError,
     Event,
+    EventNotFoundError,
     InvalidPayloadError,
     SSSNError,
     Snapshot,
@@ -134,6 +135,13 @@ def create_app(
                 kind=kind,
             )
             return [jsonable_encoder(event) for event in events]
+        except Exception as exc:
+            raise _http_error(exc) from exc
+
+    @app.get("/events/{event_id}")
+    async def get_event(event_id: str) -> dict[str, Any]:
+        try:
+            return jsonable_encoder(local_store.get_event(event_id))
         except Exception as exc:
             raise _http_error(exc) from exc
 
@@ -306,6 +314,7 @@ def _http_error(exc: Exception):
         exc,
         (
             ChannelNotFoundError,
+            EventNotFoundError,
             ArtifactNotFoundError,
             SnapshotNotFoundError,
             SubscriptionNotFoundError,

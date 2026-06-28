@@ -100,7 +100,7 @@ app = create_app(LocalStore(".sssn"))
 Portable HTTP endpoints include:
 
 - `POST /channels`, `GET /channels`, `GET /channels/{name}`
-- `POST /events`, `GET /events?channel=...`
+- `POST /events`, `GET /events?channel=...`, `GET /events/{id}`
 - `POST /subscriptions`, `GET /subscriptions/{id}`, `POST /subscriptions/{id}/pull`
 - `POST /artifacts`, `GET /artifacts/{id}`, `GET /artifacts/{id}/metadata`
 - `PUT /snapshots/{name}`, `GET /snapshots/{name}`
@@ -125,6 +125,7 @@ from sssn import AsyncSSSNClient
 client = AsyncSSSNClient("http://127.0.0.1:7700")
 channel = await client.create_channel({"name": "events"})
 event = await client.append_event({"channel": channel.name, "payload": {"ok": True}})
+same_event = await client.get_event(event.id)
 ```
 
 `SSSNClient` provides the same shape for synchronous code.

@@ -37,6 +37,8 @@ def test_fastapi_channel_event_subscription_flow(tmp_path):
         json={"channel": "events", "kind": "raw", "payload": {"n": 1}},
     )
     queried = request(app, "GET", "/events", params={"channel": "events"})
+    loaded_event = request(app, "GET", f"/events/{event.json()['id']}")
+    missing_event = request(app, "GET", "/events/missing")
     sub = request(app, "POST", "/subscriptions", json={"channel": "events"})
     request(app, "POST", "/channels", json={"name": "other-events"})
     conflicting_sub = request(
@@ -65,6 +67,9 @@ def test_fastapi_channel_event_subscription_flow(tmp_path):
     assert listed.json()[0]["name"] == "events"
     assert event.json()["payload"] == {"n": 1}
     assert queried.json()[0]["id"] == event.json()["id"]
+    assert loaded_event.json()["id"] == event.json()["id"]
+    assert missing_event.status_code == 404
+    assert missing_event.json()["detail"]["error"]["type"] == "EventNotFoundError"
     assert conflicting_sub.status_code == 409
     assert conflicting_sub.json()["detail"]["error"]["type"] == "SubscriptionExistsError"
     assert [item["id"] for item in pulled.json()] == [event.json()["id"]]
@@ -200,6 +205,7 @@ def test_fastapi_openapi_includes_portable_and_custom_routes(tmp_path):
         "/artifacts",
         "/artifacts/{artifact_id}",
         "/artifacts/{artifact_id}/metadata",
+        "/events/{event_id}",
         "/snapshots/{name}",
         "/channels/{name}/count",
     ):

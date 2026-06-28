@@ -16,6 +16,7 @@ from ..core import (
     Channel,
     ChannelExistsError,
     ChannelNotFoundError,
+    EventNotFoundError,
     Event,
     InvalidPayloadError,
     Snapshot,
@@ -130,6 +131,21 @@ class LocalStore:
         with self._connect() as db:
             rows = db.execute(sql, tuple(args)).fetchall()
         return tuple(_event(row) for row in rows)
+
+    def get_event(self, event_id: str) -> Event:
+        with self._connect() as db:
+            row = db.execute(
+                """
+                select rowid, id, channel, timestamp, source, kind, payload, schema_ref,
+                       metadata, correlation_id, parent_ids
+                from events
+                where id = ?
+                """,
+                (event_id,),
+            ).fetchone()
+        if row is None:
+            raise EventNotFoundError(f"Event not found: {event_id}")
+        return _event(row)
 
     def create_subscription(
         self,

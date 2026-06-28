@@ -15,6 +15,10 @@ class ChannelNotFoundError(SSSNError):
     """Raised when a channel does not exist."""
 
 
+class EventNotFoundError(SSSNError):
+    """Raised when an event does not exist."""
+
+
 class InvalidPayloadError(SSSNError):
     """Raised when payloads, cursors, or request values are invalid."""
 

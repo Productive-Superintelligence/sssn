@@ -76,6 +76,9 @@ class SSSNClient:
         data = self._request("GET", "/events", params=params).json()
         return tuple(Event.model_validate(item) for item in data)
 
+    def get_event(self, event_id: str) -> Event:
+        return Event.model_validate(self._request("GET", f"/events/{event_id}").json())
+
     def create_subscription(
         self,
         channel: str,
@@ -239,6 +242,11 @@ class AsyncSSSNClient:
             params["kind"] = kind
         data = (await self._request("GET", "/events", params=params)).json()
         return tuple(Event.model_validate(item) for item in data)
+
+    async def get_event(self, event_id: str) -> Event:
+        return Event.model_validate(
+            (await self._request("GET", f"/events/{event_id}")).json()
+        )
 
     async def create_subscription(
         self,

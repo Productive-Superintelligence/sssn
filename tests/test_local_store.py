@@ -6,6 +6,7 @@ from sssn import (
     ChannelExistsError,
     ChannelNotFoundError,
     Event,
+    EventNotFoundError,
     InvalidPayloadError,
     LocalStore,
     Snapshot,
@@ -71,6 +72,7 @@ def test_event_append_and_query_with_metadata(tmp_path):
     assert raw == (parent,)
     assert parent.cursor == 1
     assert child.cursor == 2
+    assert store.get_event(parent.id) == parent
     assert [event.id for event in after_parent] == [child.id]
     assert child.parent_ids == (parent.id,)
     assert parent.metadata == {"a": "b"}
@@ -78,6 +80,8 @@ def test_event_append_and_query_with_metadata(tmp_path):
         store.append_event({"channel": "missing", "payload": {}})
     with pytest.raises(InvalidPayloadError, match="Invalid event"):
         store.append_event({"payload": {}})
+    with pytest.raises(EventNotFoundError):
+        store.get_event("missing")
 
 
 def test_query_events_validates_cursor_and_limit(tmp_path):
