@@ -147,7 +147,8 @@ event.
 ## CLI
 
 ```bash
-sssn --store .sssn create-channel events
+sssn --store .sssn create-channel events --schema demo.Event --metadata '{"owner":"demo"}'
+sssn --store .sssn get-channel events
 sssn --store .sssn append events '{"text":"hello"}'
 sssn --store .sssn append events '{"text":"child"}' --schema demo.Event --metadata '{"role":"child"}' --correlation-id corr-1 --parent-id <event-id>
 sssn --store .sssn query-events events --limit 10

@@ -37,6 +37,11 @@ def main(argv: list[str] | None = None) -> int:
     create_channel.add_argument("name")
     create_channel.add_argument("--schema")
     create_channel.add_argument("--form", default="log")
+    create_channel.add_argument("--description", default="")
+    create_channel.add_argument("--metadata", type=_json_object)
+
+    get_channel = subcommands.add_parser("get-channel", help="Read one channel")
+    get_channel.add_argument("name")
 
     append = subcommands.add_parser("append", help="Append one JSON event")
     append.add_argument("channel")
@@ -132,8 +137,19 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "create-channel":
         channel = store.create_channel(
-            Channel(name=args.name, schema=args.schema, form=args.form)
+            Channel(
+                name=args.name,
+                schema=args.schema,
+                form=args.form,
+                description=args.description,
+                metadata=args.metadata or {},
+            )
         )
+        print(channel.model_dump_json(by_alias=True))
+        return 0
+
+    if args.command == "get-channel":
+        channel = store.get_channel(args.name)
         print(channel.model_dump_json(by_alias=True))
         return 0
 

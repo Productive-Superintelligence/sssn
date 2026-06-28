@@ -7,13 +7,37 @@ from sssn.cli import main
 def test_cli_create_list_and_append(tmp_path, capsys):
     store = tmp_path / "store"
 
-    assert main(["--store", str(store), "create-channel", "events"]) == 0
+    assert (
+        main(
+            [
+                "--store",
+                str(store),
+                "create-channel",
+                "events",
+                "--schema",
+                "demo.schemas:Event",
+                "--description",
+                "Event log",
+                "--metadata",
+                '{"owner": "cli"}',
+            ]
+        )
+        == 0
+    )
     created = json.loads(capsys.readouterr().out)
     assert created["name"] == "events"
+    assert created["schema"] == "demo.schemas:Event"
+    assert created["description"] == "Event log"
+    assert created["metadata"] == {"owner": "cli"}
 
     assert main(["--store", str(store), "channels"]) == 0
     listed = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
     assert listed[0]["name"] == "events"
+
+    assert main(["--store", str(store), "get-channel", "events"]) == 0
+    loaded_channel = json.loads(capsys.readouterr().out)
+    assert loaded_channel["schema"] == "demo.schemas:Event"
+    assert loaded_channel["metadata"] == {"owner": "cli"}
 
     assert main(["--store", str(store), "append", "events", '{"n": 1}']) == 0
     event = json.loads(capsys.readouterr().out)
