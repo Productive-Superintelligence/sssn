@@ -1,5 +1,9 @@
 # SSSN
 
+<p class="psi-brand">
+  <img src="assets/sssn-logo-text-dark.png" alt="SSSN" />
+</p>
+
 [sssn.one](https://sssn.one){ .psi-domain }
 
 SSSN is the semantic data and communication plane for Psi services. It carries

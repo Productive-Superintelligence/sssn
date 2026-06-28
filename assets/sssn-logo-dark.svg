@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <g fill="none" stroke="black" stroke-width="7" stroke-linejoin="round">
+    <!-- Outer bounding circle -->
+    <circle cx="100" cy="100" r="90"/>
+    <!-- 4 inner circles: each passes through center (100,100),
+         tangent to the outer circle at one point.
+         center offset d = radius r = 45, so d + r = 90 = R_outer -->
+    <circle cx="133.5" cy="100" r="56.5"/>
+    <circle cx="66.5"  cy="100" r="56.5"/>
+    <circle cx="100" cy="66.5"  r="56.5"/>
+    <circle cx="100" cy="133.5" r="56.5"/>
+  </g>
+</svg>

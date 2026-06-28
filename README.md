@@ -1,5 +1,7 @@
 # SSSN
 
+![SSSN](assets/sssn-logo-text-dark.png)
+
 SSSN is the semantic data and communication plane for PSI services.
 
 The center model is `Channel`: a named semantic data interface backed by a
