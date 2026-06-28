@@ -503,6 +503,12 @@ def _positive_int(name: str, value: int) -> int:
 
 
 def _subscription_kind(filters: dict[str, Any]) -> str | None:
+    unsupported = sorted(set(filters) - {"kind"})
+    if unsupported:
+        names = ", ".join(unsupported)
+        raise InvalidPayloadError(
+            f"subscription filters only support 'kind'; unsupported: {names}"
+        )
     value = filters.get("kind")
     if value is None:
         return None

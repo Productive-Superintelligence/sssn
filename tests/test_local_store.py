@@ -139,6 +139,8 @@ def test_subscription_pull_applies_kind_filter(tmp_path):
     assert store.pull_subscription(sub.id) == ()
     with pytest.raises(InvalidPayloadError, match="kind"):
         store.create_subscription("events", filters={"kind": 123})
+    with pytest.raises(InvalidPayloadError, match="unsupported"):
+        store.create_subscription("events", filters={"source": "sensor"})
 
 
 def test_subscription_validates_batch_size_and_pull_limit(tmp_path):

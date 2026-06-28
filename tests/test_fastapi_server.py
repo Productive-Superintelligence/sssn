@@ -113,6 +113,12 @@ def test_fastapi_returns_stable_errors_for_cursor_edges(tmp_path):
         "/subscriptions",
         json={"channel": "events", "batch_size": 0},
     )
+    bad_filter = request(
+        app,
+        "POST",
+        "/subscriptions",
+        json={"channel": "events", "filters": {"source": "sensor"}},
+    )
     missing_channel = request(app, "GET", "/channels/missing")
 
     assert bad_cursor.status_code == 400
@@ -122,6 +128,9 @@ def test_fastapi_returns_stable_errors_for_cursor_edges(tmp_path):
     assert bad_limit.json()["detail"]["error"]["type"] == "InvalidPayloadError"
     assert bad_batch.status_code == 400
     assert bad_batch.json()["detail"]["error"]["type"] == "InvalidPayloadError"
+    assert bad_filter.status_code == 400
+    assert bad_filter.json()["detail"]["error"]["type"] == "InvalidPayloadError"
+    assert "unsupported" in bad_filter.json()["detail"]["error"]["message"]
     assert missing_channel.status_code == 404
     assert missing_channel.json()["detail"]["error"]["type"] == "ChannelNotFoundError"
 

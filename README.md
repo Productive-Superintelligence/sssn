@@ -49,9 +49,10 @@ non-negative integers, and subscription/query limits must be greater than `0`.
 Returned events include `cursor` when the backing store can provide one; pass
 that value back as `after_cursor` to continue a query.
 Local stores reject event `parent_ids` that do not point at existing events.
-Subscription filters currently support `{"kind": "..."}` for event-kind
-specific consumer loops. HTTP clients can call `get_subscription()` to inspect
-persisted cursor state.
+Subscription filters currently support only `{"kind": "..."}` for event-kind
+specific consumer loops; unsupported filter keys are rejected instead of being
+ignored. HTTP clients can call `get_subscription()` to inspect persisted cursor
+state.
 
 HTTP clients raise `SSSNClientError` with `status_code`, `error_type`,
 `message`, and raw `detail` fields copied from the server error envelope.
