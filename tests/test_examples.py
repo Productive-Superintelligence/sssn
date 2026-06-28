@@ -41,6 +41,22 @@ def test_channel_processor_example_reads_and_writes_channels(tmp_path):
     assert store.query_events("analysis")[0].payload["source_event_id"] == raw.id
 
 
+def test_first_channel_example_creates_and_reads_event(tmp_path):
+    module = load_module(
+        ROOT / "examples" / "first_channel" / "workflow.py",
+        "first_channel_workflow",
+    )
+    store = LocalStore(tmp_path / "store")
+
+    result = module.run_workflow(store)
+
+    assert result["channel"].name == "events"
+    assert result["event"].channel == "events"
+    assert result["event"].payload == {"text": "hello"}
+    assert result["events"] == (result["event"],)
+    assert store.query_events("events", after_cursor=0) == result["events"]
+
+
 def test_psihub_manifest_example_builds_channel_manifest():
     module = load_module(
         ROOT / "examples" / "psihub_manifest" / "package_manifest.py",

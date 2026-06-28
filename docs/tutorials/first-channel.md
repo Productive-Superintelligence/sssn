@@ -2,6 +2,9 @@
 
 Build the smallest local SSSN channel, append an event, and read it back.
 
+The same flow is available as an executable example at
+`examples/first_channel/workflow.py`.
+
 ## Prerequisites
 
 ```bash
