@@ -385,6 +385,17 @@ def _snapshot_payload(
     source_event_id: str | None,
     metadata: dict[str, Any] | None,
 ) -> dict[str, Any]:
+    if isinstance(value, Snapshot):
+        payload = value.model_dump(mode="json", by_alias=True, exclude_none=True)
+        payload.pop("name", None)
+        return _snapshot_payload(
+            payload,
+            channel=channel,
+            timestamp=timestamp,
+            schema=schema,
+            source_event_id=source_event_id,
+            metadata=metadata,
+        )
     raw_keys = {"channel", "timestamp", "value", "schema", "source_event_id", "metadata"}
     if (
         isinstance(value, dict)

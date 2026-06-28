@@ -132,7 +132,8 @@ When `write_artifact()` receives `bytes`, HTTP clients send base64 so binary
 payloads round-trip through the portable API. Artifact writes also accept
 `metadata` and `event_ids` so larger payloads can stay linked to the events
 that introduced them. Snapshot writes accept a plain value plus optional
-`channel`, `schema`, `source_event_id`, and `metadata` fields.
+`channel`, `schema`, `source_event_id`, and `metadata` fields, or a `Snapshot`
+model instance.
 
 ## CLI
 
