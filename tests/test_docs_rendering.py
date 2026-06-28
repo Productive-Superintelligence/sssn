@@ -141,3 +141,18 @@ def test_http_api_reference_lists_portable_endpoints():
 
     for endpoint in expected:
         assert f"| `{endpoint}` |" in reference
+
+
+def test_public_text_does_not_use_staging_name():
+    text_paths = [ROOT / "README.md"]
+    text_paths.extend((ROOT / "docs").rglob("*.md"))
+    text_paths.extend(
+        path
+        for path in (ROOT / "examples").rglob("*")
+        if path.suffix in {".md", ".py", ".toml", ".yaml", ".yml"}
+    )
+
+    for path in text_paths:
+        text = path.read_text(encoding="utf-8")
+        assert "SSSN v2" not in text, path
+        assert "sssnv2" not in text, path
