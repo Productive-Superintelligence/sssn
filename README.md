@@ -1,6 +1,8 @@
 # SSSN
 
-![SSSN](assets/sssn-logo-text-dark.png)
+<p>
+  <img src="assets/sssn-logo-text-dark.png" alt="SSSN" height="56">
+</p>
 
 SSSN is the semantic data and communication plane for PSI services.
 
