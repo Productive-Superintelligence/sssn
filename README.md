@@ -67,3 +67,9 @@ event = await client.append_event({"channel": channel.name, "payload": {"ok": Tr
 ```
 
 `SSSNClient` provides the same shape for synchronous code.
+
+## Service-Style Processing
+
+`examples/channel_processor` shows the intended service shape: a process pulls
+events from one channel subscription and appends derived events to another
+channel. The example is covered by the test suite so it stays executable.
