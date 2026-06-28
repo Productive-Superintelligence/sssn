@@ -154,6 +154,8 @@ sssn --store .sssn get-event <event-id>
 sssn --store .sssn create-subscription events --id worker --kind event
 sssn --store .sssn pull-subscription worker --limit 10
 sssn --store .sssn get-subscription worker
+sssn --store .sssn put-snapshot latest '{"status":"ok"}'
+sssn --store .sssn get-snapshot latest
 sssn --store .sssn channels
 sssn --store .sssn serve --host 127.0.0.1 --port 7700
 ```

@@ -8,6 +8,13 @@ import json
 from . import Channel, Event, LocalStore
 
 
+def _json_object(raw: str) -> dict[str, object]:
+    value = json.loads(raw)
+    if not isinstance(value, dict):
+        raise argparse.ArgumentTypeError("must be a JSON object")
+    return value
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="sssn")
     parser.add_argument("--store", default=".sssn", help="Local store directory")
@@ -57,6 +64,17 @@ def main(argv: list[str] | None = None) -> int:
     )
     pull_subscription.add_argument("id")
     pull_subscription.add_argument("--limit", type=int)
+
+    put_snapshot = subcommands.add_parser("put-snapshot", help="Write a snapshot")
+    put_snapshot.add_argument("name")
+    put_snapshot.add_argument("value")
+    put_snapshot.add_argument("--channel")
+    put_snapshot.add_argument("--schema")
+    put_snapshot.add_argument("--source-event-id")
+    put_snapshot.add_argument("--metadata", type=_json_object)
+
+    get_snapshot = subcommands.add_parser("get-snapshot", help="Read one snapshot")
+    get_snapshot.add_argument("name")
 
     serve = subcommands.add_parser("serve", help="Serve a local SSSN store")
     serve.add_argument("--host", default="127.0.0.1")
@@ -125,6 +143,25 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "pull-subscription":
         for event in store.pull_subscription(args.id, limit=args.limit):
             print(event.model_dump_json(by_alias=True))
+        return 0
+
+    if args.command == "put-snapshot":
+        snapshot = store.put_snapshot(
+            {
+                "name": args.name,
+                "value": json.loads(args.value),
+                "channel": args.channel,
+                "schema": args.schema,
+                "source_event_id": args.source_event_id,
+                "metadata": args.metadata or {},
+            }
+        )
+        print(snapshot.model_dump_json(by_alias=True))
+        return 0
+
+    if args.command == "get-snapshot":
+        snapshot = store.get_snapshot(args.name)
+        print(snapshot.model_dump_json(by_alias=True))
         return 0
 
     if args.command == "serve":

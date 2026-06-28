@@ -69,6 +69,37 @@ def test_cli_create_list_and_append(tmp_path, capsys):
             [
                 "--store",
                 str(store),
+                "put-snapshot",
+                "latest",
+                '{"status": "ok"}',
+                "--channel",
+                "events",
+                "--schema",
+                "demo.schemas:State",
+                "--source-event-id",
+                event["id"],
+                "--metadata",
+                '{"role": "latest"}',
+            ]
+        )
+        == 0
+    )
+    snapshot = json.loads(capsys.readouterr().out)
+    assert snapshot["name"] == "latest"
+    assert snapshot["value"] == {"status": "ok"}
+    assert snapshot["schema"] == "demo.schemas:State"
+    assert snapshot["source_event_id"] == event["id"]
+    assert snapshot["metadata"] == {"role": "latest"}
+
+    assert main(["--store", str(store), "get-snapshot", "latest"]) == 0
+    loaded_snapshot = json.loads(capsys.readouterr().out)
+    assert loaded_snapshot["value"] == {"status": "ok"}
+
+    assert (
+        main(
+            [
+                "--store",
+                str(store),
                 "create-subscription",
                 "events",
                 "--id",
