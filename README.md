@@ -44,6 +44,8 @@ read from and write to.
 Store methods raise stable `SSSNError` subclasses for missing resources and
 invalid request values. `after_cursor` starts at `0`, cursors must be
 non-negative integers, and subscription/query limits must be greater than `0`.
+Returned events include `cursor` when the backing store can provide one; pass
+that value back as `after_cursor` to continue a query.
 Subscription filters currently support `{"kind": "..."}` for event-kind
 specific consumer loops.
 

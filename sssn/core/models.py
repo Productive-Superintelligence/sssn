@@ -45,6 +45,7 @@ class Event(BaseModel):
     """Timestamped semantic record in a channel."""
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    cursor: int | None = None
     channel: str
     timestamp: float = Field(default_factory=time.time)
     source: str | None = None

@@ -58,6 +58,8 @@ def test_async_client_calls_fastapi_server(tmp_path):
 
     assert result["channel"].name == "events"
     assert result["event"].payload == {"n": 1}
+    assert result["event"].cursor == 1
+    assert result["analysis"].cursor == 2
     assert result["events"][0].id == result["event"].id
     assert result["pulled"][0].id == result["event"].id
     assert [event.id for event in result["filtered"]] == [result["analysis"].id]

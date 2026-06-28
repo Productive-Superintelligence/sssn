@@ -101,7 +101,7 @@ class LocalStore:
                     _json(list(value.parent_ids)),
                 ),
             )
-        return value
+        return value.model_copy(update={"cursor": self._event_cursor(value.id)})
 
     def query_events(
         self,
@@ -187,7 +187,7 @@ class LocalStore:
             kind=_subscription_kind(sub.filters),
         )
         if events:
-            last_cursor = self._event_cursor(events[-1].id)
+            last_cursor = events[-1].cursor or self._event_cursor(events[-1].id)
             with self._connect() as db:
                 db.execute(
                     "update subscriptions set cursor = ? where id = ?",
@@ -401,6 +401,7 @@ def _channel(row: sqlite3.Row) -> Channel:
 def _event(row: sqlite3.Row) -> Event:
     return Event(
         id=row["id"],
+        cursor=row["rowid"],
         channel=row["channel"],
         timestamp=row["timestamp"],
         source=row["source"],

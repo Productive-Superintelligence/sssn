@@ -64,9 +64,13 @@ def test_event_append_and_query_with_metadata(tmp_path):
 
     events = store.query_events("events")
     raw = store.query_events("events", kind="raw")
+    after_parent = store.query_events("events", after_cursor=parent.cursor or 0)
 
     assert [event.id for event in events] == [parent.id, child.id]
     assert raw == (parent,)
+    assert parent.cursor == 1
+    assert child.cursor == 2
+    assert [event.id for event in after_parent] == [child.id]
     assert child.parent_ids == (parent.id,)
     assert parent.metadata == {"a": "b"}
     with pytest.raises(ChannelNotFoundError):
@@ -95,6 +99,7 @@ def test_subscription_pull_advances_cursor(tmp_path):
 
     assert [event.id for event in store.pull_subscription(sub.id)] == [first.id]
     assert [event.id for event in store.pull_subscription(sub.id)] == [second.id]
+    assert store.get_subscription(sub.id).cursor == second.cursor
     assert store.pull_subscription(sub.id) == ()
     with pytest.raises(SubscriptionNotFoundError):
         store.pull_subscription("missing")
