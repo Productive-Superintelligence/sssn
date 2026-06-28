@@ -61,6 +61,42 @@ def test_fastapi_channel_event_subscription_flow(tmp_path):
     assert pulled_again.json() == []
 
 
+def test_fastapi_returns_stable_errors_for_cursor_edges(tmp_path):
+    app = create_app(LocalStore(tmp_path / "store"))
+    request(app, "POST", "/channels", json={"name": "events"})
+    sub = request(app, "POST", "/subscriptions", json={"channel": "events"})
+
+    bad_cursor = request(
+        app,
+        "GET",
+        "/events",
+        params={"channel": "events", "after_cursor": -1},
+    )
+    bad_limit = request(
+        app,
+        "POST",
+        f"/subscriptions/{sub.json()['id']}/pull",
+        params={"limit": 0},
+    )
+    bad_batch = request(
+        app,
+        "POST",
+        "/subscriptions",
+        json={"channel": "events", "batch_size": 0},
+    )
+    missing_channel = request(app, "GET", "/channels/missing")
+
+    assert bad_cursor.status_code == 400
+    assert bad_cursor.json()["detail"]["error"]["type"] == "InvalidPayloadError"
+    assert "after_cursor" in bad_cursor.json()["detail"]["error"]["message"]
+    assert bad_limit.status_code == 400
+    assert bad_limit.json()["detail"]["error"]["type"] == "InvalidPayloadError"
+    assert bad_batch.status_code == 400
+    assert bad_batch.json()["detail"]["error"]["type"] == "InvalidPayloadError"
+    assert missing_channel.status_code == 404
+    assert missing_channel.json()["detail"]["error"]["type"] == "ChannelNotFoundError"
+
+
 def test_fastapi_artifact_and_snapshot_flow(tmp_path):
     app = create_app(LocalStore(tmp_path / "store"))
     request(app, "POST", "/channels", json={"name": "state", "form": "latest-state"})

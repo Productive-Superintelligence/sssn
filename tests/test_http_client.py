@@ -75,5 +75,9 @@ def test_async_client_maps_server_errors(tmp_path):
         )
         await client.get_channel("missing")
 
-    with pytest.raises(SSSNClientError):
+    with pytest.raises(SSSNClientError) as exc_info:
         asyncio.run(run())
+
+    assert exc_info.value.status_code == 404
+    assert exc_info.value.error_type == "ChannelNotFoundError"
+    assert exc_info.value.message == "Channel not found: missing"

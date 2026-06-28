@@ -10,6 +10,25 @@ from ..core import Artifact, Channel, Event, Snapshot, Subscription
 class SSSNClientError(RuntimeError):
     """Raised when an SSSN HTTP server returns an error."""
 
+    def __init__(
+        self,
+        status_code: int,
+        *,
+        error_type: str | None = None,
+        message: str | None = None,
+        detail: Any = None,
+    ) -> None:
+        self.status_code = status_code
+        self.error_type = error_type
+        self.detail = detail
+        self.message = message or _detail_message(detail)
+        text = f"SSSN server returned HTTP {status_code}"
+        if error_type:
+            text += f" ({error_type})"
+        if self.message:
+            text += f": {self.message}"
+        super().__init__(text)
+
 
 class SSSNClient:
     """Synchronous HTTP client for the portable SSSN API."""
@@ -280,4 +299,30 @@ def _raise_for_error(response: Any) -> None:
         data = response.json()
     except Exception:
         data = response.text
-    raise SSSNClientError(f"SSSN server returned HTTP {response.status_code}: {data}")
+    error = _error_detail(data)
+    raise SSSNClientError(
+        response.status_code,
+        error_type=error.get("type") if isinstance(error, dict) else None,
+        message=error.get("message") if isinstance(error, dict) else None,
+        detail=data,
+    )
+
+
+def _error_detail(data: Any) -> Any:
+    if isinstance(data, dict):
+        detail = data.get("detail", data)
+        if isinstance(detail, dict) and "error" in detail:
+            return detail["error"]
+        if "error" in data:
+            return data["error"]
+    return data
+
+
+def _detail_message(detail: Any) -> str | None:
+    if isinstance(detail, str):
+        return detail
+    if isinstance(detail, dict):
+        error = _error_detail(detail)
+        if isinstance(error, dict) and isinstance(error.get("message"), str):
+            return error["message"]
+    return None

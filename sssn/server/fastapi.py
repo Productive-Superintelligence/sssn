@@ -73,7 +73,7 @@ def create_app(
     """Create a FastAPI app exposing a store's portable API."""
 
     try:
-        from fastapi import FastAPI, HTTPException, Query
+        from fastapi import FastAPI, HTTPException
         from fastapi.encoders import jsonable_encoder
         from fastapi.responses import Response
     except ImportError as exc:  # pragma: no cover
@@ -116,7 +116,7 @@ def create_app(
     async def query_events(
         channel: str,
         after_cursor: int = 0,
-        limit: int = Query(default=100, ge=1),
+        limit: int = 100,
         kind: str | None = None,
     ) -> list[dict[str, Any]]:
         try:

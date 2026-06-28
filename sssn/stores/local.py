@@ -6,9 +6,9 @@ import hashlib
 import json
 import sqlite3
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
-from pydantic import TypeAdapter
+from pydantic import BaseModel, TypeAdapter, ValidationError
 
 from ..core import (
     Artifact,
@@ -17,11 +17,14 @@ from ..core import (
     ChannelExistsError,
     ChannelNotFoundError,
     Event,
+    InvalidPayloadError,
     Snapshot,
     SnapshotNotFoundError,
     Subscription,
     SubscriptionNotFoundError,
 )
+
+ModelT = TypeVar("ModelT", bound=BaseModel)
 
 
 class LocalStore:
@@ -36,7 +39,7 @@ class LocalStore:
         self._init_db()
 
     def create_channel(self, channel: Channel | dict[str, Any]) -> Channel:
-        value = channel if isinstance(channel, Channel) else Channel.model_validate(channel)
+        value = _model(Channel, channel, "channel")
         try:
             with self._connect() as db:
                 db.execute(
@@ -74,7 +77,7 @@ class LocalStore:
         return _channel(row)
 
     def append_event(self, event: Event | dict[str, Any]) -> Event:
-        value = event if isinstance(event, Event) else Event.model_validate(event)
+        value = _model(Event, event, "event")
         self.get_channel(value.channel)
         with self._connect() as db:
             db.execute(
@@ -108,6 +111,8 @@ class LocalStore:
         limit: int = 100,
         kind: str | None = None,
     ) -> tuple[Event, ...]:
+        after_cursor = _non_negative_int("after_cursor", after_cursor)
+        limit = _positive_int("limit", limit)
         self.get_channel(channel)
         sql = """
             select rowid, id, channel, timestamp, source, kind, payload, schema_ref,
@@ -134,13 +139,18 @@ class LocalStore:
         filters: dict[str, Any] | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> Subscription:
+        batch_size = _positive_int("batch_size", batch_size)
         self.get_channel(channel)
-        sub = Subscription(
-            channel=channel,
-            consumer=consumer,
-            batch_size=batch_size,
-            filters=filters or {},
-            metadata=metadata or {},
+        sub = _model(
+            Subscription,
+            {
+                "channel": channel,
+                "consumer": consumer,
+                "batch_size": batch_size,
+                "filters": filters if filters is not None else {},
+                "metadata": metadata if metadata is not None else {},
+            },
+            "subscription",
         )
         with self._connect() as db:
             db.execute(
@@ -166,11 +176,13 @@ class LocalStore:
         *,
         limit: int | None = None,
     ) -> tuple[Event, ...]:
+        if limit is not None:
+            limit = _positive_int("limit", limit)
         sub = self.get_subscription(subscription_id)
         events = self.query_events(
             sub.channel,
             after_cursor=sub.cursor,
-            limit=limit or sub.batch_size,
+            limit=limit if limit is not None else sub.batch_size,
         )
         if events:
             last_cursor = self._event_cursor(events[-1].id)
@@ -258,7 +270,7 @@ class LocalStore:
         return path.read_bytes()
 
     def put_snapshot(self, snapshot: Snapshot | dict[str, Any]) -> Snapshot:
-        value = snapshot if isinstance(snapshot, Snapshot) else Snapshot.model_validate(snapshot)
+        value = _model(Snapshot, snapshot, "snapshot")
         if value.channel is not None:
             self.get_channel(value.channel)
         with self._connect() as db:
@@ -399,8 +411,36 @@ def _event(row: sqlite3.Row) -> Event:
     )
 
 
+def _model(model_type: type[ModelT], value: ModelT | dict[str, Any], label: str) -> ModelT:
+    if isinstance(value, model_type):
+        return value
+    try:
+        return model_type.model_validate(value)
+    except ValidationError as exc:
+        raise InvalidPayloadError(f"Invalid {label}: {exc}") from exc
+
+
+def _non_negative_int(name: str, value: int) -> int:
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise InvalidPayloadError(f"{name} must be an integer.")
+    if value < 0:
+        raise InvalidPayloadError(f"{name} must be greater than or equal to 0.")
+    return value
+
+
+def _positive_int(name: str, value: int) -> int:
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise InvalidPayloadError(f"{name} must be an integer.")
+    if value < 1:
+        raise InvalidPayloadError(f"{name} must be greater than 0.")
+    return value
+
+
 def _json(value: Any) -> str:
-    return json.dumps(TypeAdapter(Any).dump_python(value, mode="json"), sort_keys=True)
+    try:
+        return json.dumps(TypeAdapter(Any).dump_python(value, mode="json"), sort_keys=True)
+    except (TypeError, ValueError) as exc:
+        raise InvalidPayloadError(f"Value is not JSON serializable: {exc}") from exc
 
 
 def _loads(value: str | None) -> Any:

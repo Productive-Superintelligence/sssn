@@ -39,6 +39,15 @@ Default layout:
 SSSN does not control services. It provides the data plane those services can
 read from and write to.
 
+## Errors And Cursors
+
+Store methods raise stable `SSSNError` subclasses for missing resources and
+invalid request values. `after_cursor` starts at `0`, cursors must be
+non-negative integers, and subscription/query limits must be greater than `0`.
+
+HTTP clients raise `SSSNClientError` with `status_code`, `error_type`,
+`message`, and raw `detail` fields copied from the server error envelope.
+
 ## Package Metadata Helpers
 
 SSSN does not own `psi.toml`, but it can export channel metadata for PsiHub:

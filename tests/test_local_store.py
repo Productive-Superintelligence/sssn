@@ -6,6 +6,7 @@ from sssn import (
     ChannelExistsError,
     ChannelNotFoundError,
     Event,
+    InvalidPayloadError,
     LocalStore,
     Snapshot,
     SnapshotNotFoundError,
@@ -70,6 +71,19 @@ def test_event_append_and_query_with_metadata(tmp_path):
     assert parent.metadata == {"a": "b"}
     with pytest.raises(ChannelNotFoundError):
         store.append_event({"channel": "missing", "payload": {}})
+    with pytest.raises(InvalidPayloadError, match="Invalid event"):
+        store.append_event({"payload": {}})
+
+
+def test_query_events_validates_cursor_and_limit(tmp_path):
+    store = LocalStore(tmp_path / "store")
+    store.create_channel({"name": "events"})
+    store.append_event({"channel": "events", "payload": {"n": 1}})
+
+    with pytest.raises(InvalidPayloadError, match="after_cursor"):
+        store.query_events("events", after_cursor=-1)
+    with pytest.raises(InvalidPayloadError, match="limit"):
+        store.query_events("events", limit=0)
 
 
 def test_subscription_pull_advances_cursor(tmp_path):
@@ -84,6 +98,19 @@ def test_subscription_pull_advances_cursor(tmp_path):
     assert store.pull_subscription(sub.id) == ()
     with pytest.raises(SubscriptionNotFoundError):
         store.pull_subscription("missing")
+
+
+def test_subscription_validates_batch_size_and_pull_limit(tmp_path):
+    store = LocalStore(tmp_path / "store")
+    store.create_channel({"name": "events"})
+    sub = store.create_subscription("events")
+
+    with pytest.raises(InvalidPayloadError, match="batch_size"):
+        store.create_subscription("events", batch_size=0)
+    with pytest.raises(InvalidPayloadError, match="filters"):
+        store.create_subscription("events", filters=[])
+    with pytest.raises(InvalidPayloadError, match="limit"):
+        store.pull_subscription(sub.id, limit=0)
 
 
 def test_artifact_write_read_and_missing(tmp_path):
