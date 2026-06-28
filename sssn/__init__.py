@@ -17,6 +17,7 @@ from .core import (
 from .stores import LocalStore
 from .server import StoreEndpointSpec, create_app, endpoint
 from .client import AsyncSSSNClient, SSSNClient, SSSNClientError
+from .integrations import channel_resource
 
 __version__ = "0.1.0"
 
@@ -39,6 +40,7 @@ __all__ = [
     "Subscription",
     "SubscriptionNotFoundError",
     "__version__",
+    "channel_resource",
     "create_app",
     "endpoint",
 ]

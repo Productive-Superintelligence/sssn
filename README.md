@@ -39,6 +39,19 @@ Default layout:
 SSSN does not control services. It provides the data plane those services can
 read from and write to.
 
+## Package Metadata Helpers
+
+SSSN does not own `psi.toml`, but it can export channel metadata for PsiHub:
+
+```python
+from sssn import Channel, channel_resource
+
+resource = channel_resource(Channel(name="events", schema="demo.schemas:Event"))
+```
+
+Custom SSSN endpoint decorators can be included so generated package cards show
+domain routes alongside the portable channel API.
+
 ## Serve The Store
 
 ```python
