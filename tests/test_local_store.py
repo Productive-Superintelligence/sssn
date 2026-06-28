@@ -95,9 +95,17 @@ def test_subscription_pull_advances_cursor(tmp_path):
     store.create_channel({"name": "events"})
     first = store.append_event({"channel": "events", "payload": {"n": 1}})
     second = store.append_event({"channel": "events", "payload": {"n": 2}})
-    sub = store.create_subscription("events", consumer="worker", batch_size=1)
+    sub = store.create_subscription(
+        "events",
+        subscription_id="worker-events",
+        consumer="worker",
+        batch_size=1,
+    )
 
     assert [event.id for event in store.pull_subscription(sub.id)] == [first.id]
+    reused = store.create_subscription("events", subscription_id="worker-events")
+    assert reused.id == sub.id
+    assert reused.cursor == first.cursor
     assert [event.id for event in store.pull_subscription(sub.id)] == [second.id]
     assert store.get_subscription(sub.id).cursor == second.cursor
     assert store.pull_subscription(sub.id) == ()

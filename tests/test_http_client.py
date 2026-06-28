@@ -22,9 +22,16 @@ def test_async_client_calls_fastapi_server(tmp_path):
             {"channel": "events", "kind": "analysis", "payload": {"n": 2}}
         )
         events = await client.query_events("events")
-        sub = await client.create_subscription("events")
+        sub = await client.create_subscription(
+            "events",
+            subscription_id="worker-events",
+        )
         pulled = await client.pull_subscription(sub.id)
         loaded_sub = await client.get_subscription(sub.id)
+        reused_sub = await client.create_subscription(
+            "events",
+            subscription_id="worker-events",
+        )
         filtered_sub = await client.create_subscription(
             "events",
             filters={"kind": "analysis"},
@@ -70,6 +77,7 @@ def test_async_client_calls_fastapi_server(tmp_path):
             "events": events,
             "pulled": pulled,
             "loaded_sub": loaded_sub,
+            "reused_sub": reused_sub,
             "filtered": filtered,
             "artifact": artifact,
             "loaded_artifact": loaded_artifact,
@@ -91,6 +99,8 @@ def test_async_client_calls_fastapi_server(tmp_path):
     assert result["events"][0].id == result["event"].id
     assert result["pulled"][0].id == result["event"].id
     assert result["loaded_sub"].cursor == result["pulled"][-1].cursor
+    assert result["reused_sub"].id == "worker-events"
+    assert result["reused_sub"].cursor == result["loaded_sub"].cursor
     assert [event.id for event in result["filtered"]] == [result["analysis"].id]
     assert result["artifact"].metadata == {"role": "raw"}
     assert result["artifact"].event_ids == (result["event"].id,)
@@ -161,6 +171,47 @@ def test_sync_client_sends_artifact_metadata_and_event_ids():
 
     assert artifact.metadata == {"role": "raw"}
     assert artifact.event_ids == ("event-1",)
+
+
+def test_sync_client_sends_subscription_id():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == "/subscriptions"
+        body = json.loads(request.content.decode("utf-8"))
+        assert body == {
+            "id": "worker-events",
+            "channel": "events",
+            "consumer": "worker",
+            "batch_size": 10,
+            "filters": {"kind": "raw"},
+            "metadata": {"role": "processor"},
+        }
+        return httpx.Response(
+            200,
+            json={
+                "id": "worker-events",
+                "channel": "events",
+                "cursor": 0,
+                "consumer": "worker",
+                "batch_size": 10,
+                "filters": {"kind": "raw"},
+                "metadata": {"role": "processor"},
+            },
+        )
+
+    client = SSSNClient("http://testserver", transport=httpx.MockTransport(handler))
+
+    sub = client.create_subscription(
+        "events",
+        subscription_id="worker-events",
+        consumer="worker",
+        batch_size=10,
+        filters={"kind": "raw"},
+        metadata={"role": "processor"},
+    )
+
+    assert sub.id == "worker-events"
+    assert sub.filters == {"kind": "raw"}
 
 
 def test_sync_client_gets_artifact_metadata():

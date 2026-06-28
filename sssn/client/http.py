@@ -80,6 +80,7 @@ class SSSNClient:
         self,
         channel: str,
         *,
+        subscription_id: str | None = None,
         consumer: str | None = None,
         batch_size: int = 100,
         filters: dict[str, Any] | None = None,
@@ -90,6 +91,7 @@ class SSSNClient:
                 "POST",
                 "/subscriptions",
                 json={
+                    "id": subscription_id,
                     "channel": channel,
                     "consumer": consumer,
                     "batch_size": batch_size,
@@ -242,6 +244,7 @@ class AsyncSSSNClient:
         self,
         channel: str,
         *,
+        subscription_id: str | None = None,
         consumer: str | None = None,
         batch_size: int = 100,
         filters: dict[str, Any] | None = None,
@@ -253,6 +256,7 @@ class AsyncSSSNClient:
                     "POST",
                     "/subscriptions",
                     json={
+                        "id": subscription_id,
                         "channel": channel,
                         "consumer": consumer,
                         "batch_size": batch_size,

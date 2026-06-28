@@ -37,6 +37,7 @@ class ErrorResponse(BaseModel):
 
 
 class SubscriptionRequest(BaseModel):
+    id: str | None = None
     channel: str
     consumer: str | None = None
     batch_size: int = 100
@@ -141,6 +142,7 @@ def create_app(
             return jsonable_encoder(
                 local_store.create_subscription(
                     request.channel,
+                    subscription_id=request.id,
                     consumer=request.consumer,
                     batch_size=request.batch_size,
                     filters=request.filters,

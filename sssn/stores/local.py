@@ -134,6 +134,7 @@ class LocalStore:
         self,
         channel: str,
         *,
+        subscription_id: str | None = None,
         consumer: str | None = None,
         batch_size: int = 100,
         filters: dict[str, Any] | None = None,
@@ -141,17 +142,21 @@ class LocalStore:
     ) -> Subscription:
         batch_size = _positive_int("batch_size", batch_size)
         self.get_channel(channel)
-        sub = _model(
-            Subscription,
-            {
-                "channel": channel,
-                "consumer": consumer,
-                "batch_size": batch_size,
-                "filters": filters if filters is not None else {},
-                "metadata": metadata if metadata is not None else {},
-            },
-            "subscription",
-        )
+        if subscription_id is not None:
+            try:
+                return self.get_subscription(subscription_id)
+            except SubscriptionNotFoundError:
+                pass
+        payload: dict[str, Any] = {
+            "channel": channel,
+            "consumer": consumer,
+            "batch_size": batch_size,
+            "filters": filters if filters is not None else {},
+            "metadata": metadata if metadata is not None else {},
+        }
+        if subscription_id is not None:
+            payload["id"] = subscription_id
+        sub = _model(Subscription, payload, "subscription")
         _subscription_kind(sub.filters)
         with self._connect() as db:
             db.execute(
