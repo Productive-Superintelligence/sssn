@@ -17,6 +17,13 @@ def _json_object(raw: str) -> dict[str, object]:
     return value
 
 
+def _json_value(raw: str, label: str) -> object:
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise argparse.ArgumentTypeError(f"{label} must be valid JSON") from exc
+
+
 def _artifact_data(raw: str, encoding: str) -> bytes:
     if encoding == "base64":
         try:
@@ -165,11 +172,15 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "append":
+        try:
+            payload = _json_value(args.payload, "event payload")
+        except argparse.ArgumentTypeError as exc:
+            parser.error(str(exc))
         event_data = {
             "channel": args.channel,
             "kind": args.kind,
             "source": args.source,
-            "payload": json.loads(args.payload),
+            "payload": payload,
             "schema": args.schema,
             "metadata": args.metadata or {},
             "correlation_id": args.correlation_id,
@@ -249,10 +260,14 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "put-snapshot":
+        try:
+            value = _json_value(args.value, "snapshot value")
+        except argparse.ArgumentTypeError as exc:
+            parser.error(str(exc))
         snapshot = store.put_snapshot(
             {
                 "name": args.name,
-                "value": json.loads(args.value),
+                "value": value,
                 "channel": args.channel,
                 "schema": args.schema,
                 "source_event_id": args.source_event_id,

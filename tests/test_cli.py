@@ -283,6 +283,29 @@ def test_cli_rejects_blank_store_without_traceback(capsys):
 @pytest.mark.parametrize(
     "args",
     [
+        ["append", "events", "{bad"],
+        ["put-snapshot", "latest", "{bad"],
+    ],
+)
+def test_cli_rejects_invalid_json_values_without_traceback(tmp_path, capsys, args):
+    store = tmp_path / "store"
+
+    try:
+        main(["--store", str(store), *args])
+    except SystemExit as exc:
+        assert exc.code == 2
+    else:
+        raise AssertionError("expected invalid JSON input to fail")
+
+    output = capsys.readouterr()
+    assert output.out == ""
+    assert "must be valid JSON" in output.err
+    assert "Traceback" not in output.err
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
         ["serve", "--host", ""],
         ["serve", "--host", "bad host"],
         ["serve", "--host", "http://127.0.0.1"],
