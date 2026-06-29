@@ -300,6 +300,15 @@ def test_core_models_reject_non_string_resource_segments():
 
 
 @pytest.mark.parametrize(
+    "kind",
+    ("", "   ", ".", "..", "bad kind", "bad/kind", "bad:kind", "bad\\kind"),
+)
+def test_core_event_rejects_malformed_kind_tokens(kind):
+    with pytest.raises(ValidationError):
+        Event(channel="events", kind=kind)
+
+
+@pytest.mark.parametrize(
     "factory",
     [
         lambda: Channel(name="events", schema=b"demo.schemas:Event"),
@@ -374,6 +383,22 @@ def test_query_events_validates_cursor_and_limit(tmp_path):
         store.query_events("events", after_cursor=-1)
     with pytest.raises(InvalidPayloadError, match="limit"):
         store.query_events("events", limit=0)
+
+
+@pytest.mark.parametrize(
+    "kind",
+    ("", "   ", ".", "..", "bad kind", "bad/kind", "bad:kind", "bad\\kind"),
+)
+def test_store_rejects_malformed_event_kind_tokens(tmp_path, kind):
+    store = LocalStore(tmp_path / "store")
+    store.create_channel({"name": "events"})
+
+    with pytest.raises(InvalidPayloadError, match="event.kind"):
+        store.append_event({"channel": "events", "kind": kind, "payload": {}})
+    with pytest.raises(InvalidPayloadError, match="event.kind"):
+        store.query_events("events", kind=kind)
+    with pytest.raises(InvalidPayloadError, match="kind"):
+        store.create_subscription("events", filters={"kind": kind})
 
 
 def test_subscription_pull_advances_cursor(tmp_path):

@@ -75,6 +75,8 @@ class SSSNClient:
         data = _dump_event(event)
         _require_optional_segment("event.id", data.get("id"))
         _require_segment("event.channel", data.get("channel"))
+        if "kind" in data:
+            _require_token("event.kind", data["kind"])
         _require_segments("event.parent_ids", data.get("parent_ids", ()))
         return _model_response(
             self._request("POST", "/events", json=data),
@@ -93,6 +95,7 @@ class SSSNClient:
         _require_segment("channel.name", channel)
         params = {"channel": channel, "after_cursor": after_cursor, "limit": limit}
         if kind is not None:
+            _require_token("event.kind", kind)
             params["kind"] = kind
         return _model_tuple_response(
             self._request("GET", "/events", params=params),
@@ -302,6 +305,8 @@ class AsyncSSSNClient:
         data = _dump_event(event)
         _require_optional_segment("event.id", data.get("id"))
         _require_segment("event.channel", data.get("channel"))
+        if "kind" in data:
+            _require_token("event.kind", data["kind"])
         _require_segments("event.parent_ids", data.get("parent_ids", ()))
         return _model_response(
             await self._request("POST", "/events", json=data),
@@ -320,6 +325,7 @@ class AsyncSSSNClient:
         _require_segment("channel.name", channel)
         params = {"channel": channel, "after_cursor": after_cursor, "limit": limit}
         if kind is not None:
+            _require_token("event.kind", kind)
             params["kind"] = kind
         return _model_tuple_response(
             await self._request("GET", "/events", params=params),
@@ -535,6 +541,17 @@ def _require_segment(field_name: str, value: Any) -> None:
         or any(ch in value for ch in "/:\\")
     ):
         raise InvalidPayloadError(f"{field_name} must be a non-empty path segment.")
+
+
+def _require_token(field_name: str, value: Any) -> None:
+    if (
+        not isinstance(value, str)
+        or not value.strip()
+        or value in {".", ".."}
+        or any(ch.isspace() for ch in value)
+        or any(ch in value for ch in "/:\\")
+    ):
+        raise InvalidPayloadError(f"{field_name} must be a non-empty token.")
 
 
 def _require_optional_segment(field_name: str, value: Any) -> None:

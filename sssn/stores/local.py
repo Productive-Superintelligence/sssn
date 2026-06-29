@@ -131,6 +131,7 @@ class LocalStore:
         """
         args: list[Any] = [channel, after_cursor]
         if kind is not None:
+            _require_token("event.kind", kind)
             sql += " and kind = ?"
             args.append(kind)
         sql += " order by rowid limit ?"
@@ -540,6 +541,17 @@ def _require_segment(field_name: str, value: str) -> None:
         raise InvalidPayloadError(f"{field_name} must be a non-empty path segment.")
 
 
+def _require_token(field_name: str, value: Any) -> None:
+    if (
+        not isinstance(value, str)
+        or not value.strip()
+        or value in {".", ".."}
+        or any(ch.isspace() for ch in value)
+        or any(ch in value for ch in "/:\\")
+    ):
+        raise InvalidPayloadError(f"{field_name} must be a non-empty token.")
+
+
 def _is_relative_to(path: Path, base_dir: Path) -> bool:
     try:
         path.relative_to(base_dir)
@@ -558,8 +570,7 @@ def _subscription_kind(filters: dict[str, Any]) -> str | None:
     value = filters.get("kind")
     if value is None:
         return None
-    if not isinstance(value, str) or not value:
-        raise InvalidPayloadError("subscription filter 'kind' must be a non-empty string.")
+    _require_token("subscription filter 'kind'", value)
     return value
 
 

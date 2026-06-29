@@ -325,6 +325,25 @@ def test_sync_client_rejects_path_control_body_ids_without_request(bad_name):
             call()
 
 
+@pytest.mark.parametrize(
+    "bad_kind",
+    ("", "   ", ".", "..", "bad kind", "bad/kind", "bad:kind", "bad\\kind"),
+)
+def test_sync_client_rejects_malformed_event_kind_without_request(bad_kind):
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise AssertionError(f"unexpected request: {request.url}")
+
+    client = SSSNClient("http://testserver", transport=httpx.MockTransport(handler))
+    calls = (
+        lambda: client.append_event({"channel": "events", "kind": bad_kind}),
+        lambda: client.query_events("events", kind=bad_kind),
+    )
+
+    for call in calls:
+        with pytest.raises(InvalidPayloadError, match="event.kind"):
+            call()
+
+
 @pytest.mark.parametrize("bad_name", ["bad/name", "bad name"])
 def test_async_client_rejects_path_control_lookup_names_without_request(bad_name):
     def handler(request: httpx.Request) -> httpx.Response:
@@ -349,6 +368,31 @@ def test_async_client_rejects_path_control_lookup_names_without_request(bad_name
 
         for call in calls:
             with pytest.raises(InvalidPayloadError):
+                await call()
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize(
+    "bad_kind",
+    ("", "   ", ".", "..", "bad kind", "bad/kind", "bad:kind", "bad\\kind"),
+)
+def test_async_client_rejects_malformed_event_kind_without_request(bad_kind):
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise AssertionError(f"unexpected request: {request.url}")
+
+    async def run():
+        client = AsyncSSSNClient(
+            "http://testserver",
+            transport=httpx.MockTransport(handler),
+        )
+        calls = (
+            lambda: client.append_event({"channel": "events", "kind": bad_kind}),
+            lambda: client.query_events("events", kind=bad_kind),
+        )
+
+        for call in calls:
+            with pytest.raises(InvalidPayloadError, match="event.kind"):
                 await call()
 
     asyncio.run(run())

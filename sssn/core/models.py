@@ -77,6 +77,7 @@ class Event(BaseModel):
     def _validate_identity(self) -> "Event":
         _validate_segment(self.id, "event.id")
         _validate_segment(self.channel, "event.channel")
+        _validate_token(self.kind, "event.kind")
         for parent_id in self.parent_ids:
             _validate_segment(parent_id, "event.parent_ids")
         return self
@@ -169,6 +170,17 @@ def _validate_segment(value: str, field_name: str) -> None:
         or any(ch in value for ch in "/:\\")
     ):
         raise ValueError(f"{field_name} must be a non-empty path segment.")
+
+
+def _validate_token(value: str, field_name: str) -> None:
+    if (
+        not isinstance(value, str)
+        or not value.strip()
+        or value in {".", ".."}
+        or any(ch.isspace() for ch in value)
+        or any(ch in value for ch in "/:\\")
+    ):
+        raise ValueError(f"{field_name} must be a non-empty token.")
 
 
 def _set_model_attr(model: BaseModel, name: str, value: Any) -> None:
