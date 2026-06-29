@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 from copy import deepcopy
 from typing import Any
+from urllib.parse import urlsplit
 
 from ..core import Artifact, Channel, Event, InvalidPayloadError, Snapshot, Subscription
 
@@ -42,7 +43,7 @@ class SSSNClient:
         timeout: float | None = 30.0,
         transport: Any = None,
     ) -> None:
-        self.base_url = base_url.rstrip("/")
+        self.base_url = _base_url(base_url)
         self.timeout = timeout
         self.transport = transport
 
@@ -232,7 +233,7 @@ class AsyncSSSNClient:
         timeout: float | None = 30.0,
         transport: Any = None,
     ) -> None:
-        self.base_url = base_url.rstrip("/")
+        self.base_url = _base_url(base_url)
         self.timeout = timeout
         self.transport = transport
 
@@ -443,6 +444,18 @@ def _artifact_payload(data: bytes | str) -> dict[str, str]:
             "encoding": "base64",
         }
     return {"data": data, "encoding": "text"}
+
+
+def _base_url(base_url: str) -> str:
+    if not isinstance(base_url, str) or not base_url.strip():
+        raise ValueError("base_url must be a non-empty absolute http(s) URL")
+    value = base_url.strip()
+    if any(ch.isspace() for ch in value):
+        raise ValueError("base_url must not contain whitespace")
+    parsed = urlsplit(value)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValueError("base_url must be an absolute http(s) URL")
+    return value.rstrip("/")
 
 
 def _require_segment(field_name: str, value: Any) -> None:

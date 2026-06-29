@@ -130,6 +130,25 @@ def test_async_client_calls_fastapi_server(tmp_path):
     assert result["loaded_channel"].name == "events"
 
 
+@pytest.mark.parametrize("client_cls", [SSSNClient, AsyncSSSNClient])
+@pytest.mark.parametrize(
+    "base_url",
+    [
+        None,
+        123,
+        "",
+        "   ",
+        "testserver",
+        "/api",
+        "ftp://testserver",
+        "http://test server",
+    ],
+)
+def test_http_clients_reject_malformed_base_urls(client_cls, base_url):
+    with pytest.raises(ValueError, match="base_url"):
+        client_cls(base_url)  # type: ignore[arg-type]
+
+
 def test_sync_client_uses_portable_api_shape():
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.method == "POST"
