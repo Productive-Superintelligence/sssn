@@ -50,24 +50,37 @@ class SSSNClient:
     def create_channel(self, channel: Channel | dict[str, Any]) -> Channel:
         data = _dump_channel(channel)
         _require_segment("channel.name", data.get("name"))
-        return Channel.model_validate(
-            self._request("POST", "/channels", json=data).json()
+        return _model_response(
+            self._request("POST", "/channels", json=data),
+            Channel,
+            "POST /channels",
         )
 
     def list_channels(self) -> tuple[Channel, ...]:
-        data = self._request("GET", "/channels").json()
-        return tuple(Channel.model_validate(item) for item in data)
+        return _model_tuple_response(
+            self._request("GET", "/channels"),
+            Channel,
+            "GET /channels",
+        )
 
     def get_channel(self, name: str) -> Channel:
         _require_segment("channel.name", name)
-        return Channel.model_validate(self._request("GET", f"/channels/{name}").json())
+        return _model_response(
+            self._request("GET", f"/channels/{name}"),
+            Channel,
+            "GET /channels/{name}",
+        )
 
     def append_event(self, event: Event | dict[str, Any]) -> Event:
         data = _dump_event(event)
         _require_optional_segment("event.id", data.get("id"))
         _require_segment("event.channel", data.get("channel"))
         _require_segments("event.parent_ids", data.get("parent_ids", ()))
-        return Event.model_validate(self._request("POST", "/events", json=data).json())
+        return _model_response(
+            self._request("POST", "/events", json=data),
+            Event,
+            "POST /events",
+        )
 
     def query_events(
         self,
@@ -81,12 +94,19 @@ class SSSNClient:
         params = {"channel": channel, "after_cursor": after_cursor, "limit": limit}
         if kind is not None:
             params["kind"] = kind
-        data = self._request("GET", "/events", params=params).json()
-        return tuple(Event.model_validate(item) for item in data)
+        return _model_tuple_response(
+            self._request("GET", "/events", params=params),
+            Event,
+            "GET /events",
+        )
 
     def get_event(self, event_id: str) -> Event:
         _require_segment("event.id", event_id)
-        return Event.model_validate(self._request("GET", f"/events/{event_id}").json())
+        return _model_response(
+            self._request("GET", f"/events/{event_id}"),
+            Event,
+            "GET /events/{id}",
+        )
 
     def create_subscription(
         self,
@@ -100,7 +120,7 @@ class SSSNClient:
     ) -> Subscription:
         _require_segment("subscription.channel", channel)
         _require_optional_segment("subscription.id", subscription_id)
-        return Subscription.model_validate(
+        return _model_response(
             self._request(
                 "POST",
                 "/subscriptions",
@@ -112,7 +132,9 @@ class SSSNClient:
                     "filters": _copy_mapping(filters),
                     "metadata": _copy_mapping(metadata),
                 },
-            ).json()
+            ),
+            Subscription,
+            "POST /subscriptions",
         )
 
     def pull_subscription(
@@ -123,17 +145,22 @@ class SSSNClient:
     ) -> tuple[Event, ...]:
         _require_segment("subscription.id", subscription_id)
         params = {"limit": limit} if limit is not None else None
-        data = self._request(
-            "POST",
-            f"/subscriptions/{subscription_id}/pull",
-            params=params,
-        ).json()
-        return tuple(Event.model_validate(item) for item in data)
+        return _model_tuple_response(
+            self._request(
+                "POST",
+                f"/subscriptions/{subscription_id}/pull",
+                params=params,
+            ),
+            Event,
+            "POST /subscriptions/{id}/pull",
+        )
 
     def get_subscription(self, subscription_id: str) -> Subscription:
         _require_segment("subscription.id", subscription_id)
-        return Subscription.model_validate(
-            self._request("GET", f"/subscriptions/{subscription_id}").json()
+        return _model_response(
+            self._request("GET", f"/subscriptions/{subscription_id}"),
+            Subscription,
+            "GET /subscriptions/{id}",
         )
 
     def write_artifact(
@@ -148,7 +175,7 @@ class SSSNClient:
         _require_optional_segment("artifact.channel", channel)
         _require_segments("artifact.event_ids", event_ids)
         payload = _artifact_payload(data)
-        return Artifact.model_validate(
+        return _model_response(
             self._request(
                 "POST",
                 "/artifacts",
@@ -160,7 +187,9 @@ class SSSNClient:
                     "metadata": _copy_mapping(metadata),
                     "event_ids": list(event_ids),
                 },
-            ).json()
+            ),
+            Artifact,
+            "POST /artifacts",
         )
 
     def read_artifact(self, artifact_id: str) -> bytes:
@@ -169,8 +198,10 @@ class SSSNClient:
 
     def get_artifact(self, artifact_id: str) -> Artifact:
         _require_segment("artifact.id", artifact_id)
-        return Artifact.model_validate(
-            self._request("GET", f"/artifacts/{artifact_id}/metadata").json()
+        return _model_response(
+            self._request("GET", f"/artifacts/{artifact_id}/metadata"),
+            Artifact,
+            "GET /artifacts/{id}/metadata",
         )
 
     def put_snapshot(
@@ -198,17 +229,23 @@ class SSSNClient:
             "snapshot.source_event_id",
             payload.get("source_event_id"),
         )
-        return Snapshot.model_validate(
+        return _model_response(
             self._request(
                 "PUT",
                 f"/snapshots/{name}",
                 json=payload,
-            ).json()
+            ),
+            Snapshot,
+            "PUT /snapshots/{name}",
         )
 
     def get_snapshot(self, name: str) -> Snapshot:
         _require_segment("snapshot.name", name)
-        return Snapshot.model_validate(self._request("GET", f"/snapshots/{name}").json())
+        return _model_response(
+            self._request("GET", f"/snapshots/{name}"),
+            Snapshot,
+            "GET /snapshots/{name}",
+        )
 
     def _request(self, method: str, path: str, **kwargs: Any):
         import httpx
@@ -240,24 +277,37 @@ class AsyncSSSNClient:
     async def create_channel(self, channel: Channel | dict[str, Any]) -> Channel:
         data = _dump_channel(channel)
         _require_segment("channel.name", data.get("name"))
-        return Channel.model_validate(
-            (await self._request("POST", "/channels", json=data)).json()
+        return _model_response(
+            await self._request("POST", "/channels", json=data),
+            Channel,
+            "POST /channels",
         )
 
     async def list_channels(self) -> tuple[Channel, ...]:
-        data = (await self._request("GET", "/channels")).json()
-        return tuple(Channel.model_validate(item) for item in data)
+        return _model_tuple_response(
+            await self._request("GET", "/channels"),
+            Channel,
+            "GET /channels",
+        )
 
     async def get_channel(self, name: str) -> Channel:
         _require_segment("channel.name", name)
-        return Channel.model_validate((await self._request("GET", f"/channels/{name}")).json())
+        return _model_response(
+            await self._request("GET", f"/channels/{name}"),
+            Channel,
+            "GET /channels/{name}",
+        )
 
     async def append_event(self, event: Event | dict[str, Any]) -> Event:
         data = _dump_event(event)
         _require_optional_segment("event.id", data.get("id"))
         _require_segment("event.channel", data.get("channel"))
         _require_segments("event.parent_ids", data.get("parent_ids", ()))
-        return Event.model_validate((await self._request("POST", "/events", json=data)).json())
+        return _model_response(
+            await self._request("POST", "/events", json=data),
+            Event,
+            "POST /events",
+        )
 
     async def query_events(
         self,
@@ -271,13 +321,18 @@ class AsyncSSSNClient:
         params = {"channel": channel, "after_cursor": after_cursor, "limit": limit}
         if kind is not None:
             params["kind"] = kind
-        data = (await self._request("GET", "/events", params=params)).json()
-        return tuple(Event.model_validate(item) for item in data)
+        return _model_tuple_response(
+            await self._request("GET", "/events", params=params),
+            Event,
+            "GET /events",
+        )
 
     async def get_event(self, event_id: str) -> Event:
         _require_segment("event.id", event_id)
-        return Event.model_validate(
-            (await self._request("GET", f"/events/{event_id}")).json()
+        return _model_response(
+            await self._request("GET", f"/events/{event_id}"),
+            Event,
+            "GET /events/{id}",
         )
 
     async def create_subscription(
@@ -292,7 +347,7 @@ class AsyncSSSNClient:
     ) -> Subscription:
         _require_segment("subscription.channel", channel)
         _require_optional_segment("subscription.id", subscription_id)
-        return Subscription.model_validate(
+        return _model_response(
             (
                 await self._request(
                     "POST",
@@ -306,7 +361,9 @@ class AsyncSSSNClient:
                         "metadata": _copy_mapping(metadata),
                     },
                 )
-            ).json()
+            ),
+            Subscription,
+            "POST /subscriptions",
         )
 
     async def pull_subscription(
@@ -317,19 +374,22 @@ class AsyncSSSNClient:
     ) -> tuple[Event, ...]:
         _require_segment("subscription.id", subscription_id)
         params = {"limit": limit} if limit is not None else None
-        data = (
+        return _model_tuple_response(
             await self._request(
                 "POST",
                 f"/subscriptions/{subscription_id}/pull",
                 params=params,
-            )
-        ).json()
-        return tuple(Event.model_validate(item) for item in data)
+            ),
+            Event,
+            "POST /subscriptions/{id}/pull",
+        )
 
     async def get_subscription(self, subscription_id: str) -> Subscription:
         _require_segment("subscription.id", subscription_id)
-        return Subscription.model_validate(
-            (await self._request("GET", f"/subscriptions/{subscription_id}")).json()
+        return _model_response(
+            await self._request("GET", f"/subscriptions/{subscription_id}"),
+            Subscription,
+            "GET /subscriptions/{id}",
         )
 
     async def write_artifact(
@@ -344,7 +404,7 @@ class AsyncSSSNClient:
         _require_optional_segment("artifact.channel", channel)
         _require_segments("artifact.event_ids", event_ids)
         payload = _artifact_payload(data)
-        return Artifact.model_validate(
+        return _model_response(
             (
                 await self._request(
                     "POST",
@@ -358,7 +418,9 @@ class AsyncSSSNClient:
                         "event_ids": list(event_ids),
                     },
                 )
-            ).json()
+            ),
+            Artifact,
+            "POST /artifacts",
         )
 
     async def read_artifact(self, artifact_id: str) -> bytes:
@@ -367,8 +429,10 @@ class AsyncSSSNClient:
 
     async def get_artifact(self, artifact_id: str) -> Artifact:
         _require_segment("artifact.id", artifact_id)
-        return Artifact.model_validate(
-            (await self._request("GET", f"/artifacts/{artifact_id}/metadata")).json()
+        return _model_response(
+            await self._request("GET", f"/artifacts/{artifact_id}/metadata"),
+            Artifact,
+            "GET /artifacts/{id}/metadata",
         )
 
     async def put_snapshot(
@@ -396,20 +460,24 @@ class AsyncSSSNClient:
             "snapshot.source_event_id",
             payload.get("source_event_id"),
         )
-        return Snapshot.model_validate(
+        return _model_response(
             (
                 await self._request(
                     "PUT",
                     f"/snapshots/{name}",
                     json=payload,
                 )
-            ).json()
+            ),
+            Snapshot,
+            "PUT /snapshots/{name}",
         )
 
     async def get_snapshot(self, name: str) -> Snapshot:
         _require_segment("snapshot.name", name)
-        return Snapshot.model_validate(
-            (await self._request("GET", f"/snapshots/{name}")).json()
+        return _model_response(
+            await self._request("GET", f"/snapshots/{name}"),
+            Snapshot,
+            "GET /snapshots/{name}",
         )
 
     async def _request(self, method: str, path: str, **kwargs: Any):
@@ -530,6 +598,51 @@ def _snapshot_payload(
 
 def _copy_mapping(value: dict[str, Any] | None) -> dict[str, Any]:
     return deepcopy(value) if value is not None else {}
+
+
+def _model_response(response: Any, model_type: Any, endpoint: str) -> Any:
+    data = _response_json(response, endpoint)
+    try:
+        return model_type.model_validate(data)
+    except Exception as exc:
+        raise SSSNClientError(
+            response.status_code,
+            error_type="InvalidResponse",
+            message=f"SSSN {endpoint} response did not match the expected schema.",
+            detail=data,
+        ) from exc
+
+
+def _model_tuple_response(response: Any, model_type: Any, endpoint: str) -> tuple[Any, ...]:
+    data = _response_json(response, endpoint)
+    if not isinstance(data, list):
+        raise SSSNClientError(
+            response.status_code,
+            error_type="InvalidResponse",
+            message=f"SSSN {endpoint} response did not match the expected schema.",
+            detail=data,
+        )
+    try:
+        return tuple(model_type.model_validate(item) for item in data)
+    except Exception as exc:
+        raise SSSNClientError(
+            response.status_code,
+            error_type="InvalidResponse",
+            message=f"SSSN {endpoint} response did not match the expected schema.",
+            detail=data,
+        ) from exc
+
+
+def _response_json(response: Any, endpoint: str) -> Any:
+    try:
+        return response.json()
+    except Exception as exc:
+        raise SSSNClientError(
+            response.status_code,
+            error_type="InvalidResponse",
+            message=f"SSSN {endpoint} response was not valid JSON.",
+            detail=response.text,
+        ) from exc
 
 
 def _raise_for_error(response: Any) -> None:

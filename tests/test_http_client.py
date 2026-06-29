@@ -163,6 +163,51 @@ def test_sync_client_uses_portable_api_shape():
     assert client.create_channel({"name": "events"}).name == "events"
 
 
+@pytest.mark.parametrize(
+    ("response", "expected"),
+    [
+        (httpx.Response(200, text="{bad"), "not valid JSON"),
+        (httpx.Response(200, json={"name": 123}), "expected schema"),
+        (httpx.Response(200, json={"metadata": {}}), "expected schema"),
+    ],
+)
+def test_sync_client_reports_invalid_success_responses(response, expected):
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == "/channels/events"
+        return response
+
+    client = SSSNClient("http://testserver", transport=httpx.MockTransport(handler))
+
+    with pytest.raises(SSSNClientError) as exc_info:
+        client.get_channel("events")
+
+    assert exc_info.value.status_code == 200
+    assert exc_info.value.error_type == "InvalidResponse"
+    assert expected in exc_info.value.message
+
+
+def test_async_client_reports_invalid_success_responses():
+    async def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == "/channels"
+        return httpx.Response(200, json={"name": "events"})
+
+    async def run():
+        client = AsyncSSSNClient(
+            "http://testserver",
+            transport=httpx.MockTransport(handler),
+        )
+        await client.list_channels()
+
+    with pytest.raises(SSSNClientError) as exc_info:
+        asyncio.run(run())
+
+    assert exc_info.value.status_code == 200
+    assert exc_info.value.error_type == "InvalidResponse"
+    assert "expected schema" in exc_info.value.message
+
+
 def test_sync_client_rejects_path_control_lookup_names_without_request():
     def handler(request: httpx.Request) -> httpx.Response:
         raise AssertionError(f"unexpected request: {request.url}")
