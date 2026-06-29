@@ -7,7 +7,7 @@ import base64
 import binascii
 import json
 
-from . import Channel, Event, LocalStore
+from . import LocalStore, SSSNError
 
 
 def _json_object(raw: str) -> dict[str, object]:
@@ -154,20 +154,26 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "create-channel":
-        channel = store.create_channel(
-            Channel(
-                name=args.name,
-                schema=args.schema,
-                form=args.form,
-                description=args.description,
-                metadata=args.metadata or {},
+        try:
+            channel = store.create_channel(
+                {
+                    "name": args.name,
+                    "schema": args.schema,
+                    "form": args.form,
+                    "description": args.description,
+                    "metadata": args.metadata or {},
+                }
             )
-        )
+        except SSSNError as exc:
+            parser.error(str(exc))
         print(channel.model_dump_json(by_alias=True))
         return 0
 
     if args.command == "get-channel":
-        channel = store.get_channel(args.name)
+        try:
+            channel = store.get_channel(args.name)
+        except SSSNError as exc:
+            parser.error(str(exc))
         print(channel.model_dump_json(by_alias=True))
         return 0
 
@@ -188,46 +194,64 @@ def main(argv: list[str] | None = None) -> int:
         }
         if args.timestamp is not None:
             event_data["timestamp"] = args.timestamp
-        event = store.append_event(
-            Event(**event_data)
-        )
+        try:
+            event = store.append_event(event_data)
+        except SSSNError as exc:
+            parser.error(str(exc))
         print(event.model_dump_json(by_alias=True))
         return 0
 
     if args.command == "query-events":
-        for event in store.query_events(
-            args.channel,
-            after_cursor=args.after_cursor,
-            limit=args.limit,
-            kind=args.kind,
-        ):
+        try:
+            events = store.query_events(
+                args.channel,
+                after_cursor=args.after_cursor,
+                limit=args.limit,
+                kind=args.kind,
+            )
+        except SSSNError as exc:
+            parser.error(str(exc))
+        for event in events:
             print(event.model_dump_json(by_alias=True))
         return 0
 
     if args.command == "get-event":
-        event = store.get_event(args.id)
+        try:
+            event = store.get_event(args.id)
+        except SSSNError as exc:
+            parser.error(str(exc))
         print(event.model_dump_json(by_alias=True))
         return 0
 
     if args.command == "create-subscription":
         filters = {"kind": args.kind} if args.kind else None
-        subscription = store.create_subscription(
-            args.channel,
-            subscription_id=args.id,
-            consumer=args.consumer,
-            batch_size=args.batch_size,
-            filters=filters,
-        )
+        try:
+            subscription = store.create_subscription(
+                args.channel,
+                subscription_id=args.id,
+                consumer=args.consumer,
+                batch_size=args.batch_size,
+                filters=filters,
+            )
+        except SSSNError as exc:
+            parser.error(str(exc))
         print(subscription.model_dump_json(by_alias=True))
         return 0
 
     if args.command == "get-subscription":
-        subscription = store.get_subscription(args.id)
+        try:
+            subscription = store.get_subscription(args.id)
+        except SSSNError as exc:
+            parser.error(str(exc))
         print(subscription.model_dump_json(by_alias=True))
         return 0
 
     if args.command == "pull-subscription":
-        for event in store.pull_subscription(args.id, limit=args.limit):
+        try:
+            events = store.pull_subscription(args.id, limit=args.limit)
+        except SSSNError as exc:
+            parser.error(str(exc))
+        for event in events:
             print(event.model_dump_json(by_alias=True))
         return 0
 
@@ -236,27 +260,40 @@ def main(argv: list[str] | None = None) -> int:
             data = _artifact_data(args.data, args.encoding)
         except argparse.ArgumentTypeError as exc:
             parser.error(str(exc))
-        artifact = store.write_artifact(
-            data,
-            channel=args.channel,
-            media_type=args.media_type,
-            metadata=args.metadata or {},
-            event_ids=tuple(args.event_ids or ()),
-        )
+        try:
+            artifact = store.write_artifact(
+                data,
+                channel=args.channel,
+                media_type=args.media_type,
+                metadata=args.metadata or {},
+                event_ids=tuple(args.event_ids or ()),
+            )
+        except SSSNError as exc:
+            parser.error(str(exc))
         print(artifact.model_dump_json(by_alias=True))
         return 0
 
     if args.command == "get-artifact":
-        artifact = store.get_artifact(args.id)
+        try:
+            artifact = store.get_artifact(args.id)
+        except SSSNError as exc:
+            parser.error(str(exc))
         print(artifact.model_dump_json(by_alias=True))
         return 0
 
     if args.command == "read-artifact":
-        data = store.read_artifact(args.id)
+        try:
+            data = store.read_artifact(args.id)
+        except SSSNError as exc:
+            parser.error(str(exc))
         if args.encoding == "base64":
             print(base64.b64encode(data).decode("ascii"))
         else:
-            print(data.decode("utf-8"))
+            try:
+                text = data.decode("utf-8")
+            except UnicodeDecodeError:
+                parser.error("artifact payload is not valid UTF-8; use --encoding base64")
+            print(text)
         return 0
 
     if args.command == "put-snapshot":
@@ -264,21 +301,27 @@ def main(argv: list[str] | None = None) -> int:
             value = _json_value(args.value, "snapshot value")
         except argparse.ArgumentTypeError as exc:
             parser.error(str(exc))
-        snapshot = store.put_snapshot(
-            {
-                "name": args.name,
-                "value": value,
-                "channel": args.channel,
-                "schema": args.schema,
-                "source_event_id": args.source_event_id,
-                "metadata": args.metadata or {},
-            }
-        )
+        try:
+            snapshot = store.put_snapshot(
+                {
+                    "name": args.name,
+                    "value": value,
+                    "channel": args.channel,
+                    "schema": args.schema,
+                    "source_event_id": args.source_event_id,
+                    "metadata": args.metadata or {},
+                }
+            )
+        except SSSNError as exc:
+            parser.error(str(exc))
         print(snapshot.model_dump_json(by_alias=True))
         return 0
 
     if args.command == "get-snapshot":
-        snapshot = store.get_snapshot(args.name)
+        try:
+            snapshot = store.get_snapshot(args.name)
+        except SSSNError as exc:
+            parser.error(str(exc))
         print(snapshot.model_dump_json(by_alias=True))
         return 0
 

@@ -306,6 +306,63 @@ def test_cli_rejects_invalid_json_values_without_traceback(tmp_path, capsys, arg
 @pytest.mark.parametrize(
     "args",
     [
+        ["create-channel", "bad/name"],
+        ["create-channel", "events", "--form", "not-a-form"],
+        ["get-channel", "missing"],
+        ["append", "missing", '{"n": 1}'],
+        ["append", "bad/name", '{"n": 1}'],
+        ["query-events", "missing"],
+        ["query-events", "events", "--limit", "0"],
+        ["get-event", "missing"],
+        ["create-subscription", "missing"],
+        ["create-subscription", "events", "--batch-size", "0"],
+        ["get-subscription", "missing"],
+        ["pull-subscription", "missing"],
+        ["pull-subscription", "bad/name"],
+        ["write-artifact", "hello", "--channel", "missing"],
+        ["write-artifact", "hello", "--event-id", "missing"],
+        ["get-artifact", "missing"],
+        ["read-artifact", "missing"],
+        ["put-snapshot", "latest", '{"ok": true}', "--channel", "missing"],
+        ["put-snapshot", "latest", '{"ok": true}', "--source-event-id", "missing"],
+        ["get-snapshot", "missing"],
+        ["get-snapshot", "bad/name"],
+    ],
+)
+def test_cli_reports_store_errors_without_traceback(tmp_path, capsys, args):
+    store = tmp_path / "store"
+    main(["--store", str(store), "create-channel", "events"])
+    capsys.readouterr()
+
+    with pytest.raises(SystemExit) as exc_info:
+        main(["--store", str(store), *args])
+
+    assert exc_info.value.code == 2
+    output = capsys.readouterr()
+    assert output.out == ""
+    assert "error:" in output.err
+    assert "Traceback" not in output.err
+
+
+def test_cli_reports_binary_artifact_text_decode_error_without_traceback(tmp_path, capsys):
+    store = tmp_path / "store"
+
+    assert main(["--store", str(store), "write-artifact", "/w==", "--encoding", "base64"]) == 0
+    artifact = json.loads(capsys.readouterr().out)
+
+    with pytest.raises(SystemExit) as exc_info:
+        main(["--store", str(store), "read-artifact", artifact["id"]])
+
+    assert exc_info.value.code == 2
+    output = capsys.readouterr()
+    assert output.out == ""
+    assert "artifact payload is not valid UTF-8; use --encoding base64" in output.err
+    assert "Traceback" not in output.err
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
         ["serve", "--host", ""],
         ["serve", "--host", "bad host"],
         ["serve", "--host", "http://127.0.0.1"],
