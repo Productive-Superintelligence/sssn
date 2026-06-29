@@ -208,6 +208,37 @@ def test_async_client_reports_invalid_success_responses():
     assert "expected schema" in exc_info.value.message
 
 
+@pytest.mark.parametrize(
+    ("field_name", "kwargs"),
+    [
+        ("error_type", {"error_type": b"InvalidResponse"}),
+        ("message", {"message": b"bad"}),
+    ],
+)
+def test_client_error_rejects_bytes_for_text_fields(field_name, kwargs):
+    with pytest.raises(TypeError, match=field_name):
+        SSSNClientError(500, **kwargs)
+
+
+def test_sync_client_ignores_non_string_error_payload_fields():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == "/channels/events"
+        return httpx.Response(
+            500,
+            json={"detail": {"error": {"type": 123, "message": ["bad"]}}},
+        )
+
+    client = SSSNClient("http://testserver", transport=httpx.MockTransport(handler))
+
+    with pytest.raises(SSSNClientError) as exc_info:
+        client.get_channel("events")
+
+    assert exc_info.value.status_code == 500
+    assert exc_info.value.error_type is None
+    assert exc_info.value.message is None
+
+
 def test_sync_client_rejects_path_control_lookup_names_without_request():
     def handler(request: httpx.Request) -> httpx.Response:
         raise AssertionError(f"unexpected request: {request.url}")

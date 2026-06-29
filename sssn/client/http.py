@@ -22,12 +22,12 @@ class SSSNClientError(RuntimeError):
         detail: Any = None,
     ) -> None:
         self.status_code = status_code
-        self.error_type = error_type
+        self.error_type = _optional_text_value(error_type, "error_type")
         self.detail = detail
-        self.message = message or _detail_message(detail)
+        self.message = _optional_text_value(message, "message") or _detail_message(detail)
         text = f"SSSN server returned HTTP {status_code}"
-        if error_type:
-            text += f" ({error_type})"
+        if self.error_type:
+            text += f" ({self.error_type})"
         if self.message:
             text += f": {self.message}"
         super().__init__(text)
@@ -655,8 +655,8 @@ def _raise_for_error(response: Any) -> None:
     error = _error_detail(data)
     raise SSSNClientError(
         response.status_code,
-        error_type=error.get("type") if isinstance(error, dict) else None,
-        message=error.get("message") if isinstance(error, dict) else None,
+        error_type=_error_text_field(error, "type"),
+        message=_error_text_field(error, "message"),
         detail=data,
     )
 
@@ -679,3 +679,18 @@ def _detail_message(detail: Any) -> str | None:
         if isinstance(error, dict) and isinstance(error.get("message"), str):
             return error["message"]
     return None
+
+
+def _error_text_field(error: Any, field_name: str) -> str | None:
+    if not isinstance(error, dict):
+        return None
+    value = error.get(field_name)
+    return value if isinstance(value, str) else None
+
+
+def _optional_text_value(value: Any, label: str) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise TypeError(f"{label} must be a string.")
+    return value
