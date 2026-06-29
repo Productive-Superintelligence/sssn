@@ -1,7 +1,7 @@
 # SSSN
 
 <p align="center">
-  <img src="assets/sssn-logo-text-dark.png" alt="SSSN" width="600">
+  <img src="assets/sssn-logo-text-dark.png" alt="SSSN" width="420">
 </p>
 
 SSSN is the protocol and service layer for semantic channels in PSI services.
