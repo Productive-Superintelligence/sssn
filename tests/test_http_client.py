@@ -176,10 +176,22 @@ def test_async_client_rejects_path_control_lookup_names_without_request():
             "http://testserver",
             transport=httpx.MockTransport(handler),
         )
-        with pytest.raises(InvalidPayloadError):
-            await client.get_channel("bad/name")
-        with pytest.raises(InvalidPayloadError):
-            await client.get_snapshot("bad/name")
+        bad_name = "bad/name"
+        calls = (
+            lambda: client.get_channel(bad_name),
+            lambda: client.query_events(bad_name),
+            lambda: client.get_event(bad_name),
+            lambda: client.pull_subscription(bad_name),
+            lambda: client.get_subscription(bad_name),
+            lambda: client.get_artifact(bad_name),
+            lambda: client.read_artifact(bad_name),
+            lambda: client.put_snapshot(bad_name, {}),
+            lambda: client.get_snapshot(bad_name),
+        )
+
+        for call in calls:
+            with pytest.raises(InvalidPayloadError):
+                await call()
 
     asyncio.run(run())
 
