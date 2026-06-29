@@ -389,3 +389,11 @@ def test_path_value_rejects_malformed_config_paths(tmp_path):
             SSSNResolver.from_text("", root=root)  # type: ignore[arg-type]
 
     assert not padded_root.exists()
+
+
+def test_resolver_from_text_rejects_non_string_text(tmp_path):
+    for index, value in enumerate((None, 123, b"[refs]\n"), start=1):
+        root = tmp_path / f"workspace-{index}"
+        with pytest.raises(SSSNRefError, match="config text"):
+            SSSNResolver.from_text(value, root=root)  # type: ignore[arg-type]
+        assert not root.exists()

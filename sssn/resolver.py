@@ -158,11 +158,12 @@ class SSSNResolver:
         *,
         root: str | Path | None = None,
     ) -> "SSSNResolver":
+        text_value = _config_text_value(text)
         root_value = "." if root is None else root
         root_path = Path(_path_value(root_value, "config root"))
         target = root_path / ".psi" / "config.toml"
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(text, encoding="utf-8")
+        target.write_text(text_value, encoding="utf-8")
         return cls.from_config(root_path)
 
     def bind(
@@ -266,6 +267,12 @@ def _load_toml(path: Path) -> dict[str, Any]:
         import tomli as tomllib  # type: ignore[no-redef]
     with path.open("rb") as handle:
         return tomllib.load(handle)
+
+
+def _config_text_value(value: Any) -> str:
+    if not isinstance(value, str):
+        raise SSSNRefError("config text must be a string.")
+    return value
 
 
 def _config_target(path: str | Path) -> tuple[Path, Path]:
