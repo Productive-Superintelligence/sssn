@@ -1,6 +1,8 @@
 import base64
 import json
 
+import pytest
+
 from sssn.cli import main
 
 
@@ -276,3 +278,29 @@ def test_cli_rejects_blank_store_without_traceback(capsys):
     assert output.out == ""
     assert "store root must be a non-empty path string" in output.err
     assert "Traceback" not in output.err
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["serve", "--host", ""],
+        ["serve", "--host", "bad host"],
+        ["serve", "--host", "http://127.0.0.1"],
+        ["serve", "--port", "0"],
+        ["serve", "--port", "70000"],
+    ],
+)
+def test_cli_serve_rejects_malformed_bindings_before_store(tmp_path, capsys, args):
+    store = tmp_path / "store"
+
+    try:
+        main(["--store", str(store), *args])
+    except SystemExit as exc:
+        assert exc.code == 2
+    else:
+        raise AssertionError("expected malformed serve binding to fail")
+
+    output = capsys.readouterr()
+    assert output.out == ""
+    assert "serve " in output.err
+    assert not store.exists()

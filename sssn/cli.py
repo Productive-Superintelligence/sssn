@@ -128,6 +128,14 @@ def main(argv: list[str] | None = None) -> int:
     serve.add_argument("--log-level", default="info")
 
     args = parser.parse_args(argv)
+    serve_host = None
+    serve_port = None
+    if args.command == "serve":
+        try:
+            serve_host = _serve_host(args.host)
+            serve_port = _serve_port(args.port)
+        except ValueError as exc:
+            parser.error(str(exc))
     try:
         store = LocalStore(args.store)
     except ValueError as exc:
@@ -260,20 +268,39 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "serve":
-        import uvicorn
-
         from .server import create_app
+
+        import uvicorn
 
         uvicorn.run(
             create_app(store),
-            host=args.host,
-            port=args.port,
+            host=serve_host,
+            port=serve_port,
             log_level=args.log_level,
         )
         return 0
 
     parser.error(f"Unknown command: {args.command}")
     return 2
+
+
+def _serve_host(value: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError("serve host must be a non-empty string")
+    host = value.strip()
+    if any(ch.isspace() for ch in host) or "/" in host or "\\" in host:
+        raise ValueError("serve host must be a host name or address, not a URL or path")
+    return host
+
+
+def _serve_port(value: int) -> int:
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, int)
+        or not (1 <= value <= 65535)
+    ):
+        raise ValueError("serve port must be an integer between 1 and 65535")
+    return value
 
 
 if __name__ == "__main__":
