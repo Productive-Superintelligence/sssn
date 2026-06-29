@@ -11,7 +11,10 @@ from . import LocalStore, SSSNError
 
 
 def _json_object(raw: str) -> dict[str, object]:
-    value = json.loads(raw)
+    try:
+        value = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise argparse.ArgumentTypeError("must be a valid JSON object") from exc
     if not isinstance(value, dict):
         raise argparse.ArgumentTypeError("must be a JSON object")
     return value

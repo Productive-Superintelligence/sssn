@@ -304,6 +304,53 @@ def test_cli_rejects_invalid_json_values_without_traceback(tmp_path, capsys, arg
 
 
 @pytest.mark.parametrize(
+    ("args", "expected"),
+    [
+        (
+            ["create-channel", "events", "--metadata", "{bad"],
+            "must be a valid JSON object",
+        ),
+        (
+            ["create-channel", "events", "--metadata", "[]"],
+            "must be a JSON object",
+        ),
+        (
+            ["append", "events", '{"n": 1}', "--metadata", "{bad"],
+            "must be a valid JSON object",
+        ),
+        (
+            ["write-artifact", "hello", "--metadata", "{bad"],
+            "must be a valid JSON object",
+        ),
+        (
+            ["write-artifact", "@@", "--encoding", "base64"],
+            "invalid base64 data",
+        ),
+        (
+            ["put-snapshot", "latest", '{"ok": true}', "--metadata", "{bad"],
+            "must be a valid JSON object",
+        ),
+    ],
+)
+def test_cli_rejects_invalid_option_values_without_traceback(
+    tmp_path,
+    capsys,
+    args,
+    expected,
+):
+    store = tmp_path / "store"
+
+    with pytest.raises(SystemExit) as exc_info:
+        main(["--store", str(store), *args])
+
+    assert exc_info.value.code == 2
+    output = capsys.readouterr()
+    assert output.out == ""
+    assert expected in output.err
+    assert "Traceback" not in output.err
+
+
+@pytest.mark.parametrize(
     "args",
     [
         ["create-channel", "bad/name"],
