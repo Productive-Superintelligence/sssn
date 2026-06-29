@@ -1,4 +1,4 @@
-"""SSSN: semantic channel data plane."""
+"""SSSN: protocol and service layer for semantic channels."""
 
 from .core import (
     Artifact,

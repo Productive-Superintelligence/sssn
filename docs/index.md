@@ -7,9 +7,11 @@
 
 [sssn.one](https://sssn.one){ .psi-domain }
 
-SSSN is the semantic data and communication plane for Psi services. It carries
-typed events, artifacts, and snapshots between services, workers, robots, apps,
-and agents.
+SSSN is the protocol and service layer for semantic channels in PSI services.
+It carries typed events, artifacts, and snapshots between services, workers,
+robots, apps, and agents while keeping databases, brokers, feeds, object
+stores, graph stores, and local filesystems behind the stable `Channel`
+interface.
 
 <div class="psi-tiles">
   <div class="psi-tile">

@@ -3,6 +3,10 @@
 `Channel` is SSSN's center model. A channel is a named semantic data interface
 with schema, form, description, and metadata.
 
+The protocol layer is the stable part. Stores, brokers, databases, feeds, graph
+stores, object stores, and local filesystems are backing implementations behind
+the channel interface.
+
 ```python
 from sssn import Channel
 

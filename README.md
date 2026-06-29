@@ -4,11 +4,13 @@
   <img src="assets/sssn-logo-text-dark.png" alt="SSSN" width="600">
 </p>
 
-SSSN is the semantic data and communication plane for PSI services.
+SSSN is the protocol and service layer for semantic channels in PSI services.
 
-The center model is `Channel`: a named semantic data interface backed by a
-store. The first backend is deliberately boring: SQLite for metadata and a
-filesystem directory for artifacts.
+The center model is `Channel`: a named semantic data interface. Stores,
+brokers, databases, feeds, object stores, graph stores, and local filesystems
+are backing implementations under that stable protocol. The first backend is
+deliberately boring: SQLite for metadata and a filesystem directory for
+artifacts.
 
 ## Local Store
 
@@ -40,8 +42,8 @@ Default layout:
 - `Artifact`: larger payload stored by reference.
 - `Snapshot`: latest state or materialized view.
 
-SSSN does not control services. It provides the data plane those services can
-read from and write to.
+SSSN does not control services. It provides the channel protocol those services
+can read from and write to.
 
 ## Errors And Cursors
 

@@ -1,6 +1,6 @@
 # Contributing To SSSN
 
-SSSN is the semantic channel data plane for PSI services.
+SSSN is the protocol and service layer for semantic channels in PSI services.
 
 ## Development Setup
 
@@ -19,6 +19,8 @@ Run:
 ## Design Rules
 
 - Keep `Channel` as the stable top-level resource.
+- Keep databases, brokers, object stores, feeds, graph stores, and local
+  filesystems behind the `Channel` protocol.
 - Keep local SQLite/filesystem behavior deterministic for tests.
 - Keep store-specific behavior behind store implementations.
 - Keep default FastAPI endpoints portable and custom endpoints metadata-driven.
