@@ -4,7 +4,14 @@ import json
 import httpx
 import pytest
 
-from sssn import AsyncSSSNClient, LocalStore, SSSNClient, SSSNClientError, Snapshot
+from sssn import (
+    AsyncSSSNClient,
+    InvalidPayloadError,
+    LocalStore,
+    SSSNClient,
+    SSSNClientError,
+    Snapshot,
+)
 from sssn.server import create_app
 
 
@@ -135,6 +142,46 @@ def test_sync_client_uses_portable_api_shape():
     client = SSSNClient("http://testserver", transport=httpx.MockTransport(handler))
 
     assert client.create_channel({"name": "events"}).name == "events"
+
+
+def test_sync_client_rejects_path_control_lookup_names_without_request():
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise AssertionError(f"unexpected request: {request.url}")
+
+    client = SSSNClient("http://testserver", transport=httpx.MockTransport(handler))
+    bad_name = "bad/name"
+    calls = (
+        lambda: client.get_channel(bad_name),
+        lambda: client.query_events(bad_name),
+        lambda: client.get_event(bad_name),
+        lambda: client.pull_subscription(bad_name),
+        lambda: client.get_subscription(bad_name),
+        lambda: client.get_artifact(bad_name),
+        lambda: client.read_artifact(bad_name),
+        lambda: client.put_snapshot(bad_name, {}),
+        lambda: client.get_snapshot(bad_name),
+    )
+
+    for call in calls:
+        with pytest.raises(InvalidPayloadError):
+            call()
+
+
+def test_async_client_rejects_path_control_lookup_names_without_request():
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise AssertionError(f"unexpected request: {request.url}")
+
+    async def run():
+        client = AsyncSSSNClient(
+            "http://testserver",
+            transport=httpx.MockTransport(handler),
+        )
+        with pytest.raises(InvalidPayloadError):
+            await client.get_channel("bad/name")
+        with pytest.raises(InvalidPayloadError):
+            await client.get_snapshot("bad/name")
+
+    asyncio.run(run())
 
 
 def test_sync_client_sends_artifact_metadata_and_event_ids():

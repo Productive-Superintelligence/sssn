@@ -5,7 +5,7 @@ from __future__ import annotations
 import base64
 from typing import Any
 
-from ..core import Artifact, Channel, Event, Snapshot, Subscription
+from ..core import Artifact, Channel, Event, InvalidPayloadError, Snapshot, Subscription
 
 
 class SSSNClientError(RuntimeError):
@@ -56,6 +56,7 @@ class SSSNClient:
         return tuple(Channel.model_validate(item) for item in data)
 
     def get_channel(self, name: str) -> Channel:
+        _require_segment("channel.name", name)
         return Channel.model_validate(self._request("GET", f"/channels/{name}").json())
 
     def append_event(self, event: Event | dict[str, Any]) -> Event:
@@ -70,6 +71,7 @@ class SSSNClient:
         limit: int = 100,
         kind: str | None = None,
     ) -> tuple[Event, ...]:
+        _require_segment("channel.name", channel)
         params = {"channel": channel, "after_cursor": after_cursor, "limit": limit}
         if kind is not None:
             params["kind"] = kind
@@ -77,6 +79,7 @@ class SSSNClient:
         return tuple(Event.model_validate(item) for item in data)
 
     def get_event(self, event_id: str) -> Event:
+        _require_segment("event.id", event_id)
         return Event.model_validate(self._request("GET", f"/events/{event_id}").json())
 
     def create_subscription(
@@ -110,6 +113,7 @@ class SSSNClient:
         *,
         limit: int | None = None,
     ) -> tuple[Event, ...]:
+        _require_segment("subscription.id", subscription_id)
         params = {"limit": limit} if limit is not None else None
         data = self._request(
             "POST",
@@ -119,6 +123,7 @@ class SSSNClient:
         return tuple(Event.model_validate(item) for item in data)
 
     def get_subscription(self, subscription_id: str) -> Subscription:
+        _require_segment("subscription.id", subscription_id)
         return Subscription.model_validate(
             self._request("GET", f"/subscriptions/{subscription_id}").json()
         )
@@ -149,9 +154,11 @@ class SSSNClient:
         )
 
     def read_artifact(self, artifact_id: str) -> bytes:
+        _require_segment("artifact.id", artifact_id)
         return self._request("GET", f"/artifacts/{artifact_id}").content
 
     def get_artifact(self, artifact_id: str) -> Artifact:
+        _require_segment("artifact.id", artifact_id)
         return Artifact.model_validate(
             self._request("GET", f"/artifacts/{artifact_id}/metadata").json()
         )
@@ -167,6 +174,7 @@ class SSSNClient:
         source_event_id: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> Snapshot:
+        _require_segment("snapshot.name", name)
         return Snapshot.model_validate(
             self._request(
                 "PUT",
@@ -183,6 +191,7 @@ class SSSNClient:
         )
 
     def get_snapshot(self, name: str) -> Snapshot:
+        _require_segment("snapshot.name", name)
         return Snapshot.model_validate(self._request("GET", f"/snapshots/{name}").json())
 
     def _request(self, method: str, path: str, **kwargs: Any):
@@ -223,6 +232,7 @@ class AsyncSSSNClient:
         return tuple(Channel.model_validate(item) for item in data)
 
     async def get_channel(self, name: str) -> Channel:
+        _require_segment("channel.name", name)
         return Channel.model_validate((await self._request("GET", f"/channels/{name}")).json())
 
     async def append_event(self, event: Event | dict[str, Any]) -> Event:
@@ -237,6 +247,7 @@ class AsyncSSSNClient:
         limit: int = 100,
         kind: str | None = None,
     ) -> tuple[Event, ...]:
+        _require_segment("channel.name", channel)
         params = {"channel": channel, "after_cursor": after_cursor, "limit": limit}
         if kind is not None:
             params["kind"] = kind
@@ -244,6 +255,7 @@ class AsyncSSSNClient:
         return tuple(Event.model_validate(item) for item in data)
 
     async def get_event(self, event_id: str) -> Event:
+        _require_segment("event.id", event_id)
         return Event.model_validate(
             (await self._request("GET", f"/events/{event_id}")).json()
         )
@@ -281,6 +293,7 @@ class AsyncSSSNClient:
         *,
         limit: int | None = None,
     ) -> tuple[Event, ...]:
+        _require_segment("subscription.id", subscription_id)
         params = {"limit": limit} if limit is not None else None
         data = (
             await self._request(
@@ -292,6 +305,7 @@ class AsyncSSSNClient:
         return tuple(Event.model_validate(item) for item in data)
 
     async def get_subscription(self, subscription_id: str) -> Subscription:
+        _require_segment("subscription.id", subscription_id)
         return Subscription.model_validate(
             (await self._request("GET", f"/subscriptions/{subscription_id}")).json()
         )
@@ -324,9 +338,11 @@ class AsyncSSSNClient:
         )
 
     async def read_artifact(self, artifact_id: str) -> bytes:
+        _require_segment("artifact.id", artifact_id)
         return (await self._request("GET", f"/artifacts/{artifact_id}")).content
 
     async def get_artifact(self, artifact_id: str) -> Artifact:
+        _require_segment("artifact.id", artifact_id)
         return Artifact.model_validate(
             (await self._request("GET", f"/artifacts/{artifact_id}/metadata")).json()
         )
@@ -342,6 +358,7 @@ class AsyncSSSNClient:
         source_event_id: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> Snapshot:
+        _require_segment("snapshot.name", name)
         return Snapshot.model_validate(
             (
                 await self._request(
@@ -360,6 +377,7 @@ class AsyncSSSNClient:
         )
 
     async def get_snapshot(self, name: str) -> Snapshot:
+        _require_segment("snapshot.name", name)
         return Snapshot.model_validate(
             (await self._request("GET", f"/snapshots/{name}")).json()
         )
@@ -396,6 +414,16 @@ def _artifact_payload(data: bytes | str) -> dict[str, str]:
             "encoding": "base64",
         }
     return {"data": data, "encoding": "text"}
+
+
+def _require_segment(field_name: str, value: str) -> None:
+    if (
+        not isinstance(value, str)
+        or not value
+        or value in {".", ".."}
+        or any(ch in value for ch in "/:\\")
+    ):
+        raise InvalidPayloadError(f"{field_name} must be a non-empty path segment.")
 
 
 def _snapshot_payload(
