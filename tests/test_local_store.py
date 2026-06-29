@@ -91,6 +91,28 @@ def test_store_rejects_path_control_resource_names(tmp_path, name):
         store.put_snapshot({"name": name, "channel": "events", "value": {}})
 
 
+@pytest.mark.parametrize("name", ["", ".", "..", "bad/name", r"bad\name", "bad:name"])
+def test_store_rejects_path_control_lookup_names(tmp_path, name):
+    store = LocalStore(tmp_path / "store")
+
+    with pytest.raises(InvalidPayloadError, match="channel.name"):
+        store.get_channel(name)
+    with pytest.raises(InvalidPayloadError, match="channel.name"):
+        store.query_events(name)
+    with pytest.raises(InvalidPayloadError, match="event.id"):
+        store.get_event(name)
+    with pytest.raises(InvalidPayloadError, match="subscription.id"):
+        store.get_subscription(name)
+    with pytest.raises(InvalidPayloadError, match="subscription.id"):
+        store.pull_subscription(name)
+    with pytest.raises(InvalidPayloadError, match="artifact.id"):
+        store.get_artifact(name)
+    with pytest.raises(InvalidPayloadError, match="artifact.id"):
+        store.read_artifact(name)
+    with pytest.raises(InvalidPayloadError, match="snapshot.name"):
+        store.get_snapshot(name)
+
+
 def test_event_append_and_query_with_metadata(tmp_path):
     store = LocalStore(tmp_path / "store")
     store.create_channel({"name": "events", "schema": "demo.schemas:Event"})

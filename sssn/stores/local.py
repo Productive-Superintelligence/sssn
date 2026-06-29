@@ -69,6 +69,7 @@ class LocalStore:
         return tuple(_channel(row) for row in rows)
 
     def get_channel(self, name: str) -> Channel:
+        _require_segment("channel.name", name)
         with self._connect() as db:
             row = db.execute(
                 "select name, schema_ref, form, description, metadata from channels where name = ?",
@@ -134,6 +135,7 @@ class LocalStore:
         return tuple(_event(row) for row in rows)
 
     def get_event(self, event_id: str) -> Event:
+        _require_segment("event.id", event_id)
         with self._connect() as db:
             row = db.execute(
                 """
@@ -160,18 +162,6 @@ class LocalStore:
     ) -> Subscription:
         batch_size = _positive_int("batch_size", batch_size)
         self.get_channel(channel)
-        if subscription_id is not None:
-            try:
-                existing = self.get_subscription(subscription_id)
-            except SubscriptionNotFoundError:
-                pass
-            else:
-                if existing.channel != channel:
-                    raise SubscriptionExistsError(
-                        "Subscription already exists for a different channel: "
-                        f"{subscription_id}"
-                    )
-                return existing
         payload: dict[str, Any] = {
             "channel": channel,
             "consumer": consumer,
@@ -183,6 +173,18 @@ class LocalStore:
             payload["id"] = subscription_id
         sub = _model(Subscription, payload, "subscription")
         _subscription_kind(sub.filters)
+        if subscription_id is not None:
+            try:
+                existing = self.get_subscription(sub.id)
+            except SubscriptionNotFoundError:
+                pass
+            else:
+                if existing.channel != channel:
+                    raise SubscriptionExistsError(
+                        "Subscription already exists for a different channel: "
+                        f"{sub.id}"
+                    )
+                return existing
         with self._connect() as db:
             db.execute(
                 """
@@ -226,6 +228,7 @@ class LocalStore:
         return events
 
     def get_subscription(self, subscription_id: str) -> Subscription:
+        _require_segment("subscription.id", subscription_id)
         with self._connect() as db:
             row = db.execute(
                 """
@@ -290,6 +293,7 @@ class LocalStore:
         return artifact
 
     def read_artifact(self, artifact_id: str) -> bytes:
+        _require_segment("artifact.id", artifact_id)
         with self._connect() as db:
             row = db.execute(
                 "select path from artifacts where id = ?",
@@ -303,6 +307,7 @@ class LocalStore:
         return path.read_bytes()
 
     def get_artifact(self, artifact_id: str) -> Artifact:
+        _require_segment("artifact.id", artifact_id)
         with self._connect() as db:
             row = db.execute(
                 """
@@ -347,6 +352,7 @@ class LocalStore:
         return value
 
     def get_snapshot(self, name: str) -> Snapshot:
+        _require_segment("snapshot.name", name)
         with self._connect() as db:
             row = db.execute(
                 """
@@ -506,6 +512,16 @@ def _positive_int(name: str, value: int) -> int:
     if value < 1:
         raise InvalidPayloadError(f"{name} must be greater than 0.")
     return value
+
+
+def _require_segment(field_name: str, value: str) -> None:
+    if (
+        not isinstance(value, str)
+        or not value
+        or value in {".", ".."}
+        or any(ch in value for ch in "/:\\")
+    ):
+        raise InvalidPayloadError(f"{field_name} must be a non-empty path segment.")
 
 
 def _is_relative_to(path: Path, base_dir: Path) -> bool:
