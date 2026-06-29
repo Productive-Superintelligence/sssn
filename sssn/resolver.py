@@ -234,6 +234,7 @@ class SSSNResolver:
         return deepcopy(self._stores)
 
     def store(self, name: str) -> dict[str, Any]:
+        _validate_table_name(name, f"stores.{name}")
         try:
             return deepcopy(self._stores[name])
         except KeyError as exc:
@@ -299,7 +300,7 @@ def _table_of_tables(value: Any, name: str) -> dict[str, dict[str, Any]]:
     return result
 
 
-def _validate_table_name(value: str, label: str) -> None:
+def _validate_table_name(value: Any, label: str) -> None:
     if (
         not isinstance(value, str)
         or not value.strip()
@@ -345,6 +346,21 @@ def _validate_target(
             "Ref binding must declare only one concrete target, "
             f"got {targets_text}: {ref}"
         )
+    if url is not None:
+        _validate_url_target(ref, url)
+
+
+def _validate_url_target(ref: str, value: str) -> None:
+    parsed = urlparse(value)
+    if (
+        parsed.scheme in {"http", "https"}
+        and parsed.netloc
+        and not any(ch.isspace() for ch in value)
+    ):
+        return
+    raise SSSNRefError(
+        f"Ref binding target 'url' must be an absolute HTTP(S) URL: {ref}"
+    )
 
 
 def _resolve_under_root(root: Path, path: str) -> Path:

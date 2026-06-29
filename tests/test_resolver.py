@@ -199,6 +199,29 @@ store = ".sssn"
             )
 
 
+def test_resolver_rejects_malformed_url_targets(tmp_path):
+    resolver = SSSNResolver()
+    for url in (
+        "service",
+        "/service",
+        "ftp://service",
+        "http://",
+        "http://test server",
+    ):
+        with pytest.raises(SSSNRefError, match="absolute HTTP"):
+            resolver.bind(CHANNEL_REF, url=url)
+
+    for index, url in enumerate(("service", "/service", "ftp://service"), start=1):
+        with pytest.raises(SSSNRefError, match="absolute HTTP"):
+            SSSNResolver.from_text(
+                f"""
+[refs."{CHANNEL_REF}"]
+url = "{url}"
+""".lstrip(),
+                root=tmp_path / f"bad-url-{index}",
+            )
+
+
 def test_resolver_returns_isolated_metadata_and_store_tables(tmp_path):
     resolver = SSSNResolver.from_text(
         f"""
@@ -261,6 +284,24 @@ path = ""
     ):
         with pytest.raises(SSSNRefError):
             SSSNResolver.from_text(text.lstrip(), root=tmp_path / f"bad-store-{index}")
+
+
+def test_resolver_store_lookup_rejects_malformed_names(tmp_path):
+    resolver = SSSNResolver.from_text(
+        """
+[stores.default]
+path = ".sssn"
+""".lstrip(),
+        root=tmp_path,
+    )
+
+    assert resolver.store("default") == {"path": ".sssn"}
+    with pytest.raises(KeyError):
+        resolver.store("missing")
+
+    for invalid_name in (None, 123, "", "   ", ".", "..", "bad/name", "bad name"):
+        with pytest.raises(SSSNRefError, match="path-segment"):
+            resolver.store(invalid_name)  # type: ignore[arg-type]
 
 
 def test_path_value_rejects_malformed_config_paths():
