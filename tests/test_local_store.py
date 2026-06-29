@@ -309,6 +309,17 @@ def test_core_event_rejects_malformed_kind_tokens(kind):
 
 
 @pytest.mark.parametrize(
+    "value",
+    ("", "   ", ".", "..", "bad id", "bad/id", "bad:id", "bad\\id"),
+)
+def test_core_models_reject_malformed_coordination_tokens(value):
+    with pytest.raises(ValidationError):
+        Event(channel="events", correlation_id=value)
+    with pytest.raises(ValidationError):
+        Subscription(channel="events", consumer=value)
+
+
+@pytest.mark.parametrize(
     "factory",
     [
         lambda: Channel(name="events", schema=b"demo.schemas:Event"),
@@ -399,6 +410,22 @@ def test_store_rejects_malformed_event_kind_tokens(tmp_path, kind):
         store.query_events("events", kind=kind)
     with pytest.raises(InvalidPayloadError, match="kind"):
         store.create_subscription("events", filters={"kind": kind})
+
+
+@pytest.mark.parametrize(
+    "value",
+    ("", "   ", ".", "..", "bad id", "bad/id", "bad:id", "bad\\id"),
+)
+def test_store_rejects_malformed_coordination_tokens(tmp_path, value):
+    store = LocalStore(tmp_path / "store")
+    store.create_channel({"name": "events"})
+
+    with pytest.raises(InvalidPayloadError, match="event.correlation_id"):
+        store.append_event(
+            {"channel": "events", "correlation_id": value, "payload": {}}
+        )
+    with pytest.raises(InvalidPayloadError, match="subscription.consumer"):
+        store.create_subscription("events", consumer=value)
 
 
 def test_subscription_pull_advances_cursor(tmp_path):

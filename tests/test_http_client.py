@@ -379,6 +379,33 @@ def test_sync_client_rejects_malformed_event_kind_without_request(bad_kind):
             call()
 
 
+@pytest.mark.parametrize(
+    "bad_id",
+    ("", "   ", ".", "..", "bad id", "bad/id", "bad:id", "bad\\id"),
+)
+def test_sync_client_rejects_malformed_coordination_ids_without_request(bad_id):
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise AssertionError(f"unexpected request: {request.url}")
+
+    client = SSSNClient("http://testserver", transport=httpx.MockTransport(handler))
+    calls = (
+        (
+            lambda: client.append_event(
+                {"channel": "events", "correlation_id": bad_id}
+            ),
+            "event.correlation_id",
+        ),
+        (
+            lambda: client.create_subscription("events", consumer=bad_id),
+            "subscription.consumer",
+        ),
+    )
+
+    for call, field_name in calls:
+        with pytest.raises(InvalidPayloadError, match=field_name):
+            call()
+
+
 @pytest.mark.parametrize("bad_name", ["bad/name", "bad name"])
 def test_async_client_rejects_path_control_lookup_names_without_request(bad_name):
     def handler(request: httpx.Request) -> httpx.Response:
@@ -428,6 +455,39 @@ def test_async_client_rejects_malformed_event_kind_without_request(bad_kind):
 
         for call in calls:
             with pytest.raises(InvalidPayloadError, match="event.kind"):
+                await call()
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize(
+    "bad_id",
+    ("", "   ", ".", "..", "bad id", "bad/id", "bad:id", "bad\\id"),
+)
+def test_async_client_rejects_malformed_coordination_ids_without_request(bad_id):
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise AssertionError(f"unexpected request: {request.url}")
+
+    async def run():
+        client = AsyncSSSNClient(
+            "http://testserver",
+            transport=httpx.MockTransport(handler),
+        )
+        calls = (
+            (
+                lambda: client.append_event(
+                    {"channel": "events", "correlation_id": bad_id}
+                ),
+                "event.correlation_id",
+            ),
+            (
+                lambda: client.create_subscription("events", consumer=bad_id),
+                "subscription.consumer",
+            ),
+        )
+
+        for call, field_name in calls:
+            with pytest.raises(InvalidPayloadError, match=field_name):
                 await call()
 
     asyncio.run(run())

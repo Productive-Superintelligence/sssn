@@ -77,6 +77,8 @@ class SSSNClient:
         _require_segment("event.channel", data.get("channel"))
         if "kind" in data:
             _require_token("event.kind", data["kind"])
+        if data.get("correlation_id") is not None:
+            _require_token("event.correlation_id", data["correlation_id"])
         _require_segments("event.parent_ids", data.get("parent_ids", ()))
         return _model_response(
             self._request("POST", "/events", json=data),
@@ -123,6 +125,7 @@ class SSSNClient:
     ) -> Subscription:
         _require_segment("subscription.channel", channel)
         _require_optional_segment("subscription.id", subscription_id)
+        _require_optional_token("subscription.consumer", consumer)
         return _model_response(
             self._request(
                 "POST",
@@ -307,6 +310,8 @@ class AsyncSSSNClient:
         _require_segment("event.channel", data.get("channel"))
         if "kind" in data:
             _require_token("event.kind", data["kind"])
+        if data.get("correlation_id") is not None:
+            _require_token("event.correlation_id", data["correlation_id"])
         _require_segments("event.parent_ids", data.get("parent_ids", ()))
         return _model_response(
             await self._request("POST", "/events", json=data),
@@ -353,6 +358,7 @@ class AsyncSSSNClient:
     ) -> Subscription:
         _require_segment("subscription.channel", channel)
         _require_optional_segment("subscription.id", subscription_id)
+        _require_optional_token("subscription.consumer", consumer)
         return _model_response(
             (
                 await self._request(
@@ -552,6 +558,11 @@ def _require_token(field_name: str, value: Any) -> None:
         or any(ch in value for ch in "/:\\")
     ):
         raise InvalidPayloadError(f"{field_name} must be a non-empty token.")
+
+
+def _require_optional_token(field_name: str, value: Any) -> None:
+    if value is not None:
+        _require_token(field_name, value)
 
 
 def _require_optional_segment(field_name: str, value: Any) -> None:

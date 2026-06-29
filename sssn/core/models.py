@@ -78,6 +78,8 @@ class Event(BaseModel):
         _validate_segment(self.id, "event.id")
         _validate_segment(self.channel, "event.channel")
         _validate_token(self.kind, "event.kind")
+        if self.correlation_id is not None:
+            _validate_token(self.correlation_id, "event.correlation_id")
         for parent_id in self.parent_ids:
             _validate_segment(parent_id, "event.parent_ids")
         return self
@@ -153,6 +155,8 @@ class Subscription(BaseModel):
     def _validate_identity(self) -> "Subscription":
         _validate_segment(self.id, "subscription.id")
         _validate_segment(self.channel, "subscription.channel")
+        if self.consumer is not None:
+            _validate_token(self.consumer, "subscription.consumer")
         return self
 
 
