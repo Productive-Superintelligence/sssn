@@ -303,6 +303,21 @@ def test_docs_keep_light_brand_styles(tmp_path):
     assert (site_dir / "CNAME").read_text(encoding="utf-8").strip() == "sssn.one"
 
 
+def test_docs_nav_keeps_foldable_tutorial_groups():
+    config = (ROOT / "mkdocs.yml").read_text(encoding="utf-8")
+
+    assert "- navigation.sections" in config
+    assert "- navigation.indexes" in config
+    assert "  - Tutorials:\n      - Protocol Level:" in config
+    assert "      - Native Runtime:" in config
+    assert "      - Client Runtime:" in config
+    assert "      - Composition:" in config
+    assert "          - First Channel: tutorials/first-channel.md" in config
+    assert "          - Local Store: tutorials/local-store.md" in config
+    assert "          - HTTP Client: tutorials/http-client.md" in config
+    assert "          - LLLM Tactic Processor: tutorials/lllm-tactic.md" in config
+
+
 def test_http_api_reference_distinguishes_artifact_payload_and_metadata():
     reference = (ROOT / "docs" / "reference" / "http-api.md").read_text(
         encoding="utf-8"
