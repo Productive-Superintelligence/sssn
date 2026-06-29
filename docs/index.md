@@ -1,7 +1,8 @@
 # SSSN
 
 <p class="psi-brand">
-  <img src="assets/sssn-logo-text-dark.png" alt="SSSN" />
+  <img src="assets/sssn-logo-text-dark.png#only-light" alt="SSSN" />
+  <img src="assets/sssn-logo-text-white.png#only-dark" alt="SSSN" />
 </p>
 
 [sssn.one](https://sssn.one){ .psi-domain }
