@@ -658,6 +658,7 @@ def test_http_api_reference_lists_portable_endpoints():
     assert "reserved SSSN service routes" in reference
     assert "Endpoint paths, names, and tags must avoid whitespace" in reference
     assert "percent escapes" in reference
+    assert "network-path prefixes" in reference
 
 
 def test_cli_reference_lists_portable_resource_commands():

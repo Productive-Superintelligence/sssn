@@ -133,6 +133,7 @@ def test_endpoint_decorator_normalizes_relative_paths():
         lambda: endpoint.get("/channels?name=events"),
         lambda: endpoint.get("/channels#events"),
         lambda: endpoint.get("http://example.com/channels"),
+        lambda: endpoint.get("//example.com/channels"),
         lambda: endpoint.get("/channels", name=""),
         lambda: endpoint.get("/channels", name=123),
         lambda: endpoint.get("/channels", name="bad name"),

@@ -19,4 +19,4 @@ Portable endpoints:
 | `PUT /snapshots/{name}` | Write latest state. |
 | `GET /snapshots/{name}` | Read latest state. |
 
-Custom endpoints mounted with `create_app(..., custom_endpoints=...)` must use unique endpoint names and unique method/path pairs. They cannot shadow reserved SSSN service routes such as `/health`, `/channels/{name}`, `/events/{id}`, `/subscriptions/{id}/pull`, `/artifacts/{id}`, or `/snapshots/{name}`. Endpoint paths, names, and tags must avoid whitespace and percent escapes.
+Custom endpoints mounted with `create_app(..., custom_endpoints=...)` must use unique endpoint names and unique method/path pairs. They cannot shadow reserved SSSN service routes such as `/health`, `/channels/{name}`, `/events/{id}`, `/subscriptions/{id}/pull`, `/artifacts/{id}`, or `/snapshots/{name}`. Endpoint paths, names, and tags must avoid whitespace and percent escapes; paths must also avoid `//` network-path prefixes.
