@@ -7,7 +7,7 @@ import time
 import uuid
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictStr, model_validator
 
 ChannelForm = Literal[
     "log",
@@ -31,7 +31,7 @@ class Channel(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    name: str
+    name: StrictStr
     schema_ref: str | None = Field(default=None, alias="schema")
     form: ChannelForm = "log"
     description: str = ""
@@ -53,9 +53,9 @@ class Channel(BaseModel):
 class Event(BaseModel):
     """Timestamped semantic record in a channel."""
 
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    id: StrictStr = Field(default_factory=lambda: str(uuid.uuid4()))
     cursor: int | None = None
-    channel: str
+    channel: StrictStr
     timestamp: float = Field(default_factory=time.time)
     source: str | None = None
     kind: str = "event"
@@ -63,7 +63,7 @@ class Event(BaseModel):
     schema_ref: str | None = Field(default=None, alias="schema")
     metadata: dict[str, Any] = Field(default_factory=dict)
     correlation_id: str | None = None
-    parent_ids: tuple[str, ...] = Field(default_factory=tuple)
+    parent_ids: tuple[StrictStr, ...] = Field(default_factory=tuple)
 
     @property
     def schema(self) -> str | None:
@@ -77,20 +77,22 @@ class Event(BaseModel):
     def _validate_identity(self) -> "Event":
         _validate_segment(self.id, "event.id")
         _validate_segment(self.channel, "event.channel")
+        for parent_id in self.parent_ids:
+            _validate_segment(parent_id, "event.parent_ids")
         return self
 
 
 class Artifact(BaseModel):
     """Larger payload stored by reference."""
 
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    channel: str | None = None
-    path: str
-    media_type: str = "application/octet-stream"
+    id: StrictStr = Field(default_factory=lambda: str(uuid.uuid4()))
+    channel: StrictStr | None = None
+    path: StrictStr
+    media_type: StrictStr = "application/octet-stream"
     size: int
-    sha256: str | None = None
+    sha256: StrictStr | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
-    event_ids: tuple[str, ...] = Field(default_factory=tuple)
+    event_ids: tuple[StrictStr, ...] = Field(default_factory=tuple)
 
     def model_post_init(self, __context: Any) -> None:
         _set_model_attr(self, "metadata", deepcopy(self.metadata))
@@ -99,18 +101,20 @@ class Artifact(BaseModel):
     def _validate_identity(self) -> "Artifact":
         _validate_segment(self.id, "artifact.id")
         _validate_optional_segment(self.channel, "artifact.channel")
+        for event_id in self.event_ids:
+            _validate_segment(event_id, "artifact.event_ids")
         return self
 
 
 class Snapshot(BaseModel):
     """Latest state or materialized view."""
 
-    name: str
-    channel: str | None = None
+    name: StrictStr
+    channel: StrictStr | None = None
     timestamp: float = Field(default_factory=time.time)
     value: Any = None
     schema_ref: str | None = Field(default=None, alias="schema")
-    source_event_id: str | None = None
+    source_event_id: StrictStr | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     @property
@@ -125,14 +129,15 @@ class Snapshot(BaseModel):
     def _validate_identity(self) -> "Snapshot":
         _validate_segment(self.name, "snapshot.name")
         _validate_optional_segment(self.channel, "snapshot.channel")
+        _validate_optional_segment(self.source_event_id, "snapshot.source_event_id")
         return self
 
 
 class Subscription(BaseModel):
     """Consumer cursor over one channel."""
 
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    channel: str
+    id: StrictStr = Field(default_factory=lambda: str(uuid.uuid4()))
+    channel: StrictStr
     cursor: int = 0
     consumer: str | None = None
     batch_size: int = 100
@@ -156,7 +161,12 @@ def _validate_optional_segment(value: str | None, field_name: str) -> None:
 
 
 def _validate_segment(value: str, field_name: str) -> None:
-    if not value or value in {".", ".."} or any(ch in value for ch in "/:\\"):
+    if (
+        not isinstance(value, str)
+        or not value.strip()
+        or value in {".", ".."}
+        or any(ch in value for ch in "/:\\")
+    ):
         raise ValueError(f"{field_name} must be a non-empty path segment.")
 
 

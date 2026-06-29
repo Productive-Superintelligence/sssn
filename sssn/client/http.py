@@ -448,7 +448,7 @@ def _artifact_payload(data: bytes | str) -> dict[str, str]:
 def _require_segment(field_name: str, value: Any) -> None:
     if (
         not isinstance(value, str)
-        or not value
+        or not value.strip()
         or value in {".", ".."}
         or any(ch in value for ch in "/:\\")
     ):

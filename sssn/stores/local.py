@@ -521,7 +521,7 @@ def _positive_int(name: str, value: int) -> int:
 def _require_segment(field_name: str, value: str) -> None:
     if (
         not isinstance(value, str)
-        or not value
+        or not value.strip()
         or value in {".", ".."}
         or any(ch in value for ch in "/:\\")
     ):

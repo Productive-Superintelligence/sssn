@@ -1,6 +1,7 @@
 import sqlite3
 
 import pytest
+from pydantic import ValidationError
 
 from sssn import (
     Artifact,
@@ -191,7 +192,7 @@ def test_store_returns_isolated_mutable_write_inputs(tmp_path):
     assert store.get_snapshot("latest").value == {"items": ["snapshot"]}
 
 
-@pytest.mark.parametrize("name", ["", ".", "..", "bad/name", r"bad\name", "bad:name"])
+@pytest.mark.parametrize("name", ["", "   ", ".", "..", "bad/name", r"bad\name", "bad:name"])
 def test_store_rejects_path_control_resource_names(tmp_path, name):
     store = LocalStore(tmp_path / "store")
 
@@ -210,7 +211,7 @@ def test_store_rejects_path_control_resource_names(tmp_path, name):
         store.put_snapshot({"name": name, "channel": "events", "value": {}})
 
 
-@pytest.mark.parametrize("name", ["", ".", "..", "bad/name", r"bad\name", "bad:name"])
+@pytest.mark.parametrize("name", ["", "   ", ".", "..", "bad/name", r"bad\name", "bad:name"])
 def test_store_rejects_path_control_lookup_names(tmp_path, name):
     store = LocalStore(tmp_path / "store")
 
@@ -230,6 +231,54 @@ def test_store_rejects_path_control_lookup_names(tmp_path, name):
         store.read_artifact(name)
     with pytest.raises(InvalidPayloadError, match="snapshot.name"):
         store.get_snapshot(name)
+
+
+def test_core_models_reject_non_string_resource_segments():
+    required_values = (None, 123, b"events", [], "   ")
+    optional_values = (123, b"events", [], "   ")
+
+    for value in required_values:
+        with pytest.raises(ValidationError):
+            Channel(name=value)  # type: ignore[arg-type]
+        with pytest.raises(ValidationError):
+            Event(id=value, channel="events")  # type: ignore[arg-type]
+        with pytest.raises(ValidationError):
+            Event(id="event", channel=value)  # type: ignore[arg-type]
+        with pytest.raises(ValidationError):
+            Event(
+                id="event",
+                channel="events",
+                parent_ids=(value,),  # type: ignore[list-item]
+            )
+        with pytest.raises(ValidationError):
+            Artifact(id=value, path="artifacts/payload", size=1)  # type: ignore[arg-type]
+        with pytest.raises(ValidationError):
+            Artifact(
+                id="artifact",
+                path="artifacts/payload",
+                size=1,
+                event_ids=(value,),  # type: ignore[list-item]
+            )
+
+        with pytest.raises(ValidationError):
+            Snapshot(name=value)  # type: ignore[arg-type]
+        with pytest.raises(ValidationError):
+            Subscription(id=value, channel="events")  # type: ignore[arg-type]
+        with pytest.raises(ValidationError):
+            Subscription(id="subscription", channel=value)  # type: ignore[arg-type]
+
+    for value in optional_values:
+        with pytest.raises(ValidationError):
+            Artifact(
+                id="artifact",
+                channel=value,  # type: ignore[arg-type]
+                path="artifacts/payload",
+                size=1,
+            )
+        with pytest.raises(ValidationError):
+            Snapshot(name="latest", channel=value)  # type: ignore[arg-type]
+        with pytest.raises(ValidationError):
+            Snapshot(name="latest", source_event_id=value)  # type: ignore[arg-type]
 
 
 def test_event_append_and_query_with_metadata(tmp_path):
