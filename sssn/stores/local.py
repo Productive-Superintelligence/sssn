@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
+from copy import deepcopy
 from pathlib import Path
 from typing import Any, TypeVar
 
@@ -59,7 +60,7 @@ class LocalStore:
                 )
         except sqlite3.IntegrityError as exc:
             raise ChannelExistsError(f"Channel already exists: {value.name}") from exc
-        return value
+        return value.model_copy(deep=True)
 
     def list_channels(self) -> tuple[Channel, ...]:
         with self._connect() as db:
@@ -105,7 +106,10 @@ class LocalStore:
                     _json(list(value.parent_ids)),
                 ),
             )
-        return value.model_copy(update={"cursor": self._event_cursor(value.id)})
+        return value.model_copy(
+            update={"cursor": self._event_cursor(value.id)},
+            deep=True,
+        )
 
     def query_events(
         self,
@@ -166,8 +170,8 @@ class LocalStore:
             "channel": channel,
             "consumer": consumer,
             "batch_size": batch_size,
-            "filters": filters if filters is not None else {},
-            "metadata": metadata if metadata is not None else {},
+            "filters": deepcopy(filters) if filters is not None else {},
+            "metadata": deepcopy(metadata) if metadata is not None else {},
         }
         if subscription_id is not None:
             payload["id"] = subscription_id
@@ -201,7 +205,7 @@ class LocalStore:
                     _json(sub.metadata),
                 ),
             )
-        return sub
+        return sub.model_copy(deep=True)
 
     def pull_subscription(
         self,
@@ -268,8 +272,8 @@ class LocalStore:
             media_type=media_type,
             size=len(data),
             sha256=sha,
-            metadata=metadata or {},
-            event_ids=event_ids,
+            metadata=deepcopy(metadata) if metadata is not None else {},
+            event_ids=tuple(event_ids),
         )
         path = self._artifact_payload_path(artifact.path)
         path.write_bytes(data)
@@ -290,7 +294,7 @@ class LocalStore:
                     _json(list(artifact.event_ids)),
                 ),
             )
-        return artifact
+        return artifact.model_copy(deep=True)
 
     def read_artifact(self, artifact_id: str) -> bytes:
         _require_segment("artifact.id", artifact_id)
@@ -349,7 +353,7 @@ class LocalStore:
                     _json(value.metadata),
                 ),
             )
-        return value
+        return value.model_copy(deep=True)
 
     def get_snapshot(self, name: str) -> Snapshot:
         _require_segment("snapshot.name", name)
@@ -491,9 +495,9 @@ def _artifact(row: sqlite3.Row) -> Artifact:
 
 def _model(model_type: type[ModelT], value: ModelT | dict[str, Any], label: str) -> ModelT:
     if isinstance(value, model_type):
-        return value
+        return value.model_copy(deep=True)
     try:
-        return model_type.model_validate(value)
+        return model_type.model_validate(deepcopy(value))
     except ValidationError as exc:
         raise InvalidPayloadError(f"Invalid {label}: {exc}") from exc
 

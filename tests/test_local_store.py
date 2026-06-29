@@ -72,6 +72,70 @@ def test_channel_create_list_get_and_errors(tmp_path):
         store.get_channel("missing")
 
 
+def test_store_returns_isolated_mutable_write_inputs(tmp_path):
+    store = LocalStore(tmp_path / "store")
+    channel_input = Channel(name="events", metadata={"labels": ["raw"]})
+    channel = store.create_channel(channel_input)
+    channel_input.metadata["labels"].append("changed")
+    assert channel.metadata == {"labels": ["raw"]}
+    assert store.get_channel("events").metadata == {"labels": ["raw"]}
+
+    event_input = Event(
+        channel="events",
+        payload={"items": ["one"]},
+        metadata={"labels": ["event"]},
+    )
+    event = store.append_event(event_input)
+    event_input.payload["items"].append("changed")
+    event_input.metadata["labels"].append("changed")
+    assert event.payload == {"items": ["one"]}
+    assert event.metadata == {"labels": ["event"]}
+    assert store.get_event(event.id).payload == {"items": ["one"]}
+
+    event_payload = {
+        "channel": "events",
+        "payload": {"items": ["two"]},
+        "metadata": {"labels": ["dict"]},
+    }
+    dict_event = store.append_event(event_payload)
+    event_payload["payload"]["items"].append("changed")
+    event_payload["metadata"]["labels"].append("changed")
+    assert dict_event.payload == {"items": ["two"]}
+    assert dict_event.metadata == {"labels": ["dict"]}
+
+    filters = {"kind": "event"}
+    subscription_metadata = {"labels": ["sub"]}
+    subscription = store.create_subscription(
+        "events",
+        filters=filters,
+        metadata=subscription_metadata,
+    )
+    filters["kind"] = "changed"
+    subscription_metadata["labels"].append("changed")
+    assert subscription.filters == {"kind": "event"}
+    assert subscription.metadata == {"labels": ["sub"]}
+    assert store.get_subscription(subscription.id).filters == {"kind": "event"}
+
+    artifact_metadata = {"labels": ["artifact"]}
+    artifact = store.write_artifact(b"payload", metadata=artifact_metadata)
+    artifact_metadata["labels"].append("changed")
+    assert artifact.metadata == {"labels": ["artifact"]}
+    assert store.get_artifact(artifact.id).metadata == {"labels": ["artifact"]}
+
+    snapshot_input = Snapshot(
+        name="latest",
+        channel="events",
+        value={"items": ["snapshot"]},
+        metadata={"labels": ["snapshot"]},
+    )
+    snapshot = store.put_snapshot(snapshot_input)
+    snapshot_input.value["items"].append("changed")
+    snapshot_input.metadata["labels"].append("changed")
+    assert snapshot.value == {"items": ["snapshot"]}
+    assert snapshot.metadata == {"labels": ["snapshot"]}
+    assert store.get_snapshot("latest").value == {"items": ["snapshot"]}
+
+
 @pytest.mark.parametrize("name", ["", ".", "..", "bad/name", r"bad\name", "bad:name"])
 def test_store_rejects_path_control_resource_names(tmp_path, name):
     store = LocalStore(tmp_path / "store")
