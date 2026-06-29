@@ -19,6 +19,16 @@ FORBIDDEN_CORE_IMPORT_PREFIXES = (
     "sssn.server",
     "sssn.stores",
 )
+ALLOWED_CORE_IMPORTS = {
+    "__future__",
+    "copy",
+    "pydantic",
+    "sssn.core.errors",
+    "sssn.core.models",
+    "time",
+    "typing",
+    "uuid",
+}
 
 
 def test_core_layer_has_no_store_service_or_cross_layer_imports():
@@ -30,6 +40,22 @@ def test_core_layer_has_no_store_service_or_cross_layer_imports():
                 leaks.append(f"{path.relative_to(ROOT)} imports {module}")
 
     assert leaks == []
+
+
+def test_core_layer_imports_only_backend_agnostic_dependencies():
+    imports: dict[str, list[str]] = {}
+    for path in sorted(CORE_ROOT.glob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for module in _source_imports(tree):
+            imports.setdefault(module, []).append(str(path.relative_to(ROOT)))
+
+    unexpected = {
+        module: paths
+        for module, paths in imports.items()
+        if module not in ALLOWED_CORE_IMPORTS
+    }
+
+    assert unexpected == {}
 
 
 def test_top_level_import_does_not_require_optional_service_dependencies(tmp_path):
