@@ -3,6 +3,7 @@ import sqlite3
 import pytest
 
 from sssn import (
+    Artifact,
     ArtifactNotFoundError,
     Channel,
     ChannelExistsError,
@@ -13,6 +14,7 @@ from sssn import (
     LocalStore,
     Snapshot,
     SnapshotNotFoundError,
+    Subscription,
     SubscriptionExistsError,
     SubscriptionNotFoundError,
 )
@@ -70,6 +72,59 @@ def test_channel_create_list_get_and_errors(tmp_path):
         store.create_channel({"name": "events"})
     with pytest.raises(ChannelNotFoundError):
         store.get_channel("missing")
+
+
+def test_core_models_isolate_mutable_constructor_inputs():
+    channel_metadata = {"labels": ["raw"]}
+    event_payload = {"items": ["event"]}
+    event_metadata = {"labels": ["event"]}
+    artifact_metadata = {"labels": ["artifact"]}
+    snapshot_value = {"items": ["snapshot"]}
+    snapshot_metadata = {"labels": ["snapshot"]}
+    subscription_filters = {"kind": ["raw"]}
+    subscription_metadata = {"labels": ["subscription"]}
+
+    channel = Channel(name="events", metadata=channel_metadata)
+    event = Event(
+        channel="events",
+        payload=event_payload,
+        metadata=event_metadata,
+    )
+    artifact = Artifact(
+        id="artifact",
+        path="artifact.bin",
+        size=1,
+        metadata=artifact_metadata,
+    )
+    snapshot = Snapshot(
+        name="latest",
+        value=snapshot_value,
+        metadata=snapshot_metadata,
+    )
+    subscription = Subscription(
+        id="worker",
+        channel="events",
+        filters=subscription_filters,
+        metadata=subscription_metadata,
+    )
+
+    channel_metadata["labels"].append("changed")
+    event_payload["items"].append("changed")
+    event_metadata["labels"].append("changed")
+    artifact_metadata["labels"].append("changed")
+    snapshot_value["items"].append("changed")
+    snapshot_metadata["labels"].append("changed")
+    subscription_filters["kind"].append("changed")
+    subscription_metadata["labels"].append("changed")
+
+    assert channel.metadata == {"labels": ["raw"]}
+    assert event.payload == {"items": ["event"]}
+    assert event.metadata == {"labels": ["event"]}
+    assert artifact.metadata == {"labels": ["artifact"]}
+    assert snapshot.value == {"items": ["snapshot"]}
+    assert snapshot.metadata == {"labels": ["snapshot"]}
+    assert subscription.filters == {"kind": ["raw"]}
+    assert subscription.metadata == {"labels": ["subscription"]}
 
 
 def test_store_returns_isolated_mutable_write_inputs(tmp_path):

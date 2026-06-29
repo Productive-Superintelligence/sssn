@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 import time
 import uuid
 from typing import Any, Literal
@@ -40,6 +41,9 @@ class Channel(BaseModel):
     def schema(self) -> str | None:
         return self.schema_ref
 
+    def model_post_init(self, __context: Any) -> None:
+        _set_model_attr(self, "metadata", deepcopy(self.metadata))
+
     @model_validator(mode="after")
     def _validate_name(self) -> "Channel":
         _validate_segment(self.name, "channel.name")
@@ -65,6 +69,10 @@ class Event(BaseModel):
     def schema(self) -> str | None:
         return self.schema_ref
 
+    def model_post_init(self, __context: Any) -> None:
+        _set_model_attr(self, "payload", deepcopy(self.payload))
+        _set_model_attr(self, "metadata", deepcopy(self.metadata))
+
     @model_validator(mode="after")
     def _validate_identity(self) -> "Event":
         _validate_segment(self.id, "event.id")
@@ -83,6 +91,9 @@ class Artifact(BaseModel):
     sha256: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
     event_ids: tuple[str, ...] = Field(default_factory=tuple)
+
+    def model_post_init(self, __context: Any) -> None:
+        _set_model_attr(self, "metadata", deepcopy(self.metadata))
 
     @model_validator(mode="after")
     def _validate_identity(self) -> "Artifact":
@@ -106,6 +117,10 @@ class Snapshot(BaseModel):
     def schema(self) -> str | None:
         return self.schema_ref
 
+    def model_post_init(self, __context: Any) -> None:
+        _set_model_attr(self, "value", deepcopy(self.value))
+        _set_model_attr(self, "metadata", deepcopy(self.metadata))
+
     @model_validator(mode="after")
     def _validate_identity(self) -> "Snapshot":
         _validate_segment(self.name, "snapshot.name")
@@ -124,6 +139,10 @@ class Subscription(BaseModel):
     filters: dict[str, Any] = Field(default_factory=dict)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
+    def model_post_init(self, __context: Any) -> None:
+        _set_model_attr(self, "filters", deepcopy(self.filters))
+        _set_model_attr(self, "metadata", deepcopy(self.metadata))
+
     @model_validator(mode="after")
     def _validate_identity(self) -> "Subscription":
         _validate_segment(self.id, "subscription.id")
@@ -139,3 +158,7 @@ def _validate_optional_segment(value: str | None, field_name: str) -> None:
 def _validate_segment(value: str, field_name: str) -> None:
     if not value or value in {".", ".."} or any(ch in value for ch in "/:\\"):
         raise ValueError(f"{field_name} must be a non-empty path segment.")
+
+
+def _set_model_attr(model: BaseModel, name: str, value: Any) -> None:
+    object.__setattr__(model, name, value)
