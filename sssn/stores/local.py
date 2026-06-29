@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import sqlite3
 from copy import deepcopy
 from pathlib import Path
@@ -34,7 +35,7 @@ class LocalStore:
     """Boring local SQLite/filesystem backend."""
 
     def __init__(self, root: str | Path = ".sssn") -> None:
-        self.root = Path(root).expanduser().resolve()
+        self.root = Path(_path_value(root, "store root")).expanduser().resolve()
         self.artifacts_dir = self.root / "artifacts"
         self.db_path = self.root / "sssn.sqlite"
         self.root.mkdir(parents=True, exist_ok=True)
@@ -500,6 +501,16 @@ def _model(model_type: type[ModelT], value: ModelT | dict[str, Any], label: str)
         return model_type.model_validate(deepcopy(value))
     except ValidationError as exc:
         raise InvalidPayloadError(f"Invalid {label}: {exc}") from exc
+
+
+def _path_value(value: Any, label: str) -> str:
+    try:
+        text = os.fspath(value)
+    except TypeError as exc:
+        raise ValueError(f"{label} must be a non-empty path string") from exc
+    if not isinstance(text, str) or not text.strip():
+        raise ValueError(f"{label} must be a non-empty path string")
+    return text.strip()
 
 
 def _non_negative_int(name: str, value: int) -> int:
