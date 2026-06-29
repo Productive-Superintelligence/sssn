@@ -170,6 +170,7 @@ def _validate_segment(value: str, field_name: str) -> None:
         not isinstance(value, str)
         or not value.strip()
         or value in {".", ".."}
+        or "%" in value
         or any(ch.isspace() for ch in value)
         or any(ch in value for ch in "/:\\")
     ):
@@ -181,6 +182,7 @@ def _validate_token(value: str, field_name: str) -> None:
         not isinstance(value, str)
         or not value.strip()
         or value in {".", ".."}
+        or "%" in value
         or any(ch.isspace() for ch in value)
         or any(ch in value for ch in "/:\\")
     ):

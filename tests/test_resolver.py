@@ -300,6 +300,10 @@ default = ".sssn"
 path = ".sssn"
 """,
             """
+[stores."bad%2Fname"]
+path = ".sssn"
+""",
+            """
 [stores."bad store"]
 path = ".sssn"
 """,
@@ -335,7 +339,17 @@ path = ".sssn"
     with pytest.raises(KeyError):
         resolver.store("missing")
 
-    for invalid_name in (None, 123, "", "   ", ".", "..", "bad/name", "bad name"):
+    for invalid_name in (
+        None,
+        123,
+        "",
+        "   ",
+        ".",
+        "..",
+        "bad/name",
+        "bad name",
+        "bad%2Fname",
+    ):
         with pytest.raises(SSSNRefError, match="path-segment"):
             resolver.store(invalid_name)  # type: ignore[arg-type]
 

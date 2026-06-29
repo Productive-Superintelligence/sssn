@@ -259,7 +259,17 @@ def test_client_error_rejects_bytes_for_text_fields(field_name, kwargs):
 
 @pytest.mark.parametrize(
     "error_type",
-    ("", "   ", ".", "..", "bad type", "bad/type", "bad:type", "bad\\type"),
+    (
+        "",
+        "   ",
+        ".",
+        "..",
+        "bad type",
+        "bad/type",
+        "bad:type",
+        "bad\\type",
+        "bad%2Ftype",
+    ),
 )
 def test_client_error_rejects_malformed_error_type_tokens(error_type):
     with pytest.raises(ValueError, match="error_type"):
@@ -311,7 +321,7 @@ def test_sync_client_ignores_malformed_error_type_payload_tokens():
     assert exc_info.value.message == "still readable"
 
 
-@pytest.mark.parametrize("bad_name", ["bad/name", "bad name"])
+@pytest.mark.parametrize("bad_name", ["bad/name", "bad name", "bad%2Fname"])
 def test_sync_client_rejects_path_control_lookup_names_without_request(bad_name):
     def handler(request: httpx.Request) -> httpx.Response:
         raise AssertionError(f"unexpected request: {request.url}")
@@ -334,7 +344,7 @@ def test_sync_client_rejects_path_control_lookup_names_without_request(bad_name)
             call()
 
 
-@pytest.mark.parametrize("bad_name", ["bad/name", "bad name"])
+@pytest.mark.parametrize("bad_name", ["bad/name", "bad name", "bad%2Fname"])
 def test_sync_client_rejects_path_control_body_ids_without_request(bad_name):
     def handler(request: httpx.Request) -> httpx.Response:
         raise AssertionError(f"unexpected request: {request.url}")
@@ -363,7 +373,17 @@ def test_sync_client_rejects_path_control_body_ids_without_request(bad_name):
 
 @pytest.mark.parametrize(
     "bad_kind",
-    ("", "   ", ".", "..", "bad kind", "bad/kind", "bad:kind", "bad\\kind"),
+    (
+        "",
+        "   ",
+        ".",
+        "..",
+        "bad kind",
+        "bad/kind",
+        "bad:kind",
+        "bad\\kind",
+        "bad%2Fkind",
+    ),
 )
 def test_sync_client_rejects_malformed_event_kind_without_request(bad_kind):
     def handler(request: httpx.Request) -> httpx.Response:
@@ -382,7 +402,17 @@ def test_sync_client_rejects_malformed_event_kind_without_request(bad_kind):
 
 @pytest.mark.parametrize(
     "bad_id",
-    ("", "   ", ".", "..", "bad id", "bad/id", "bad:id", "bad\\id"),
+    (
+        "",
+        "   ",
+        ".",
+        "..",
+        "bad id",
+        "bad/id",
+        "bad:id",
+        "bad\\id",
+        "bad%2Fid",
+    ),
 )
 def test_sync_client_rejects_malformed_coordination_ids_without_request(bad_id):
     def handler(request: httpx.Request) -> httpx.Response:
@@ -407,7 +437,7 @@ def test_sync_client_rejects_malformed_coordination_ids_without_request(bad_id):
             call()
 
 
-@pytest.mark.parametrize("bad_name", ["bad/name", "bad name"])
+@pytest.mark.parametrize("bad_name", ["bad/name", "bad name", "bad%2Fname"])
 def test_async_client_rejects_path_control_lookup_names_without_request(bad_name):
     def handler(request: httpx.Request) -> httpx.Response:
         raise AssertionError(f"unexpected request: {request.url}")
@@ -438,7 +468,17 @@ def test_async_client_rejects_path_control_lookup_names_without_request(bad_name
 
 @pytest.mark.parametrize(
     "bad_kind",
-    ("", "   ", ".", "..", "bad kind", "bad/kind", "bad:kind", "bad\\kind"),
+    (
+        "",
+        "   ",
+        ".",
+        "..",
+        "bad kind",
+        "bad/kind",
+        "bad:kind",
+        "bad\\kind",
+        "bad%2Fkind",
+    ),
 )
 def test_async_client_rejects_malformed_event_kind_without_request(bad_kind):
     def handler(request: httpx.Request) -> httpx.Response:
@@ -463,7 +503,17 @@ def test_async_client_rejects_malformed_event_kind_without_request(bad_kind):
 
 @pytest.mark.parametrize(
     "bad_id",
-    ("", "   ", ".", "..", "bad id", "bad/id", "bad:id", "bad\\id"),
+    (
+        "",
+        "   ",
+        ".",
+        "..",
+        "bad id",
+        "bad/id",
+        "bad:id",
+        "bad\\id",
+        "bad%2Fid",
+    ),
 )
 def test_async_client_rejects_malformed_coordination_ids_without_request(bad_id):
     def handler(request: httpx.Request) -> httpx.Response:
@@ -494,7 +544,7 @@ def test_async_client_rejects_malformed_coordination_ids_without_request(bad_id)
     asyncio.run(run())
 
 
-@pytest.mark.parametrize("bad_name", ["bad/name", "bad name"])
+@pytest.mark.parametrize("bad_name", ["bad/name", "bad name", "bad%2Fname"])
 def test_async_client_rejects_path_control_body_ids_without_request(bad_name):
     def handler(request: httpx.Request) -> httpx.Response:
         raise AssertionError(f"unexpected request: {request.url}")

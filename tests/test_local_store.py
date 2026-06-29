@@ -206,7 +206,17 @@ def test_store_returns_isolated_mutable_write_inputs(tmp_path):
 
 @pytest.mark.parametrize(
     "name",
-    ["", "   ", ".", "..", "bad/name", r"bad\name", "bad:name", "bad name"],
+    [
+        "",
+        "   ",
+        ".",
+        "..",
+        "bad/name",
+        r"bad\name",
+        "bad:name",
+        "bad name",
+        "bad%2Fname",
+    ],
 )
 def test_store_rejects_path_control_resource_names(tmp_path, name):
     store = LocalStore(tmp_path / "store")
@@ -228,7 +238,17 @@ def test_store_rejects_path_control_resource_names(tmp_path, name):
 
 @pytest.mark.parametrize(
     "name",
-    ["", "   ", ".", "..", "bad/name", r"bad\name", "bad:name", "bad name"],
+    [
+        "",
+        "   ",
+        ".",
+        "..",
+        "bad/name",
+        r"bad\name",
+        "bad:name",
+        "bad name",
+        "bad%2Fname",
+    ],
 )
 def test_store_rejects_path_control_lookup_names(tmp_path, name):
     store = LocalStore(tmp_path / "store")
@@ -252,8 +272,16 @@ def test_store_rejects_path_control_lookup_names(tmp_path, name):
 
 
 def test_core_models_reject_non_string_resource_segments():
-    required_values = (None, 123, b"events", [], "   ", "bad name")
-    optional_values = (123, b"events", [], "   ", "bad name")
+    required_values = (
+        None,
+        123,
+        b"events",
+        [],
+        "   ",
+        "bad name",
+        "bad%2Fname",
+    )
+    optional_values = (123, b"events", [], "   ", "bad name", "bad%2Fname")
 
     for value in required_values:
         with pytest.raises(ValidationError):
@@ -301,7 +329,17 @@ def test_core_models_reject_non_string_resource_segments():
 
 @pytest.mark.parametrize(
     "kind",
-    ("", "   ", ".", "..", "bad kind", "bad/kind", "bad:kind", "bad\\kind"),
+    (
+        "",
+        "   ",
+        ".",
+        "..",
+        "bad kind",
+        "bad/kind",
+        "bad:kind",
+        "bad\\kind",
+        "bad%2Fkind",
+    ),
 )
 def test_core_event_rejects_malformed_kind_tokens(kind):
     with pytest.raises(ValidationError):
@@ -310,7 +348,17 @@ def test_core_event_rejects_malformed_kind_tokens(kind):
 
 @pytest.mark.parametrize(
     "value",
-    ("", "   ", ".", "..", "bad id", "bad/id", "bad:id", "bad\\id"),
+    (
+        "",
+        "   ",
+        ".",
+        "..",
+        "bad id",
+        "bad/id",
+        "bad:id",
+        "bad\\id",
+        "bad%2Fid",
+    ),
 )
 def test_core_models_reject_malformed_coordination_tokens(value):
     with pytest.raises(ValidationError):
@@ -398,7 +446,17 @@ def test_query_events_validates_cursor_and_limit(tmp_path):
 
 @pytest.mark.parametrize(
     "kind",
-    ("", "   ", ".", "..", "bad kind", "bad/kind", "bad:kind", "bad\\kind"),
+    (
+        "",
+        "   ",
+        ".",
+        "..",
+        "bad kind",
+        "bad/kind",
+        "bad:kind",
+        "bad\\kind",
+        "bad%2Fkind",
+    ),
 )
 def test_store_rejects_malformed_event_kind_tokens(tmp_path, kind):
     store = LocalStore(tmp_path / "store")
@@ -414,7 +472,17 @@ def test_store_rejects_malformed_event_kind_tokens(tmp_path, kind):
 
 @pytest.mark.parametrize(
     "value",
-    ("", "   ", ".", "..", "bad id", "bad/id", "bad:id", "bad\\id"),
+    (
+        "",
+        "   ",
+        ".",
+        "..",
+        "bad id",
+        "bad/id",
+        "bad:id",
+        "bad\\id",
+        "bad%2Fid",
+    ),
 )
 def test_store_rejects_malformed_coordination_tokens(tmp_path, value):
     store = LocalStore(tmp_path / "store")

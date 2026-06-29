@@ -354,10 +354,12 @@ def test_cli_rejects_invalid_option_values_without_traceback(
     "args",
     [
         ["create-channel", "bad/name"],
+        ["create-channel", "bad%2Fname"],
         ["create-channel", "events", "--form", "not-a-form"],
         ["get-channel", "missing"],
         ["append", "missing", '{"n": 1}'],
         ["append", "bad/name", '{"n": 1}'],
+        ["append", "bad%2Fname", '{"n": 1}'],
         ["query-events", "missing"],
         ["query-events", "events", "--limit", "0"],
         ["get-event", "missing"],
@@ -366,6 +368,7 @@ def test_cli_rejects_invalid_option_values_without_traceback(
         ["get-subscription", "missing"],
         ["pull-subscription", "missing"],
         ["pull-subscription", "bad/name"],
+        ["pull-subscription", "bad%2Fname"],
         ["write-artifact", "hello", "--channel", "missing"],
         ["write-artifact", "hello", "--event-id", "missing"],
         ["get-artifact", "missing"],
@@ -374,6 +377,7 @@ def test_cli_rejects_invalid_option_values_without_traceback(
         ["put-snapshot", "latest", '{"ok": true}', "--source-event-id", "missing"],
         ["get-snapshot", "missing"],
         ["get-snapshot", "bad/name"],
+        ["get-snapshot", "bad%2Fname"],
     ],
 )
 def test_cli_reports_store_errors_without_traceback(tmp_path, capsys, args):

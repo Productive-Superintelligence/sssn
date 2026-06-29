@@ -543,6 +543,7 @@ def _require_segment(field_name: str, value: Any) -> None:
         not isinstance(value, str)
         or not value.strip()
         or value in {".", ".."}
+        or "%" in value
         or any(ch.isspace() for ch in value)
         or any(ch in value for ch in "/:\\")
     ):
@@ -554,6 +555,7 @@ def _require_token(field_name: str, value: Any) -> None:
         not isinstance(value, str)
         or not value.strip()
         or value in {".", ".."}
+        or "%" in value
         or any(ch.isspace() for ch in value)
         or any(ch in value for ch in "/:\\")
     ):
@@ -747,6 +749,7 @@ def _token_value(value: Any, label: str) -> str:
     if (
         not value.strip()
         or value in {".", ".."}
+        or "%" in value
         or any(ch.isspace() for ch in value)
         or any(ch in value for ch in "/:\\")
     ):

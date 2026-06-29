@@ -80,7 +80,17 @@ def test_fastapi_request_models_reject_bytes_for_string_fields(factory):
 
 @pytest.mark.parametrize(
     "value",
-    ("", "   ", ".", "..", "bad type", "bad/type", "bad:type", "bad\\type"),
+    (
+        "",
+        "   ",
+        ".",
+        "..",
+        "bad type",
+        "bad/type",
+        "bad:type",
+        "bad\\type",
+        "bad%2Ftype",
+    ),
 )
 def test_fastapi_error_detail_rejects_malformed_type_tokens(value):
     with pytest.raises(ValidationError):
@@ -119,18 +129,21 @@ def test_endpoint_decorator_normalizes_relative_paths():
         lambda: endpoint.get(123),
         lambda: endpoint.get(""),
         lambda: endpoint.get("bad path"),
+        lambda: endpoint.get("/channels%2Fevents"),
         lambda: endpoint.get("/channels?name=events"),
         lambda: endpoint.get("/channels#events"),
         lambda: endpoint.get("http://example.com/channels"),
         lambda: endpoint.get("/channels", name=""),
         lambda: endpoint.get("/channels", name=123),
         lambda: endpoint.get("/channels", name="bad name"),
+        lambda: endpoint.get("/channels", name="bad%2Fname"),
         lambda: endpoint.get("/channels", scope="dataset"),
         lambda: endpoint.get("/channels", description=123),
         lambda: endpoint.get("/channels", tags="events"),
         lambda: endpoint.get("/channels", tags=(123,)),
         lambda: endpoint.get("/channels", tags=("",)),
         lambda: endpoint.get("/channels", tags=("bad tag",)),
+        lambda: endpoint.get("/channels", tags=("bad%2Ftag",)),
         lambda: StoreEndpointSpec(method=" GET ", path="/channels", name="channels"),
         lambda: StoreEndpointSpec(method="TRACE", path="/channels", name="channels"),
     ],
@@ -314,6 +327,12 @@ def test_fastapi_returns_stable_errors_for_request_validation(tmp_path):
 
     bad_channel = request(app, "POST", "/channels", json={"name": "bad/name"})
     bad_channel_space = request(app, "POST", "/channels", json={"name": "bad name"})
+    bad_channel_percent = request(
+        app,
+        "POST",
+        "/channels",
+        json={"name": "bad%2Fname"},
+    )
     bad_event = request(
         app,
         "POST",
@@ -325,6 +344,7 @@ def test_fastapi_returns_stable_errors_for_request_validation(tmp_path):
     for response, field in (
         (bad_channel, "channel.name"),
         (bad_channel_space, "channel.name"),
+        (bad_channel_percent, "channel.name"),
         (bad_event, "event.id"),
         (missing_event_channel, "channel"),
     ):
