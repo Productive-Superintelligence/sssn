@@ -527,9 +527,9 @@ def _artifact_payload(data: bytes | str) -> dict[str, str]:
 
 
 def _base_url(base_url: str) -> str:
-    if not isinstance(base_url, str) or not base_url.strip():
+    if not isinstance(base_url, str) or not base_url:
         raise ValueError("base_url must be a non-empty absolute http(s) URL")
-    value = base_url.strip()
+    value = base_url
     if any(ch.isspace() for ch in value):
         raise ValueError("base_url must not contain whitespace")
     parsed = urlsplit(value)

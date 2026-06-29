@@ -177,6 +177,7 @@ def test_async_client_preserves_fastapi_missing_resource_errors(tmp_path):
         "testserver",
         "/api",
         "ftp://testserver",
+        " http://testserver ",
         "http://test server",
     ],
 )
