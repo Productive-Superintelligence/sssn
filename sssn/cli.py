@@ -128,7 +128,10 @@ def main(argv: list[str] | None = None) -> int:
     serve.add_argument("--log-level", default="info")
 
     args = parser.parse_args(argv)
-    store = LocalStore(args.store)
+    try:
+        store = LocalStore(args.store)
+    except ValueError as exc:
+        parser.error(str(exc))
 
     if args.command == "channels":
         for channel in store.list_channels():

@@ -262,3 +262,17 @@ def test_cli_create_list_and_append(tmp_path, capsys):
     )
     pulled_again = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
     assert [item["id"] for item in pulled_again] == [next_analysis["id"]]
+
+
+def test_cli_rejects_blank_store_without_traceback(capsys):
+    try:
+        main(["--store", "   ", "channels"])
+    except SystemExit as exc:
+        assert exc.code == 2
+    else:
+        raise AssertionError("expected blank store path to fail")
+
+    output = capsys.readouterr()
+    assert output.out == ""
+    assert "store root must be a non-empty path string" in output.err
+    assert "Traceback" not in output.err
