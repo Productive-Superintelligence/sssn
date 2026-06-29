@@ -256,6 +256,15 @@ def test_client_error_rejects_bytes_for_text_fields(field_name, kwargs):
         SSSNClientError(500, **kwargs)
 
 
+@pytest.mark.parametrize(
+    "error_type",
+    ("", "   ", ".", "..", "bad type", "bad/type", "bad:type", "bad\\type"),
+)
+def test_client_error_rejects_malformed_error_type_tokens(error_type):
+    with pytest.raises(ValueError, match="error_type"):
+        SSSNClientError(500, error_type=error_type)
+
+
 def test_sync_client_ignores_non_string_error_payload_fields():
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.method == "GET"
@@ -273,6 +282,32 @@ def test_sync_client_ignores_non_string_error_payload_fields():
     assert exc_info.value.status_code == 500
     assert exc_info.value.error_type is None
     assert exc_info.value.message is None
+
+
+def test_sync_client_ignores_malformed_error_type_payload_tokens():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == "/channels/events"
+        return httpx.Response(
+            500,
+            json={
+                "detail": {
+                    "error": {
+                        "type": "bad type",
+                        "message": "still readable",
+                    }
+                }
+            },
+        )
+
+    client = SSSNClient("http://testserver", transport=httpx.MockTransport(handler))
+
+    with pytest.raises(SSSNClientError) as exc_info:
+        client.get_channel("events")
+
+    assert exc_info.value.status_code == 500
+    assert exc_info.value.error_type is None
+    assert exc_info.value.message == "still readable"
 
 
 @pytest.mark.parametrize("bad_name", ["bad/name", "bad name"])

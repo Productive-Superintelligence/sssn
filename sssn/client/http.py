@@ -22,7 +22,7 @@ class SSSNClientError(RuntimeError):
         detail: Any = None,
     ) -> None:
         self.status_code = status_code
-        self.error_type = _optional_text_value(error_type, "error_type")
+        self.error_type = _optional_token_value(error_type, "error_type")
         self.detail = detail
         self.message = _optional_text_value(message, "message") or _detail_message(detail)
         text = f"SSSN server returned HTTP {status_code}"
@@ -673,7 +673,7 @@ def _raise_for_error(response: Any) -> None:
     error = _error_detail(data)
     raise SSSNClientError(
         response.status_code,
-        error_type=_error_text_field(error, "type"),
+        error_type=_error_token_field(error, "type"),
         message=_error_text_field(error, "message"),
         detail=data,
     )
@@ -706,9 +706,38 @@ def _error_text_field(error: Any, field_name: str) -> str | None:
     return value if isinstance(value, str) else None
 
 
+def _error_token_field(error: Any, field_name: str) -> str | None:
+    value = _error_text_field(error, field_name)
+    if value is None:
+        return None
+    try:
+        return _token_value(value, f"error.{field_name}")
+    except ValueError:
+        return None
+
+
 def _optional_text_value(value: Any, label: str) -> str | None:
     if value is None:
         return None
     if not isinstance(value, str):
         raise TypeError(f"{label} must be a string.")
+    return value
+
+
+def _optional_token_value(value: Any, label: str) -> str | None:
+    if value is None:
+        return None
+    return _token_value(value, label)
+
+
+def _token_value(value: Any, label: str) -> str:
+    if not isinstance(value, str):
+        raise TypeError(f"{label} must be a string.")
+    if (
+        not value.strip()
+        or value in {".", ".."}
+        or any(ch.isspace() for ch in value)
+        or any(ch in value for ch in "/:\\")
+    ):
+        raise ValueError(f"{label} must be a non-empty token.")
     return value
