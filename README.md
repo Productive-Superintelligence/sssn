@@ -107,6 +107,29 @@ manifest = {
 }
 ```
 
+## Resolve Package Refs
+
+PsiHub owns generated `.psi/config.toml` files, but SSSN can read the shared
+config shape for channel and snapshot refs:
+
+```toml
+[refs."psi://demo/events/channels/raw"]
+store = ".sssn"
+
+[refs."psi://demo/events/snapshots/latest"]
+store = ".sssn"
+```
+
+```python
+from sssn import SSSNResolver
+
+resolver = SSSNResolver.from_config(".")
+store = resolver.local_store("psi://demo/events/channels/raw")
+```
+
+`SSSNResolver` ignores refs owned by other layers, such as LLLM tactics and
+services, so one local config file can bind a composed workspace.
+
 ## LLLM Composition
 
 SSSN channels compose with LLLM tactics through a small processor loop: pull

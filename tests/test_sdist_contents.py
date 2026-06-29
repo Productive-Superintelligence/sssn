@@ -43,6 +43,7 @@ def test_sdist_includes_repo_materials(tmp_path):
         "docs/javascripts/vendor/mermaid-LICENSE.txt",
         "docs/tutorials/first-channel.md",
         "examples/first_channel/README.md",
+        "sssn/resolver.py",
     ]
     missing = [path for path in required if f"{root}/{path}" not in names]
 

@@ -85,6 +85,34 @@ package cards show domain routes beside the portable channel API:
 }
 ```
 
+## Resolve Shared Config
+
+PsiHub owns `psi.toml` and generated `.psi/config.toml` files. SSSN can read
+the shared local config shape for channel and snapshot refs without depending
+on PsiHub at runtime.
+
+```toml
+[refs."psi://demo/events/channels/raw"]
+store = ".sssn"
+
+[refs."psi://demo/events/snapshots/latest"]
+store = ".sssn"
+
+[refs."psi://demo/analyzer/tactics/analyze"]
+url = "http://127.0.0.1:8000/tactics/analyze"
+```
+
+```python
+from sssn import SSSNResolver
+
+resolver = SSSNResolver.from_config(".")
+store = resolver.local_store("psi://demo/events/channels/raw")
+```
+
+The resolver loads only `/channels/` and `/snapshots/` refs. Tactic, service,
+schema, docs, example, and asset refs remain available to their owning layers
+through the same config file.
+
 ## Verify
 
 ```bash

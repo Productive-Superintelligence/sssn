@@ -26,6 +26,26 @@ SSSN owns the durable data plane: channels, subscriptions, cursors, event
 lineage, artifacts, and snapshots. LLLM owns the typed compute boundary. The
 processor between them should stay small.
 
+## Config Refs
+
+When channels come from a PsiHub package, keep their local binding in
+`.psi/config.toml` and let SSSN resolve only the refs it owns:
+
+```toml
+[refs."psi://demo/events/channels/raw"]
+store = ".sssn"
+
+[refs."psi://demo/events/channels/analysis"]
+store = ".sssn"
+```
+
+```python
+from sssn import SSSNResolver
+
+resolver = SSSNResolver.from_config(".")
+store = resolver.local_store("psi://demo/events/channels/raw")
+```
+
 ## Tactic
 
 ```python

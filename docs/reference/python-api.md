@@ -19,6 +19,17 @@ Clients:
 from sssn import SSSNClient, AsyncSSSNClient
 ```
 
+Refs and local config:
+
+```python
+from sssn import ResolvedSSSNRef, SSSNRef, SSSNRefError, SSSNResolver
+```
+
+`SSSNResolver.from_config(path)` reads shared `.psi/config.toml` bindings and
+loads only `/channels/` and `/snapshots/` refs. Use `local_store(ref)` for
+local `store` or `path` bindings, and `client(ref)` or `async_client(ref)` for
+HTTP `url` bindings.
+
 Package helpers:
 
 ```python

@@ -21,6 +21,7 @@ from .stores import LocalStore
 from .server import EndpointScope, StoreEndpointSpec, create_app, endpoint
 from .client import AsyncSSSNClient, SSSNClient, SSSNClientError
 from .integrations import channel_resource, snapshot_resource
+from .resolver import ResolvedSSSNRef, SSSNRef, SSSNRefError, SSSNResolver
 
 __version__ = "0.1.0"
 
@@ -37,9 +38,13 @@ __all__ = [
     "EventNotFoundError",
     "InvalidPayloadError",
     "LocalStore",
+    "ResolvedSSSNRef",
     "SSSNError",
     "SSSNClient",
     "SSSNClientError",
+    "SSSNRef",
+    "SSSNRefError",
+    "SSSNResolver",
     "StoreEndpointSpec",
     "Snapshot",
     "SnapshotNotFoundError",

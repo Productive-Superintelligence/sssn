@@ -605,6 +605,9 @@ def test_python_api_reference_documents_resource_name_segments():
     assert "Resource names:" in reference
     assert "must be non-empty path segments" in reference
     assert "avoid `.`, `..`, `/`, `\\`, and `:`" in reference
+    assert "SSSNResolver.from_config(path)" in reference
+    assert "local_store(ref)" in reference
+    assert "client(ref)" in reference
 
 
 def test_http_api_reference_lists_portable_endpoints():
@@ -669,6 +672,9 @@ def test_psihub_package_guide_documents_endpoint_metadata():
         "python -m pytest tests/test_psihub_integration.py tests/test_examples.py -q"
         in guide
     )
+    assert "SSSNResolver.from_config" in guide
+    assert "psi://demo/events/channels/raw" in guide
+    assert "loads only `/channels/` and `/snapshots/` refs" in guide
 
 
 def test_public_text_does_not_use_staging_name():

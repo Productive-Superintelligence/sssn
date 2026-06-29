@@ -9,7 +9,10 @@ description = "Protocol and service layer for semantic channels."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"
-dependencies = ["pydantic>=2.7"]
+dependencies = [
+    "pydantic>=2.7",
+    "tomli>=2.0; python_version<'3.11'",
+]
 
 [project.optional-dependencies]
 docs = ["mkdocs-material>=9.5"]
