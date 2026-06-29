@@ -42,6 +42,26 @@ def build_docs(tmp_path: Path) -> Path:
     return site_dir
 
 
+def test_docs_use_channel_protocol_framing():
+    sources = {
+        "README": ROOT / "README.md",
+        "docs home": ROOT / "docs" / "index.md",
+        "channels guide": ROOT / "docs" / "concepts" / "channels.md",
+        "data-plane guide": ROOT / "docs" / "concepts" / "data-plane.md",
+        "contributing": ROOT / "CONTRIBUTING.md",
+        "package docstring": ROOT / "sssn" / "__init__.py",
+    }
+    combined = "\n".join(
+        path.read_text(encoding="utf-8") for path in sources.values()
+    )
+
+    assert "protocol and service layer for semantic channels" in combined
+    assert "backing implementations" in combined
+    assert re.search(r"stable\s+`Channel`\s+interface", combined)
+    assert "semantic data and communication plane" not in combined
+    assert "semantic channel data plane" not in combined
+
+
 def test_docs_render_mermaid_as_diagram_containers(tmp_path):
     site_dir = build_docs(tmp_path)
     html_pages = [
