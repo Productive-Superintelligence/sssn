@@ -171,6 +171,28 @@ def test_fastapi_returns_stable_errors_for_cursor_edges(tmp_path):
     assert missing_channel.json()["detail"]["error"]["type"] == "ChannelNotFoundError"
 
 
+def test_fastapi_returns_stable_errors_for_request_validation(tmp_path):
+    app = create_app(LocalStore(tmp_path / "store"))
+
+    bad_channel = request(app, "POST", "/channels", json={"name": "bad/name"})
+    bad_event = request(
+        app,
+        "POST",
+        "/events",
+        json={"id": "bad/name", "channel": "events", "payload": {}},
+    )
+    missing_event_channel = request(app, "POST", "/events", json={"payload": {}})
+
+    for response, field in (
+        (bad_channel, "channel.name"),
+        (bad_event, "event.id"),
+        (missing_event_channel, "channel"),
+    ):
+        assert response.status_code == 400
+        assert response.json()["detail"]["error"]["type"] == "InvalidPayloadError"
+        assert field in response.json()["detail"]["error"]["message"]
+
+
 def test_fastapi_artifact_and_snapshot_flow(tmp_path):
     app = create_app(LocalStore(tmp_path / "store"))
     request(app, "POST", "/channels", json={"name": "state", "form": "latest-state"})

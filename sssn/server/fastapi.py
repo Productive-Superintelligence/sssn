@@ -93,15 +93,28 @@ def create_app(
     """Create a FastAPI app exposing a store's portable API."""
 
     try:
-        from fastapi import FastAPI, HTTPException
+        from fastapi import FastAPI
         from fastapi.encoders import jsonable_encoder
-        from fastapi.responses import Response
+        from fastapi.exceptions import RequestValidationError
+        from fastapi.responses import JSONResponse, Response
     except ImportError as exc:  # pragma: no cover
         raise RuntimeError("Install sssn[server] to use the FastAPI server.") from exc
 
     local_store = store or LocalStore()
     app = FastAPI(title="SSSN Store", version="0.1.0")
     app.state.sssn_store = local_store
+
+    @app.exception_handler(RequestValidationError)
+    async def validation_error(_request: Any, exc: RequestValidationError):
+        return JSONResponse(
+            status_code=400,
+            content={
+                "detail": _error_payload(
+                    "InvalidPayloadError",
+                    _validation_error_message(exc),
+                )
+            },
+        )
 
     @app.get("/health")
     async def health() -> dict[str, Any]:
@@ -339,7 +352,23 @@ def _http_error(exc: Exception):
         status_code = 400
     return HTTPException(
         status_code=status_code,
-        detail=ErrorResponse(
-            error=ErrorDetail(type=type(exc).__name__, message=str(exc))
-        ).model_dump(mode="json"),
+        detail=_error_payload(type(exc).__name__, str(exc)),
     )
+
+
+def _error_payload(error_type: str, message: str) -> dict[str, Any]:
+    return ErrorResponse(
+        error=ErrorDetail(type=error_type, message=message)
+    ).model_dump(mode="json")
+
+
+def _validation_error_message(exc: Exception) -> str:
+    errors = exc.errors() if hasattr(exc, "errors") else []
+    messages: list[str] = []
+    for error in errors:
+        location = ".".join(
+            str(part) for part in error.get("loc", ()) if part != "body"
+        )
+        message = str(error.get("msg") or "Invalid request payload.")
+        messages.append(f"{location}: {message}" if location else message)
+    return "; ".join(messages) if messages else "Invalid request payload."
