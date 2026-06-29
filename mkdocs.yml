@@ -1,5 +1,5 @@
 site_name: SSSN
-site_description: Semantic data plane for Psi services.
+site_description: Protocol and service layer for semantic channels.
 site_url: https://sssn.one/
 repo_name: GitHub
 repo_url: https://github.com/Productive-Superintelligence/sssn

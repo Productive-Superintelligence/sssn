@@ -50,6 +50,7 @@ def test_docs_use_channel_protocol_framing():
         "data-plane guide": ROOT / "docs" / "concepts" / "data-plane.md",
         "contributing": ROOT / "CONTRIBUTING.md",
         "package docstring": ROOT / "sssn" / "__init__.py",
+        "site metadata": ROOT / "mkdocs.yml",
     }
     combined = "\n".join(
         path.read_text(encoding="utf-8") for path in sources.values()
@@ -58,6 +59,7 @@ def test_docs_use_channel_protocol_framing():
     assert "protocol and service layer for semantic channels" in combined
     assert "backing implementations" in combined
     assert re.search(r"stable\s+`Channel`\s+interface", combined)
+    assert "Semantic data plane" not in combined
     assert "semantic data and communication plane" not in combined
     assert "semantic channel data plane" not in combined
 
