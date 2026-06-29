@@ -641,6 +641,8 @@ def test_http_api_reference_lists_portable_endpoints():
 
     for endpoint in expected:
         assert f"| `{endpoint}` |" in reference
+    assert "unique method/path pairs" in reference
+    assert "reserved SSSN service routes" in reference
 
 
 def test_cli_reference_lists_portable_resource_commands():

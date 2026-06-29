@@ -1,3 +1,5 @@
+import pytest
+
 from sssn import Channel, Snapshot
 from sssn.integrations import channel_resource, snapshot_resource
 from sssn.server import endpoint
@@ -87,6 +89,36 @@ def test_channel_resource_exports_full_custom_endpoint_methods():
             "tags": ["events"],
         },
     ]
+
+
+def test_channel_resource_rejects_ambiguous_custom_endpoint_metadata():
+    @endpoint.get("/channels/events/range", name="shared")
+    def first_range(store):
+        return []
+
+    @endpoint.post("/channels/events/publish", name="shared")
+    def second_range(store):
+        return []
+
+    with pytest.raises(ValueError, match="duplicate custom endpoint name"):
+        channel_resource(
+            Channel(name="events"),
+            custom_endpoints=[first_range, second_range],
+        )
+
+    @endpoint.get("/channels/{name}/tail", name="tail_by_name")
+    def tail_by_name(store, name: str):
+        return []
+
+    @endpoint.get("/channels/{channel}/tail", name="tail_by_channel")
+    def tail_by_channel(store, channel: str):
+        return []
+
+    with pytest.raises(ValueError, match="duplicate custom endpoint route"):
+        channel_resource(
+            Channel(name="events"),
+            custom_endpoints=[tail_by_name, tail_by_channel],
+        )
 
 
 def test_channel_resource_isolates_nested_metadata():

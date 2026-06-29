@@ -27,7 +27,15 @@ from ..core import (
     SubscriptionNotFoundError,
 )
 from ..stores import LocalStore
-from .endpoints import StoreEndpointSpec, endpoint_spec
+from .endpoints import (
+    StoreEndpointSpec,
+    endpoint_path_key,
+    endpoint_route_key,
+    endpoint_specs,
+)
+
+
+_CUSTOM_ROUTE_METHODS = {"GET", "POST", "PUT", "PATCH", "DELETE"}
 
 
 class ErrorDetail(BaseModel):
@@ -253,10 +261,15 @@ def create_app(
         except Exception as exc:
             raise _http_error(exc) from exc
 
-    for fn in custom_endpoints:
-        spec = endpoint_spec(fn)
-        if spec is not None:
-            _mount_custom_endpoint(app, local_store, spec, fn)
+    reserved_routes = _reserved_routes(app)
+    seen_custom_routes: dict[tuple[str, str], StoreEndpointSpec] = {}
+    for fn, spec in endpoint_specs(custom_endpoints):
+        _validate_custom_route(
+            spec,
+            reserved_routes=reserved_routes,
+            seen_custom_routes=seen_custom_routes,
+        )
+        _mount_custom_endpoint(app, local_store, spec, fn)
 
     return app
 
@@ -326,6 +339,40 @@ def _route_name(name: str) -> str:
     if value[0].isdigit():
         return f"endpoint_{value}"
     return value
+
+
+def _reserved_routes(app: Any) -> set[tuple[str, str]]:
+    routes: set[tuple[str, str]] = set()
+    for route in app.routes:
+        path = getattr(route, "path_format", None) or getattr(route, "path", None)
+        methods = getattr(route, "methods", None)
+        if not isinstance(path, str) or not methods:
+            continue
+        for method in methods:
+            method_name = str(method).upper()
+            if method_name in _CUSTOM_ROUTE_METHODS:
+                routes.add((method_name, endpoint_path_key(path)))
+    return routes
+
+
+def _validate_custom_route(
+    spec: StoreEndpointSpec,
+    *,
+    reserved_routes: set[tuple[str, str]],
+    seen_custom_routes: dict[tuple[str, str], StoreEndpointSpec],
+) -> None:
+    key = endpoint_route_key(spec)
+    if key in reserved_routes:
+        raise ValueError(
+            "custom endpoint route conflicts with reserved SSSN service route: "
+            f"{spec.method} {spec.path}"
+        )
+    if key in seen_custom_routes:
+        raise ValueError(
+            "duplicate custom endpoint route: "
+            f"{spec.method} {spec.path!r}"
+        )
+    seen_custom_routes[key] = spec
 
 
 def _http_error(exc: Exception):

@@ -124,6 +124,58 @@ def test_endpoint_decorator_rejects_malformed_metadata(factory):
         factory()
 
 
+def test_custom_endpoint_collection_rejects_duplicate_names_and_routes(tmp_path):
+    @endpoint.get("/custom/first", name="shared")
+    def first_custom():
+        return {}
+
+    @endpoint.post("/custom/second", name="shared")
+    def second_custom():
+        return {}
+
+    with pytest.raises(ValueError, match="duplicate custom endpoint name"):
+        create_app(
+            LocalStore(tmp_path / "store-names"),
+            custom_endpoints=[first_custom, second_custom],
+        )
+
+    @endpoint.get("/custom/{name}", name="by_name")
+    def by_name(name: str):
+        return {"name": name}
+
+    @endpoint.get("/custom/{id}", name="by_id")
+    def by_id(id: str):
+        return {"id": id}
+
+    with pytest.raises(ValueError, match="duplicate custom endpoint route"):
+        create_app(
+            LocalStore(tmp_path / "store-routes"),
+            custom_endpoints=[by_name, by_id],
+        )
+
+
+def test_custom_endpoint_routes_cannot_shadow_service_routes(tmp_path):
+    @endpoint.get("/health", name="custom_health")
+    def custom_health():
+        return {"ok": "custom"}
+
+    with pytest.raises(ValueError, match="reserved SSSN service route"):
+        create_app(
+            LocalStore(tmp_path / "store-health"),
+            custom_endpoints=[custom_health],
+        )
+
+    @endpoint.get("/channels/{channel_name}", name="custom_channel")
+    def custom_channel(channel_name: str):
+        return {"name": channel_name}
+
+    with pytest.raises(ValueError, match="reserved SSSN service route"):
+        create_app(
+            LocalStore(tmp_path / "store-channel"),
+            custom_endpoints=[custom_channel],
+        )
+
+
 def test_fastapi_channel_event_subscription_flow(tmp_path):
     app = create_app(LocalStore(tmp_path / "store"))
 

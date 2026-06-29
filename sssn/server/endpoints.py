@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal, TypeVar
@@ -12,6 +13,7 @@ F = TypeVar("F", bound=Callable[..., Any])
 
 _HTTP_METHODS = {"GET", "POST", "PUT", "PATCH", "DELETE"}
 _ENDPOINT_SCOPES = {"store", "channel", "subscription", "artifact", "snapshot"}
+_ROUTE_PARAMETER_RE = re.compile(r"\{[^{}]+\}")
 
 
 @dataclass(frozen=True)
@@ -131,6 +133,24 @@ def endpoint_spec(fn: Callable[..., Any]) -> StoreEndpointSpec | None:
     return spec if isinstance(spec, StoreEndpointSpec) else None
 
 
+def endpoint_specs(
+    functions: Sequence[Callable[..., Any]],
+) -> tuple[tuple[Callable[..., Any], StoreEndpointSpec], ...]:
+    endpoints = tuple(
+        (fn, spec) for fn in functions if (spec := endpoint_spec(fn)) is not None
+    )
+    _validate_endpoint_collection([spec for _, spec in endpoints])
+    return endpoints
+
+
+def endpoint_route_key(spec: StoreEndpointSpec) -> tuple[str, str]:
+    return spec.method, endpoint_path_key(spec.path)
+
+
+def endpoint_path_key(path: str) -> str:
+    return _ROUTE_PARAMETER_RE.sub("{}", path)
+
+
 def _attach(
     method: HttpMethod,
     path: str,
@@ -212,3 +232,20 @@ def _tags(tags: Sequence[str]) -> tuple[str, ...]:
     for tag in tags:
         values.append(_metadata_name(tag, "endpoint tag"))
     return tuple(values)
+
+
+def _validate_endpoint_collection(specs: Sequence[StoreEndpointSpec]) -> None:
+    names: set[str] = set()
+    routes: dict[tuple[str, str], StoreEndpointSpec] = {}
+    for spec in specs:
+        if spec.name in names:
+            raise ValueError(f"duplicate custom endpoint name: {spec.name!r}")
+        names.add(spec.name)
+
+        key = endpoint_route_key(spec)
+        if key in routes:
+            raise ValueError(
+                "duplicate custom endpoint route: "
+                f"{spec.method} {spec.path!r}"
+            )
+        routes[key] = spec

@@ -11,7 +11,7 @@ from copy import deepcopy
 from typing import Any
 
 from ..core import Channel, Snapshot
-from ..server.endpoints import endpoint_spec
+from ..server.endpoints import StoreEndpointSpec, endpoint_specs
 
 
 def channel_resource(
@@ -28,16 +28,7 @@ def channel_resource(
         "description": channel.description,
         "metadata": deepcopy(channel.metadata),
         "endpoints": [
-            {
-                "name": spec.name,
-                "method": spec.method,
-                "path": spec.path,
-                "scope": spec.scope,
-                "description": spec.description,
-                "tags": list(spec.tags),
-            }
-            for fn in custom_endpoints
-            if (spec := endpoint_spec(fn)) is not None
+            _endpoint_metadata(spec) for _, spec in endpoint_specs(custom_endpoints)
         ],
     }
 
@@ -57,15 +48,17 @@ def snapshot_resource(
         "description": description,
         "metadata": deepcopy(snapshot.metadata),
         "endpoints": [
-            {
-                "name": spec.name,
-                "method": spec.method,
-                "path": spec.path,
-                "scope": spec.scope,
-                "description": spec.description,
-                "tags": list(spec.tags),
-            }
-            for fn in custom_endpoints
-            if (spec := endpoint_spec(fn)) is not None
+            _endpoint_metadata(spec) for _, spec in endpoint_specs(custom_endpoints)
         ],
+    }
+
+
+def _endpoint_metadata(spec: StoreEndpointSpec) -> dict[str, Any]:
+    return {
+        "name": spec.name,
+        "method": spec.method,
+        "path": spec.path,
+        "scope": spec.scope,
+        "description": spec.description,
+        "tags": list(spec.tags),
     }
