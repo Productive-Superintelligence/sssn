@@ -183,9 +183,11 @@ store = ".sssn"
             "store = false",
             'store = ""',
             'store = "   "',
+            'store = "bad store"',
             'path = ["x"]',
             'path = ""',
             'path = "   "',
+            'path = "bad path"',
         ),
         start=1,
     ):
@@ -199,6 +201,28 @@ store = ".sssn"
             )
 
 
+def test_resolver_rejects_whitespace_bearing_store_targets(tmp_path):
+    resolver = SSSNResolver()
+
+    with pytest.raises(SSSNRefError, match="without whitespace"):
+        resolver.bind(CHANNEL_REF, store="bad store")
+    with pytest.raises(SSSNRefError, match="without whitespace"):
+        resolver.bind(CHANNEL_REF, path="bad path")
+
+    for index, target_line in enumerate(
+        ('store = "bad store"', 'path = "bad path"'),
+        start=1,
+    ):
+        with pytest.raises(SSSNRefError, match="without whitespace"):
+            SSSNResolver.from_text(
+                f"""
+[refs."{CHANNEL_REF}"]
+{target_line}
+""".lstrip(),
+                root=tmp_path / f"bad-store-target-{index}",
+            )
+
+
 def test_resolver_rejects_malformed_url_targets(tmp_path):
     resolver = SSSNResolver()
     for url in (
@@ -206,10 +230,11 @@ def test_resolver_rejects_malformed_url_targets(tmp_path):
         "/service",
         "ftp://service",
         "http://",
-        "http://test server",
     ):
         with pytest.raises(SSSNRefError, match="absolute HTTP"):
             resolver.bind(CHANNEL_REF, url=url)
+    with pytest.raises(SSSNRefError, match="without whitespace"):
+        resolver.bind(CHANNEL_REF, url="http://test server")
 
     for index, url in enumerate(("service", "/service", "ftp://service"), start=1):
         with pytest.raises(SSSNRefError, match="absolute HTTP"):
@@ -278,6 +303,10 @@ path = 123
             """
 [stores.default]
 path = ""
+""",
+            """
+[stores.default]
+path = "bad path"
 """,
         ),
         start=1,

@@ -315,17 +315,29 @@ def _validate_store_table_values(key: str, item: dict[str, Any]) -> None:
     if "path" not in item:
         return
     path = item["path"]
-    if not isinstance(path, str) or not path or path != path.strip():
-        raise SSSNRefError(f"[stores.{key}] path must be a non-empty string.")
+    if (
+        not isinstance(path, str)
+        or not path
+        or path != path.strip()
+        or any(ch.isspace() for ch in path)
+    ):
+        raise SSSNRefError(
+            f"[stores.{key}] path must be a non-empty string without whitespace."
+        )
 
 
 def _normalize_text_target(ref: str, name: str, value: Any) -> str | None:
     if value is None:
         return None
-    if isinstance(value, str) and value and value == value.strip():
+    if (
+        isinstance(value, str)
+        and value
+        and value == value.strip()
+        and not any(ch.isspace() for ch in value)
+    ):
         return value
     raise SSSNRefError(
-        f"Ref binding target {name!r} must be a non-empty string: {ref}"
+        f"Ref binding target {name!r} must be a non-empty string without whitespace: {ref}"
     )
 
 
