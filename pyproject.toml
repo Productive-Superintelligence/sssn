@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "sssn"
 version = "0.1.0"
-description = "Semantic channel data plane for PSI services."
+description = "Protocol and service layer for semantic channels."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"

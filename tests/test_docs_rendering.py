@@ -50,6 +50,7 @@ def test_docs_use_channel_protocol_framing():
         "data-plane guide": ROOT / "docs" / "concepts" / "data-plane.md",
         "contributing": ROOT / "CONTRIBUTING.md",
         "package docstring": ROOT / "sssn" / "__init__.py",
+        "package metadata": ROOT / "pyproject.toml",
         "site metadata": ROOT / "mkdocs.yml",
     }
     combined = "\n".join(
