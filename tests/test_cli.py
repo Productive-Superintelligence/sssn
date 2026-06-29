@@ -411,6 +411,7 @@ def test_cli_reports_binary_artifact_text_decode_error_without_traceback(tmp_pat
     "args",
     [
         ["serve", "--host", ""],
+        ["serve", "--host", " 127.0.0.1 "],
         ["serve", "--host", "bad host"],
         ["serve", "--host", "http://127.0.0.1"],
         ["serve", "--port", "0"],
