@@ -6,7 +6,7 @@ from pydantic import ValidationError
 
 from sssn import LocalStore
 from sssn.server import create_app, endpoint
-from sssn.server.endpoints import endpoint_spec
+from sssn.server.endpoints import StoreEndpointSpec, endpoint_spec
 from sssn.server.fastapi import (
     ArtifactWriteRequest,
     SnapshotWriteRequest,
@@ -115,6 +115,8 @@ def test_endpoint_decorator_normalizes_relative_paths():
         lambda: endpoint.get("/channels", tags=(123,)),
         lambda: endpoint.get("/channels", tags=("",)),
         lambda: endpoint.get("/channels", tags=("bad tag",)),
+        lambda: StoreEndpointSpec(method=" GET ", path="/channels", name="channels"),
+        lambda: StoreEndpointSpec(method="TRACE", path="/channels", name="channels"),
     ],
 )
 def test_endpoint_decorator_rejects_malformed_metadata(factory):
