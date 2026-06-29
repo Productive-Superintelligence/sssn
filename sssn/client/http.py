@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+from copy import deepcopy
 from typing import Any
 
 from ..core import Artifact, Channel, Event, InvalidPayloadError, Snapshot, Subscription
@@ -101,8 +102,8 @@ class SSSNClient:
                     "channel": channel,
                     "consumer": consumer,
                     "batch_size": batch_size,
-                    "filters": filters or {},
-                    "metadata": metadata or {},
+                    "filters": _copy_mapping(filters),
+                    "metadata": _copy_mapping(metadata),
                 },
             ).json()
         )
@@ -147,7 +148,7 @@ class SSSNClient:
                     "encoding": payload["encoding"],
                     "channel": channel,
                     "media_type": media_type,
-                    "metadata": metadata or {},
+                    "metadata": _copy_mapping(metadata),
                     "event_ids": list(event_ids),
                 },
             ).json()
@@ -280,8 +281,8 @@ class AsyncSSSNClient:
                         "channel": channel,
                         "consumer": consumer,
                         "batch_size": batch_size,
-                        "filters": filters or {},
-                        "metadata": metadata or {},
+                        "filters": _copy_mapping(filters),
+                        "metadata": _copy_mapping(metadata),
                     },
                 )
             ).json()
@@ -330,7 +331,7 @@ class AsyncSSSNClient:
                         "encoding": payload["encoding"],
                         "channel": channel,
                         "media_type": media_type,
-                        "metadata": metadata or {},
+                        "metadata": _copy_mapping(metadata),
                         "event_ids": list(event_ids),
                     },
                 )
@@ -397,14 +398,14 @@ class AsyncSSSNClient:
 
 def _dump_channel(channel: Channel | dict[str, Any]) -> dict[str, Any]:
     if isinstance(channel, Channel):
-        return channel.model_dump(mode="json", by_alias=True)
-    return channel
+        return deepcopy(channel.model_dump(mode="json", by_alias=True))
+    return deepcopy(channel)
 
 
 def _dump_event(event: Event | dict[str, Any]) -> dict[str, Any]:
     if isinstance(event, Event):
-        return event.model_dump(mode="json", by_alias=True)
-    return event
+        return deepcopy(event.model_dump(mode="json", by_alias=True))
+    return deepcopy(event)
 
 
 def _artifact_payload(data: bytes | str) -> dict[str, str]:
@@ -436,7 +437,9 @@ def _snapshot_payload(
     metadata: dict[str, Any] | None,
 ) -> dict[str, Any]:
     if isinstance(value, Snapshot):
-        payload = value.model_dump(mode="json", by_alias=True, exclude_none=True)
+        payload = deepcopy(
+            value.model_dump(mode="json", by_alias=True, exclude_none=True)
+        )
         payload.pop("name", None)
         if channel is not None:
             payload["channel"] = channel
@@ -447,7 +450,7 @@ def _snapshot_payload(
         if source_event_id is not None:
             payload["source_event_id"] = source_event_id
         if metadata is not None:
-            payload["metadata"] = metadata
+            payload["metadata"] = deepcopy(metadata)
         return payload
     raw_keys = {"channel", "timestamp", "value", "schema", "source_event_id", "metadata"}
     if (
@@ -459,8 +462,8 @@ def _snapshot_payload(
         and source_event_id is None
         and metadata is None
     ):
-        return value
-    payload: dict[str, Any] = {"value": value}
+        return deepcopy(value)
+    payload: dict[str, Any] = {"value": deepcopy(value)}
     if channel is not None:
         payload["channel"] = channel
     if timestamp is not None:
@@ -470,8 +473,12 @@ def _snapshot_payload(
     if source_event_id is not None:
         payload["source_event_id"] = source_event_id
     if metadata is not None:
-        payload["metadata"] = metadata
+        payload["metadata"] = deepcopy(metadata)
     return payload
+
+
+def _copy_mapping(value: dict[str, Any] | None) -> dict[str, Any]:
+    return deepcopy(value) if value is not None else {}
 
 
 def _raise_for_error(response: Any) -> None:

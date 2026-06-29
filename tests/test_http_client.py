@@ -277,6 +277,133 @@ def test_sync_client_sends_subscription_id():
     assert sub.filters == {"kind": "raw"}
 
 
+def test_sync_client_isolates_mutable_request_inputs():
+    class CapturingClient(SSSNClient):
+        def __init__(self):
+            super().__init__("http://testserver")
+            self.payloads = []
+
+        def _request(self, method, path, **kwargs):
+            self.payloads.append(kwargs["json"])
+            if path == "/channels":
+                return httpx.Response(
+                    200,
+                    json={
+                        "name": "events",
+                        "schema": None,
+                        "form": "log",
+                        "description": "",
+                        "metadata": {},
+                    },
+                )
+            if path == "/events":
+                return httpx.Response(
+                    200,
+                    json={
+                        "id": "event-1",
+                        "cursor": 1,
+                        "channel": "events",
+                        "timestamp": 1.0,
+                        "source": None,
+                        "kind": "raw",
+                        "payload": {"items": ["event"]},
+                        "schema": None,
+                        "metadata": {"labels": ["event"]},
+                        "correlation_id": None,
+                        "parent_ids": [],
+                    },
+                )
+            if path == "/subscriptions":
+                return httpx.Response(
+                    200,
+                    json={
+                        "id": "worker",
+                        "channel": "events",
+                        "cursor": 0,
+                        "consumer": None,
+                        "batch_size": 100,
+                        "filters": {"kind": {"labels": ["raw"]}},
+                        "metadata": {"labels": ["sub"]},
+                    },
+                )
+            if path == "/artifacts":
+                return httpx.Response(
+                    200,
+                    json={
+                        "id": "artifact-1",
+                        "channel": "events",
+                        "path": "artifacts/artifact-1",
+                        "media_type": "text/plain",
+                        "size": 5,
+                        "metadata": {"labels": ["artifact"]},
+                        "event_ids": [],
+                    },
+                )
+            return httpx.Response(
+                200,
+                json={
+                    "name": "latest",
+                    "channel": "events",
+                    "timestamp": 1.0,
+                    "value": {"items": ["snapshot"]},
+                    "metadata": {"labels": ["snapshot"]},
+                },
+            )
+
+    client = CapturingClient()
+    channel = {"name": "events", "metadata": {"labels": ["channel"]}}
+    event = {
+        "channel": "events",
+        "kind": "raw",
+        "payload": {"items": ["event"]},
+        "metadata": {"labels": ["event"]},
+    }
+    filters = {"kind": {"labels": ["raw"]}}
+    sub_metadata = {"labels": ["sub"]}
+    artifact_metadata = {"labels": ["artifact"]}
+    snapshot_value = {"items": ["snapshot"]}
+    snapshot_metadata = {"labels": ["snapshot"]}
+
+    client.create_channel(channel)
+    client.append_event(event)
+    client.create_subscription(
+        "events",
+        subscription_id="worker",
+        filters=filters,
+        metadata=sub_metadata,
+    )
+    client.write_artifact(
+        "hello",
+        channel="events",
+        media_type="text/plain",
+        metadata=artifact_metadata,
+    )
+    client.put_snapshot(
+        "latest",
+        snapshot_value,
+        channel="events",
+        metadata=snapshot_metadata,
+    )
+
+    channel["metadata"]["labels"].append("changed")
+    event["payload"]["items"].append("changed")
+    event["metadata"]["labels"].append("changed")
+    filters["kind"]["labels"].append("changed")
+    sub_metadata["labels"].append("changed")
+    artifact_metadata["labels"].append("changed")
+    snapshot_value["items"].append("changed")
+    snapshot_metadata["labels"].append("changed")
+
+    assert client.payloads[0]["metadata"] == {"labels": ["channel"]}
+    assert client.payloads[1]["payload"] == {"items": ["event"]}
+    assert client.payloads[1]["metadata"] == {"labels": ["event"]}
+    assert client.payloads[2]["filters"] == {"kind": {"labels": ["raw"]}}
+    assert client.payloads[2]["metadata"] == {"labels": ["sub"]}
+    assert client.payloads[3]["metadata"] == {"labels": ["artifact"]}
+    assert client.payloads[4]["value"] == {"items": ["snapshot"]}
+    assert client.payloads[4]["metadata"] == {"labels": ["snapshot"]}
+
+
 def test_sync_client_gets_artifact_metadata():
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.method == "GET"
