@@ -10,7 +10,7 @@ from collections.abc import Callable, Sequence
 from copy import deepcopy
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StrictStr
 
 from ..core import (
     ArtifactNotFoundError,
@@ -31,8 +31,8 @@ from .endpoints import StoreEndpointSpec, endpoint_spec
 
 
 class ErrorDetail(BaseModel):
-    type: str
-    message: str
+    type: StrictStr
+    message: StrictStr
 
 
 class ErrorResponse(BaseModel):
@@ -40,9 +40,9 @@ class ErrorResponse(BaseModel):
 
 
 class SubscriptionRequest(BaseModel):
-    id: str | None = None
-    channel: str
-    consumer: str | None = None
+    id: StrictStr | None = None
+    channel: StrictStr
+    consumer: StrictStr | None = None
     batch_size: int = 100
     filters: dict[str, Any] = Field(default_factory=dict)
     metadata: dict[str, Any] = Field(default_factory=dict)
@@ -53,12 +53,12 @@ class SubscriptionRequest(BaseModel):
 
 
 class ArtifactWriteRequest(BaseModel):
-    data: str
+    data: StrictStr
     encoding: Literal["text", "base64"] = "text"
-    channel: str | None = None
-    media_type: str = "application/octet-stream"
+    channel: StrictStr | None = None
+    media_type: StrictStr = "application/octet-stream"
     metadata: dict[str, Any] = Field(default_factory=dict)
-    event_ids: tuple[str, ...] = Field(default_factory=tuple)
+    event_ids: tuple[StrictStr, ...] = Field(default_factory=tuple)
 
     def model_post_init(self, __context: Any) -> None:
         self.metadata = deepcopy(self.metadata)
@@ -73,11 +73,11 @@ class ArtifactWriteRequest(BaseModel):
 
 
 class SnapshotWriteRequest(BaseModel):
-    channel: str | None = None
+    channel: StrictStr | None = None
     timestamp: float | None = None
     value: Any = None
-    schema_ref: str | None = Field(default=None, alias="schema")
-    source_event_id: str | None = None
+    schema_ref: StrictStr | None = Field(default=None, alias="schema")
+    source_event_id: StrictStr | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     def model_post_init(self, __context: Any) -> None:

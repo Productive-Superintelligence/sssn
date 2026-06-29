@@ -32,9 +32,9 @@ class Channel(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     name: StrictStr
-    schema_ref: str | None = Field(default=None, alias="schema")
+    schema_ref: StrictStr | None = Field(default=None, alias="schema")
     form: ChannelForm = "log"
-    description: str = ""
+    description: StrictStr = ""
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     @property
@@ -57,12 +57,12 @@ class Event(BaseModel):
     cursor: int | None = None
     channel: StrictStr
     timestamp: float = Field(default_factory=time.time)
-    source: str | None = None
-    kind: str = "event"
+    source: StrictStr | None = None
+    kind: StrictStr = "event"
     payload: Any = None
-    schema_ref: str | None = Field(default=None, alias="schema")
+    schema_ref: StrictStr | None = Field(default=None, alias="schema")
     metadata: dict[str, Any] = Field(default_factory=dict)
-    correlation_id: str | None = None
+    correlation_id: StrictStr | None = None
     parent_ids: tuple[StrictStr, ...] = Field(default_factory=tuple)
 
     @property
@@ -113,7 +113,7 @@ class Snapshot(BaseModel):
     channel: StrictStr | None = None
     timestamp: float = Field(default_factory=time.time)
     value: Any = None
-    schema_ref: str | None = Field(default=None, alias="schema")
+    schema_ref: StrictStr | None = Field(default=None, alias="schema")
     source_event_id: StrictStr | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
@@ -139,7 +139,7 @@ class Subscription(BaseModel):
     id: StrictStr = Field(default_factory=lambda: str(uuid.uuid4()))
     channel: StrictStr
     cursor: int = 0
-    consumer: str | None = None
+    consumer: StrictStr | None = None
     batch_size: int = 100
     filters: dict[str, Any] = Field(default_factory=dict)
     metadata: dict[str, Any] = Field(default_factory=dict)

@@ -1,6 +1,8 @@
 import asyncio
 
 import httpx
+import pytest
+from pydantic import ValidationError
 
 from sssn import LocalStore
 from sssn.server import create_app, endpoint
@@ -52,6 +54,26 @@ def test_fastapi_request_models_isolate_mutable_constructor_inputs():
     assert artifact.metadata == {"tags": ["artifact"]}
     assert snapshot.value == {"state": ["ok"]}
     assert snapshot.metadata == {"tags": ["snapshot"]}
+
+
+@pytest.mark.parametrize(
+    "factory",
+    [
+        lambda: SubscriptionRequest(channel=b"events"),
+        lambda: SubscriptionRequest(id=b"sub", channel="events"),
+        lambda: SubscriptionRequest(channel="events", consumer=b"worker"),
+        lambda: ArtifactWriteRequest(data=b"hello"),
+        lambda: ArtifactWriteRequest(data="hello", channel=b"events"),
+        lambda: ArtifactWriteRequest(data="hello", media_type=b"text/plain"),
+        lambda: ArtifactWriteRequest(data="hello", event_ids=(b"event",)),
+        lambda: SnapshotWriteRequest(channel=b"state"),
+        lambda: SnapshotWriteRequest(schema=b"demo.schemas:State"),
+        lambda: SnapshotWriteRequest(source_event_id=b"event"),
+    ],
+)
+def test_fastapi_request_models_reject_bytes_for_string_fields(factory):
+    with pytest.raises(ValidationError):
+        factory()
 
 
 def test_fastapi_channel_event_subscription_flow(tmp_path):

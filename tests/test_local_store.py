@@ -281,6 +281,24 @@ def test_core_models_reject_non_string_resource_segments():
             Snapshot(name="latest", source_event_id=value)  # type: ignore[arg-type]
 
 
+@pytest.mark.parametrize(
+    "factory",
+    [
+        lambda: Channel(name="events", schema=b"demo.schemas:Event"),
+        lambda: Channel(name="events", description=b"event stream"),
+        lambda: Event(channel="events", source=b"sensor"),
+        lambda: Event(channel="events", kind=b"raw"),
+        lambda: Event(channel="events", schema=b"demo.schemas:Event"),
+        lambda: Event(channel="events", correlation_id=b"corr"),
+        lambda: Snapshot(name="latest", schema=b"demo.schemas:State"),
+        lambda: Subscription(channel="events", consumer=b"worker"),
+    ],
+)
+def test_core_models_reject_bytes_for_protocol_string_fields(factory):
+    with pytest.raises(ValidationError):
+        factory()
+
+
 def test_event_append_and_query_with_metadata(tmp_path):
     store = LocalStore(tmp_path / "store")
     store.create_channel({"name": "events", "schema": "demo.schemas:Event"})
