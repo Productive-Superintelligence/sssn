@@ -6,6 +6,7 @@ from pydantic import ValidationError
 
 from sssn import LocalStore
 from sssn.server import create_app, endpoint
+from sssn.server.endpoints import endpoint_spec
 from sssn.server.fastapi import (
     ArtifactWriteRequest,
     SnapshotWriteRequest,
@@ -73,6 +74,51 @@ def test_fastapi_request_models_isolate_mutable_constructor_inputs():
 )
 def test_fastapi_request_models_reject_bytes_for_string_fields(factory):
     with pytest.raises(ValidationError):
+        factory()
+
+
+def test_endpoint_decorator_normalizes_relative_paths():
+    @endpoint.get(
+        "channels/{name}/count",
+        name="count_events",
+        scope="channel",
+        tags=("events",),
+    )
+    def count_events(store: LocalStore, name: str):
+        return {"count": len(store.query_events(name))}
+
+    spec = endpoint_spec(count_events)
+
+    assert spec is not None
+    assert spec.path == "/channels/{name}/count"
+    assert spec.name == "count_events"
+    assert spec.scope == "channel"
+    assert spec.tags == ("events",)
+
+
+@pytest.mark.parametrize(
+    "factory",
+    [
+        lambda: endpoint.get(None),
+        lambda: endpoint.get(123),
+        lambda: endpoint.get(""),
+        lambda: endpoint.get("bad path"),
+        lambda: endpoint.get("/channels?name=events"),
+        lambda: endpoint.get("/channels#events"),
+        lambda: endpoint.get("http://example.com/channels"),
+        lambda: endpoint.get("/channels", name=""),
+        lambda: endpoint.get("/channels", name=123),
+        lambda: endpoint.get("/channels", name="bad name"),
+        lambda: endpoint.get("/channels", scope="dataset"),
+        lambda: endpoint.get("/channels", description=123),
+        lambda: endpoint.get("/channels", tags="events"),
+        lambda: endpoint.get("/channels", tags=(123,)),
+        lambda: endpoint.get("/channels", tags=("",)),
+        lambda: endpoint.get("/channels", tags=("bad tag",)),
+    ],
+)
+def test_endpoint_decorator_rejects_malformed_metadata(factory):
+    with pytest.raises(ValueError):
         factory()
 
 
