@@ -4,6 +4,11 @@ import httpx
 
 from sssn import LocalStore
 from sssn.server import create_app, endpoint
+from sssn.server.fastapi import (
+    ArtifactWriteRequest,
+    SnapshotWriteRequest,
+    SubscriptionRequest,
+)
 
 
 def request(app, method, path, **kwargs):
@@ -16,6 +21,37 @@ def request(app, method, path, **kwargs):
             return await client.request(method, path, **kwargs)
 
     return asyncio.run(run())
+
+
+def test_fastapi_request_models_isolate_mutable_constructor_inputs():
+    filters = {"kind": ["raw"]}
+    subscription_metadata = {"tags": ["sub"]}
+    subscription = SubscriptionRequest(
+        channel="events",
+        filters=filters,
+        metadata=subscription_metadata,
+    )
+    filters["kind"].append("mutated")
+    subscription_metadata["tags"].append("mutated")
+
+    artifact_metadata = {"tags": ["artifact"]}
+    artifact = ArtifactWriteRequest(data="hello", metadata=artifact_metadata)
+    artifact_metadata["tags"].append("mutated")
+
+    snapshot_value = {"state": ["ok"]}
+    snapshot_metadata = {"tags": ["snapshot"]}
+    snapshot = SnapshotWriteRequest(
+        value=snapshot_value,
+        metadata=snapshot_metadata,
+    )
+    snapshot_value["state"].append("mutated")
+    snapshot_metadata["tags"].append("mutated")
+
+    assert subscription.filters == {"kind": ["raw"]}
+    assert subscription.metadata == {"tags": ["sub"]}
+    assert artifact.metadata == {"tags": ["artifact"]}
+    assert snapshot.value == {"state": ["ok"]}
+    assert snapshot.metadata == {"tags": ["snapshot"]}
 
 
 def test_fastapi_channel_event_subscription_flow(tmp_path):

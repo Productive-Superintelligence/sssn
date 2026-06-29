@@ -7,6 +7,7 @@ import binascii
 import inspect
 import re
 from collections.abc import Callable, Sequence
+from copy import deepcopy
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
@@ -46,6 +47,10 @@ class SubscriptionRequest(BaseModel):
     filters: dict[str, Any] = Field(default_factory=dict)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
+    def model_post_init(self, __context: Any) -> None:
+        self.filters = deepcopy(self.filters)
+        self.metadata = deepcopy(self.metadata)
+
 
 class ArtifactWriteRequest(BaseModel):
     data: str
@@ -54,6 +59,9 @@ class ArtifactWriteRequest(BaseModel):
     media_type: str = "application/octet-stream"
     metadata: dict[str, Any] = Field(default_factory=dict)
     event_ids: tuple[str, ...] = Field(default_factory=tuple)
+
+    def model_post_init(self, __context: Any) -> None:
+        self.metadata = deepcopy(self.metadata)
 
     def bytes(self) -> bytes:
         if self.encoding == "base64":
@@ -71,6 +79,10 @@ class SnapshotWriteRequest(BaseModel):
     schema_ref: str | None = Field(default=None, alias="schema")
     source_event_id: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+    def model_post_init(self, __context: Any) -> None:
+        self.value = deepcopy(self.value)
+        self.metadata = deepcopy(self.metadata)
 
 
 def create_app(
