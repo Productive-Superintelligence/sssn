@@ -130,6 +130,42 @@ def test_async_client_calls_fastapi_server(tmp_path):
     assert result["loaded_channel"].name == "events"
 
 
+def test_async_client_preserves_fastapi_missing_resource_errors(tmp_path):
+    app = create_app(LocalStore(tmp_path / "store"))
+
+    async def run():
+        client = AsyncSSSNClient(
+            "http://testserver",
+            transport=httpx.ASGITransport(app=app),
+        )
+        cases = [
+            (lambda: client.get_channel("missing"), "ChannelNotFoundError"),
+            (lambda: client.query_events("missing"), "ChannelNotFoundError"),
+            (lambda: client.get_event("missing"), "EventNotFoundError"),
+            (
+                lambda: client.pull_subscription("missing"),
+                "SubscriptionNotFoundError",
+            ),
+            (
+                lambda: client.get_subscription("missing"),
+                "SubscriptionNotFoundError",
+            ),
+            (lambda: client.get_artifact("missing"), "ArtifactNotFoundError"),
+            (lambda: client.read_artifact("missing"), "ArtifactNotFoundError"),
+            (lambda: client.get_snapshot("missing"), "SnapshotNotFoundError"),
+        ]
+
+        for call, error_type in cases:
+            with pytest.raises(SSSNClientError) as exc_info:
+                await call()
+            assert exc_info.value.status_code == 404
+            assert exc_info.value.error_type == error_type
+            assert exc_info.value.message is not None
+            assert "missing" in exc_info.value.message
+
+    asyncio.run(run())
+
+
 @pytest.mark.parametrize("client_cls", [SSSNClient, AsyncSSSNClient])
 @pytest.mark.parametrize(
     "base_url",
