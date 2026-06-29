@@ -594,6 +594,18 @@ def test_artifact_write_rejects_non_byte_payloads(tmp_path):
     assert store.read_artifact(memoryview_artifact.id) == b"world"
 
 
+def test_artifact_write_rejects_malformed_metadata_and_event_ids(tmp_path):
+    store = LocalStore(tmp_path / "store")
+
+    for metadata in ([], "bad", 123):
+        with pytest.raises(InvalidPayloadError, match="artifact.metadata"):
+            store.write_artifact(b"payload", metadata=metadata)  # type: ignore[arg-type]
+
+    for event_ids in ("event-1", {"event-1": True}, 123, None):
+        with pytest.raises(InvalidPayloadError, match="artifact.event_ids"):
+            store.write_artifact(b"payload", event_ids=event_ids)  # type: ignore[arg-type]
+
+
 def test_artifact_read_rejects_payload_paths_outside_store(tmp_path):
     store = LocalStore(tmp_path / "store")
     outside = tmp_path / "outside.txt"

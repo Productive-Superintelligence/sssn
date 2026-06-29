@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import sqlite3
+from collections.abc import Iterable, Mapping
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, TypeVar
@@ -265,9 +266,11 @@ class LocalStore:
         event_ids: tuple[str, ...] = (),
     ) -> Artifact:
         payload = _artifact_bytes(data)
+        artifact_metadata = _optional_mapping("artifact.metadata", metadata)
+        artifact_event_ids = _segment_tuple("artifact.event_ids", event_ids)
         if channel is not None:
             self.get_channel(channel)
-        self._require_events(event_ids)
+        self._require_events(artifact_event_ids)
         sha = hashlib.sha256(payload).hexdigest()
         artifact = Artifact(
             channel=channel,
@@ -275,8 +278,8 @@ class LocalStore:
             media_type=media_type,
             size=len(payload),
             sha256=sha,
-            metadata=deepcopy(metadata) if metadata is not None else {},
-            event_ids=tuple(event_ids),
+            metadata=artifact_metadata,
+            event_ids=artifact_event_ids,
         )
         path = self._artifact_payload_path(artifact.path)
         path.write_bytes(payload)
@@ -563,6 +566,29 @@ def _require_token(field_name: str, value: Any) -> None:
         or any(ch in value for ch in "/:\\")
     ):
         raise InvalidPayloadError(f"{field_name} must be a non-empty token.")
+
+
+def _segment_tuple(field_name: str, values: Any) -> tuple[str, ...]:
+    if (
+        values is None
+        or isinstance(values, (str, bytes, bytearray))
+        or isinstance(values, Mapping)
+        or not isinstance(values, Iterable)
+    ):
+        raise InvalidPayloadError(f"{field_name} must be a list of path segments.")
+    result: list[str] = []
+    for value in values:
+        _require_segment(field_name, value)
+        result.append(value)
+    return tuple(result)
+
+
+def _optional_mapping(field_name: str, value: Any) -> dict[str, Any]:
+    if value is None:
+        return {}
+    if not isinstance(value, Mapping):
+        raise InvalidPayloadError(f"{field_name} must be an object.")
+    return deepcopy(dict(value))
 
 
 def _is_relative_to(path: Path, base_dir: Path) -> bool:
