@@ -624,7 +624,8 @@ def test_python_api_reference_documents_resource_name_segments():
 
     assert "Resource names:" in reference
     assert "must be non-empty path segments" in reference
-    assert "avoid `.`, `..`, `/`, `\\`, and `:`" in reference
+    assert "avoid percent escapes, `.`, `..`, `/`" in reference
+    assert "`\\`, and `:`" in reference
     assert "SSSNResolver.from_config(path)" in reference
     assert "local_store(ref)" in reference
     assert "client(ref)" in reference

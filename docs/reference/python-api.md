@@ -40,4 +40,5 @@ Resource names:
 
 Channel names, event ids, artifact ids, snapshot names, subscription ids, and
 channel references must be non-empty path segments. Use names such as `events`,
-`latest_analysis`, or `worker-events`; avoid `.`, `..`, `/`, `\`, and `:`.
+`latest_analysis`, or `worker-events`; avoid percent escapes, `.`, `..`, `/`,
+`\`, and `:`.
