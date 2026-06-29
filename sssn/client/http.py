@@ -531,6 +531,7 @@ def _require_segment(field_name: str, value: Any) -> None:
         not isinstance(value, str)
         or not value.strip()
         or value in {".", ".."}
+        or any(ch.isspace() for ch in value)
         or any(ch in value for ch in "/:\\")
     ):
         raise InvalidPayloadError(f"{field_name} must be a non-empty path segment.")

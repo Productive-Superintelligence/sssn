@@ -145,6 +145,10 @@ url = "http://sssn"
         "psi://demo/combo/channels//events",
         "psi://demo/../channels/events",
         "psi://demo/combo/channels/..",
+        "psi://demo org/combo/channels/events",
+        "psi://demo/combo pkg/channels/events",
+        "psi://demo/combo/chan nels/events",
+        "psi://demo/combo/channels/event name",
     ):
         with pytest.raises(SSSNRefError):
             SSSNResolver().bind(ref, store=".sssn")
@@ -238,6 +242,10 @@ default = ".sssn"
         (
             """
 [stores."bad/name"]
+path = ".sssn"
+""",
+            """
+[stores."bad store"]
 path = ".sssn"
 """,
             """

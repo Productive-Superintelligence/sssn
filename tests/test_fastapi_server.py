@@ -297,6 +297,7 @@ def test_fastapi_returns_stable_errors_for_request_validation(tmp_path):
     app = create_app(LocalStore(tmp_path / "store"))
 
     bad_channel = request(app, "POST", "/channels", json={"name": "bad/name"})
+    bad_channel_space = request(app, "POST", "/channels", json={"name": "bad name"})
     bad_event = request(
         app,
         "POST",
@@ -307,6 +308,7 @@ def test_fastapi_returns_stable_errors_for_request_validation(tmp_path):
 
     for response, field in (
         (bad_channel, "channel.name"),
+        (bad_channel_space, "channel.name"),
         (bad_event, "event.id"),
         (missing_event_channel, "channel"),
     ):

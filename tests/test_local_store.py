@@ -204,7 +204,10 @@ def test_store_returns_isolated_mutable_write_inputs(tmp_path):
     assert store.get_snapshot("latest").value == {"items": ["snapshot"]}
 
 
-@pytest.mark.parametrize("name", ["", "   ", ".", "..", "bad/name", r"bad\name", "bad:name"])
+@pytest.mark.parametrize(
+    "name",
+    ["", "   ", ".", "..", "bad/name", r"bad\name", "bad:name", "bad name"],
+)
 def test_store_rejects_path_control_resource_names(tmp_path, name):
     store = LocalStore(tmp_path / "store")
 
@@ -223,7 +226,10 @@ def test_store_rejects_path_control_resource_names(tmp_path, name):
         store.put_snapshot({"name": name, "channel": "events", "value": {}})
 
 
-@pytest.mark.parametrize("name", ["", "   ", ".", "..", "bad/name", r"bad\name", "bad:name"])
+@pytest.mark.parametrize(
+    "name",
+    ["", "   ", ".", "..", "bad/name", r"bad\name", "bad:name", "bad name"],
+)
 def test_store_rejects_path_control_lookup_names(tmp_path, name):
     store = LocalStore(tmp_path / "store")
 
@@ -246,8 +252,8 @@ def test_store_rejects_path_control_lookup_names(tmp_path, name):
 
 
 def test_core_models_reject_non_string_resource_segments():
-    required_values = (None, 123, b"events", [], "   ")
-    optional_values = (123, b"events", [], "   ")
+    required_values = (None, 123, b"events", [], "   ", "bad name")
+    optional_values = (123, b"events", [], "   ", "bad name")
 
     for value in required_values:
         with pytest.raises(ValidationError):

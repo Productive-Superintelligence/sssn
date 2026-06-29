@@ -275,12 +275,12 @@ def test_sync_client_ignores_non_string_error_payload_fields():
     assert exc_info.value.message is None
 
 
-def test_sync_client_rejects_path_control_lookup_names_without_request():
+@pytest.mark.parametrize("bad_name", ["bad/name", "bad name"])
+def test_sync_client_rejects_path_control_lookup_names_without_request(bad_name):
     def handler(request: httpx.Request) -> httpx.Response:
         raise AssertionError(f"unexpected request: {request.url}")
 
     client = SSSNClient("http://testserver", transport=httpx.MockTransport(handler))
-    bad_name = "bad/name"
     calls = (
         lambda: client.get_channel(bad_name),
         lambda: client.query_events(bad_name),
@@ -298,12 +298,12 @@ def test_sync_client_rejects_path_control_lookup_names_without_request():
             call()
 
 
-def test_sync_client_rejects_path_control_body_ids_without_request():
+@pytest.mark.parametrize("bad_name", ["bad/name", "bad name"])
+def test_sync_client_rejects_path_control_body_ids_without_request(bad_name):
     def handler(request: httpx.Request) -> httpx.Response:
         raise AssertionError(f"unexpected request: {request.url}")
 
     client = SSSNClient("http://testserver", transport=httpx.MockTransport(handler))
-    bad_name = "bad/name"
     calls = (
         lambda: client.create_channel({"name": bad_name}),
         lambda: client.append_event({"id": bad_name, "channel": "events"}),
@@ -325,7 +325,8 @@ def test_sync_client_rejects_path_control_body_ids_without_request():
             call()
 
 
-def test_async_client_rejects_path_control_lookup_names_without_request():
+@pytest.mark.parametrize("bad_name", ["bad/name", "bad name"])
+def test_async_client_rejects_path_control_lookup_names_without_request(bad_name):
     def handler(request: httpx.Request) -> httpx.Response:
         raise AssertionError(f"unexpected request: {request.url}")
 
@@ -334,7 +335,6 @@ def test_async_client_rejects_path_control_lookup_names_without_request():
             "http://testserver",
             transport=httpx.MockTransport(handler),
         )
-        bad_name = "bad/name"
         calls = (
             lambda: client.get_channel(bad_name),
             lambda: client.query_events(bad_name),
@@ -354,7 +354,8 @@ def test_async_client_rejects_path_control_lookup_names_without_request():
     asyncio.run(run())
 
 
-def test_async_client_rejects_path_control_body_ids_without_request():
+@pytest.mark.parametrize("bad_name", ["bad/name", "bad name"])
+def test_async_client_rejects_path_control_body_ids_without_request(bad_name):
     def handler(request: httpx.Request) -> httpx.Response:
         raise AssertionError(f"unexpected request: {request.url}")
 
@@ -363,7 +364,6 @@ def test_async_client_rejects_path_control_body_ids_without_request():
             "http://testserver",
             transport=httpx.MockTransport(handler),
         )
-        bad_name = "bad/name"
         calls = (
             lambda: client.create_channel({"name": bad_name}),
             lambda: client.append_event({"id": bad_name, "channel": "events"}),
