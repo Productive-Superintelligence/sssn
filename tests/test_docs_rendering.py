@@ -139,6 +139,16 @@ def test_http_api_reference_distinguishes_artifact_payload_and_metadata():
     )
 
 
+def test_python_api_reference_documents_resource_name_segments():
+    reference = (ROOT / "docs" / "reference" / "python-api.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "Resource names:" in reference
+    assert "must be non-empty path segments" in reference
+    assert "avoid `.`, `..`, `/`, `\\`, and `:`" in reference
+
+
 def test_http_api_reference_lists_portable_endpoints():
     reference = (ROOT / "docs" / "reference" / "http-api.md").read_text(
         encoding="utf-8"
