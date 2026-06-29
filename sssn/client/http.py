@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+from collections.abc import Iterable, Mapping
 from copy import deepcopy
 from typing import Any
 from urllib.parse import urlsplit
@@ -50,6 +51,8 @@ class SSSNClient:
     def create_channel(self, channel: Channel | dict[str, Any]) -> Channel:
         data = _dump_channel(channel)
         _require_segment("channel.name", data.get("name"))
+        if "metadata" in data:
+            data["metadata"] = _mapping_payload("channel.metadata", data["metadata"])
         return _model_response(
             self._request("POST", "/channels", json=data),
             Channel,
@@ -79,7 +82,12 @@ class SSSNClient:
             _require_token("event.kind", data["kind"])
         if data.get("correlation_id") is not None:
             _require_token("event.correlation_id", data["correlation_id"])
-        _require_segments("event.parent_ids", data.get("parent_ids", ()))
+        if "metadata" in data:
+            data["metadata"] = _mapping_payload("event.metadata", data["metadata"])
+        data["parent_ids"] = _segment_list(
+            "event.parent_ids",
+            data.get("parent_ids", ()),
+        )
         return _model_response(
             self._request("POST", "/events", json=data),
             Event,
@@ -135,8 +143,8 @@ class SSSNClient:
                     "channel": channel,
                     "consumer": consumer,
                     "batch_size": batch_size,
-                    "filters": _copy_mapping(filters),
-                    "metadata": _copy_mapping(metadata),
+                    "filters": _copy_mapping("subscription.filters", filters),
+                    "metadata": _copy_mapping("subscription.metadata", metadata),
                 },
             ),
             Subscription,
@@ -179,7 +187,7 @@ class SSSNClient:
         event_ids: tuple[str, ...] = (),
     ) -> Artifact:
         _require_optional_segment("artifact.channel", channel)
-        _require_segments("artifact.event_ids", event_ids)
+        event_id_list = _segment_list("artifact.event_ids", event_ids)
         payload = _artifact_payload(data)
         return _model_response(
             self._request(
@@ -190,8 +198,8 @@ class SSSNClient:
                     "encoding": payload["encoding"],
                     "channel": channel,
                     "media_type": media_type,
-                    "metadata": _copy_mapping(metadata),
-                    "event_ids": list(event_ids),
+                    "metadata": _copy_mapping("artifact.metadata", metadata),
+                    "event_ids": event_id_list,
                 },
             ),
             Artifact,
@@ -235,6 +243,11 @@ class SSSNClient:
             "snapshot.source_event_id",
             payload.get("source_event_id"),
         )
+        if "metadata" in payload:
+            payload["metadata"] = _mapping_payload(
+                "snapshot.metadata",
+                payload["metadata"],
+            )
         return _model_response(
             self._request(
                 "PUT",
@@ -283,6 +296,8 @@ class AsyncSSSNClient:
     async def create_channel(self, channel: Channel | dict[str, Any]) -> Channel:
         data = _dump_channel(channel)
         _require_segment("channel.name", data.get("name"))
+        if "metadata" in data:
+            data["metadata"] = _mapping_payload("channel.metadata", data["metadata"])
         return _model_response(
             await self._request("POST", "/channels", json=data),
             Channel,
@@ -312,7 +327,12 @@ class AsyncSSSNClient:
             _require_token("event.kind", data["kind"])
         if data.get("correlation_id") is not None:
             _require_token("event.correlation_id", data["correlation_id"])
-        _require_segments("event.parent_ids", data.get("parent_ids", ()))
+        if "metadata" in data:
+            data["metadata"] = _mapping_payload("event.metadata", data["metadata"])
+        data["parent_ids"] = _segment_list(
+            "event.parent_ids",
+            data.get("parent_ids", ()),
+        )
         return _model_response(
             await self._request("POST", "/events", json=data),
             Event,
@@ -369,8 +389,8 @@ class AsyncSSSNClient:
                         "channel": channel,
                         "consumer": consumer,
                         "batch_size": batch_size,
-                        "filters": _copy_mapping(filters),
-                        "metadata": _copy_mapping(metadata),
+                        "filters": _copy_mapping("subscription.filters", filters),
+                        "metadata": _copy_mapping("subscription.metadata", metadata),
                     },
                 )
             ),
@@ -414,7 +434,7 @@ class AsyncSSSNClient:
         event_ids: tuple[str, ...] = (),
     ) -> Artifact:
         _require_optional_segment("artifact.channel", channel)
-        _require_segments("artifact.event_ids", event_ids)
+        event_id_list = _segment_list("artifact.event_ids", event_ids)
         payload = _artifact_payload(data)
         return _model_response(
             (
@@ -426,8 +446,8 @@ class AsyncSSSNClient:
                         "encoding": payload["encoding"],
                         "channel": channel,
                         "media_type": media_type,
-                        "metadata": _copy_mapping(metadata),
-                        "event_ids": list(event_ids),
+                        "metadata": _copy_mapping("artifact.metadata", metadata),
+                        "event_ids": event_id_list,
                     },
                 )
             ),
@@ -472,6 +492,11 @@ class AsyncSSSNClient:
             "snapshot.source_event_id",
             payload.get("source_event_id"),
         )
+        if "metadata" in payload:
+            payload["metadata"] = _mapping_payload(
+                "snapshot.metadata",
+                payload["metadata"],
+            )
         return _model_response(
             (
                 await self._request(
@@ -508,13 +533,13 @@ class AsyncSSSNClient:
 def _dump_channel(channel: Channel | dict[str, Any]) -> dict[str, Any]:
     if isinstance(channel, Channel):
         return deepcopy(channel.model_dump(mode="json", by_alias=True))
-    return deepcopy(channel)
+    return _mapping_payload("channel", channel)
 
 
 def _dump_event(event: Event | dict[str, Any]) -> dict[str, Any]:
     if isinstance(event, Event):
         return deepcopy(event.model_dump(mode="json", by_alias=True))
-    return deepcopy(event)
+    return _mapping_payload("event", event)
 
 
 def _artifact_payload(data: bytes | str) -> dict[str, str]:
@@ -574,9 +599,23 @@ def _require_optional_segment(field_name: str, value: Any) -> None:
         _require_segment(field_name, value)
 
 
-def _require_segments(field_name: str, values: Any) -> None:
-    for value in values or ():
+def _segment_list(field_name: str, values: Any) -> list[str]:
+    if (
+        values is None
+        or isinstance(values, (str, bytes, bytearray))
+        or isinstance(values, Mapping)
+        or not isinstance(values, Iterable)
+    ):
+        raise InvalidPayloadError(f"{field_name} must be a list of path segments.")
+    result: list[str] = []
+    for value in values:
         _require_segment(field_name, value)
+        result.append(value)
+    return result
+
+
+def _require_segments(field_name: str, values: Any) -> None:
+    _segment_list(field_name, values)
 
 
 def _snapshot_payload(
@@ -629,8 +668,14 @@ def _snapshot_payload(
     return payload
 
 
-def _copy_mapping(value: dict[str, Any] | None) -> dict[str, Any]:
-    return deepcopy(value) if value is not None else {}
+def _mapping_payload(field_name: str, value: Any) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        raise InvalidPayloadError(f"{field_name} must be an object.")
+    return deepcopy(dict(value))
+
+
+def _copy_mapping(field_name: str, value: dict[str, Any] | None) -> dict[str, Any]:
+    return _mapping_payload(field_name, value) if value is not None else {}
 
 
 def _model_response(response: Any, model_type: Any, endpoint: str) -> Any:

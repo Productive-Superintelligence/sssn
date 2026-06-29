@@ -382,6 +382,38 @@ def test_sync_client_rejects_malformed_artifact_data_without_request(bad_data):
         client.write_artifact(bad_data)  # type: ignore[arg-type]
 
 
+def test_sync_client_rejects_malformed_payload_shapes_without_request():
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise AssertionError(f"unexpected request: {request.url}")
+
+    client = SSSNClient("http://testserver", transport=httpx.MockTransport(handler))
+    calls = (
+        (lambda: client.create_channel(["bad"]), "channel"),
+        (lambda: client.create_channel({"name": "events", "metadata": []}), "metadata"),
+        (lambda: client.append_event(["bad"]), "event"),
+        (lambda: client.append_event({"channel": "events", "metadata": []}), "metadata"),
+        (
+            lambda: client.append_event(
+                {"channel": "events", "parent_ids": "event-1"}
+            ),
+            "parent_ids",
+        ),
+        (lambda: client.create_subscription("events", filters=[]), "filters"),
+        (lambda: client.create_subscription("events", metadata=[]), "metadata"),
+        (lambda: client.write_artifact("hello", metadata=[]), "metadata"),
+        (lambda: client.write_artifact("hello", event_ids="event-1"), "event_ids"),
+        (lambda: client.put_snapshot("latest", {}, metadata=[]), "metadata"),
+        (
+            lambda: client.put_snapshot("latest", {"value": {}, "metadata": []}),
+            "metadata",
+        ),
+    )
+
+    for call, message in calls:
+        with pytest.raises(InvalidPayloadError, match=message):
+            call()
+
+
 @pytest.mark.parametrize(
     "bad_kind",
     (
@@ -600,6 +632,60 @@ def test_async_client_rejects_malformed_artifact_data_without_request(bad_data):
         )
         with pytest.raises(InvalidPayloadError, match="artifact data"):
             await client.write_artifact(bad_data)  # type: ignore[arg-type]
+
+    asyncio.run(run())
+
+
+def test_async_client_rejects_malformed_payload_shapes_without_request():
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise AssertionError(f"unexpected request: {request.url}")
+
+    async def run():
+        client = AsyncSSSNClient(
+            "http://testserver",
+            transport=httpx.MockTransport(handler),
+        )
+        calls = (
+            (lambda: client.create_channel(["bad"]), "channel"),
+            (
+                lambda: client.create_channel(
+                    {"name": "events", "metadata": []}
+                ),
+                "metadata",
+            ),
+            (lambda: client.append_event(["bad"]), "event"),
+            (
+                lambda: client.append_event(
+                    {"channel": "events", "metadata": []}
+                ),
+                "metadata",
+            ),
+            (
+                lambda: client.append_event(
+                    {"channel": "events", "parent_ids": "event-1"}
+                ),
+                "parent_ids",
+            ),
+            (lambda: client.create_subscription("events", filters=[]), "filters"),
+            (lambda: client.create_subscription("events", metadata=[]), "metadata"),
+            (lambda: client.write_artifact("hello", metadata=[]), "metadata"),
+            (
+                lambda: client.write_artifact("hello", event_ids="event-1"),
+                "event_ids",
+            ),
+            (lambda: client.put_snapshot("latest", {}, metadata=[]), "metadata"),
+            (
+                lambda: client.put_snapshot(
+                    "latest",
+                    {"value": {}, "metadata": []},
+                ),
+                "metadata",
+            ),
+        )
+
+        for call, message in calls:
+            with pytest.raises(InvalidPayloadError, match=message):
+                await call()
 
     asyncio.run(run())
 
