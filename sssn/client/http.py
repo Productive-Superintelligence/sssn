@@ -523,6 +523,8 @@ def _artifact_payload(data: bytes | str) -> dict[str, str]:
             "data": base64.b64encode(data).decode("ascii"),
             "encoding": "base64",
         }
+    if not isinstance(data, str):
+        raise InvalidPayloadError("artifact data must be bytes or text.")
     return {"data": data, "encoding": "text"}
 
 

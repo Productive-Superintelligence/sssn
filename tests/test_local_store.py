@@ -577,6 +577,23 @@ def test_artifact_write_read_and_missing(tmp_path):
         store.write_artifact(b"bad-link", event_ids=("missing",))
 
 
+def test_artifact_write_rejects_non_byte_payloads(tmp_path):
+    store = LocalStore(tmp_path / "store")
+
+    for value in ("hello", 123, None):
+        with pytest.raises(InvalidPayloadError, match="artifact data"):
+            store.write_artifact(value)  # type: ignore[arg-type]
+
+    payload = bytearray(b"hello")
+    artifact = store.write_artifact(payload)  # type: ignore[arg-type]
+    payload[:] = b"muted"
+
+    assert artifact.size == 5
+    assert store.read_artifact(artifact.id) == b"hello"
+    memoryview_artifact = store.write_artifact(memoryview(b"world"))
+    assert store.read_artifact(memoryview_artifact.id) == b"world"
+
+
 def test_artifact_read_rejects_payload_paths_outside_store(tmp_path):
     store = LocalStore(tmp_path / "store")
     outside = tmp_path / "outside.txt"

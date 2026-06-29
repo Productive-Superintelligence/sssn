@@ -371,6 +371,17 @@ def test_sync_client_rejects_path_control_body_ids_without_request(bad_name):
             call()
 
 
+@pytest.mark.parametrize("bad_data", [None, 123, {"data": "hello"}])
+def test_sync_client_rejects_malformed_artifact_data_without_request(bad_data):
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise AssertionError(f"unexpected request: {request.url}")
+
+    client = SSSNClient("http://testserver", transport=httpx.MockTransport(handler))
+
+    with pytest.raises(InvalidPayloadError, match="artifact data"):
+        client.write_artifact(bad_data)  # type: ignore[arg-type]
+
+
 @pytest.mark.parametrize(
     "bad_kind",
     (
@@ -573,6 +584,22 @@ def test_async_client_rejects_path_control_body_ids_without_request(bad_name):
         for call in calls:
             with pytest.raises(InvalidPayloadError):
                 await call()
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("bad_data", [None, 123, {"data": "hello"}])
+def test_async_client_rejects_malformed_artifact_data_without_request(bad_data):
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise AssertionError(f"unexpected request: {request.url}")
+
+    async def run():
+        client = AsyncSSSNClient(
+            "http://testserver",
+            transport=httpx.MockTransport(handler),
+        )
+        with pytest.raises(InvalidPayloadError, match="artifact data"):
+            await client.write_artifact(bad_data)  # type: ignore[arg-type]
 
     asyncio.run(run())
 

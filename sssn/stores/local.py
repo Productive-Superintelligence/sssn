@@ -257,28 +257,29 @@ class LocalStore:
 
     def write_artifact(
         self,
-        data: bytes,
+        data: bytes | bytearray | memoryview,
         *,
         channel: str | None = None,
         media_type: str = "application/octet-stream",
         metadata: dict[str, Any] | None = None,
         event_ids: tuple[str, ...] = (),
     ) -> Artifact:
+        payload = _artifact_bytes(data)
         if channel is not None:
             self.get_channel(channel)
         self._require_events(event_ids)
-        sha = hashlib.sha256(data).hexdigest()
+        sha = hashlib.sha256(payload).hexdigest()
         artifact = Artifact(
             channel=channel,
             path=f"artifacts/{sha}",
             media_type=media_type,
-            size=len(data),
+            size=len(payload),
             sha256=sha,
             metadata=deepcopy(metadata) if metadata is not None else {},
             event_ids=tuple(event_ids),
         )
         path = self._artifact_payload_path(artifact.path)
-        path.write_bytes(data)
+        path.write_bytes(payload)
         with self._connect() as db:
             db.execute(
                 """
@@ -512,6 +513,16 @@ def _path_value(value: Any, label: str) -> str:
     if not isinstance(text, str) or not text or text != text.strip():
         raise ValueError(f"{label} must be a non-empty path string")
     return text
+
+
+def _artifact_bytes(value: Any) -> bytes:
+    if isinstance(value, bytes):
+        return value
+    if isinstance(value, bytearray):
+        return bytes(value)
+    if isinstance(value, memoryview):
+        return value.tobytes()
+    raise InvalidPayloadError("artifact data must be bytes.")
 
 
 def _non_negative_int(name: str, value: int) -> int:
