@@ -31,15 +31,12 @@ def test_store_initializes_deterministic_layout(tmp_path):
 
 
 def test_store_rejects_blank_or_non_path_roots(tmp_path):
-    for root in ("   ", 123):
+    padded_root = tmp_path / "padded"
+    for root in ("   ", 123, f"  {padded_root}  "):
         with pytest.raises(ValueError, match="store root"):
             LocalStore(root)  # type: ignore[arg-type]
 
-    padded_root = tmp_path / "padded"
-    store = LocalStore(f"  {padded_root}  ")
-
-    assert store.root == padded_root.resolve()
-    assert store.db_path.exists()
+    assert not padded_root.exists()
 
 
 def test_store_reopens_persisted_resources(tmp_path):

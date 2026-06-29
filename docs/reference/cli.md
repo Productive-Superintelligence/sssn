@@ -8,6 +8,8 @@ sssn --store .sssn channels
 sssn --store .sssn get-channel events
 ```
 
+Store paths passed to `--store` must be non-empty and unpadded.
+
 Append and query events:
 
 ```bash

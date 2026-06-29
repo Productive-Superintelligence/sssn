@@ -354,7 +354,17 @@ path = ".sssn"
             resolver.store(invalid_name)  # type: ignore[arg-type]
 
 
-def test_path_value_rejects_malformed_config_paths():
-    for value in ("", "   ", 123, b".psi/config.toml"):
+def test_path_value_rejects_malformed_config_paths(tmp_path):
+    padded_root = tmp_path / "workspace"
+    padded_config = tmp_path / "workspace" / ".psi" / "config.toml"
+    for value in ("", "   ", 123, b".psi/config.toml", f" {padded_config} "):
         with pytest.raises(ValueError, match="config path|config root"):
             SSSNResolver.from_config(value)  # type: ignore[arg-type]
+
+    for root in ("", "   ", 123, f" {padded_root} "):
+        with pytest.raises(ValueError, match="config root"):
+            SSSNResolver(root=root)  # type: ignore[arg-type]
+        with pytest.raises(ValueError, match="config root"):
+            SSSNResolver.from_text("", root=root)  # type: ignore[arg-type]
+
+    assert not padded_root.exists()

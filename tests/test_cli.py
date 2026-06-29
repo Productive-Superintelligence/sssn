@@ -266,13 +266,14 @@ def test_cli_create_list_and_append(tmp_path, capsys):
     assert [item["id"] for item in pulled_again] == [next_analysis["id"]]
 
 
-def test_cli_rejects_blank_store_without_traceback(capsys):
+@pytest.mark.parametrize("store", ["   ", " ./store "])
+def test_cli_rejects_malformed_store_without_traceback(capsys, store):
     try:
-        main(["--store", "   ", "channels"])
+        main(["--store", store, "channels"])
     except SystemExit as exc:
         assert exc.code == 2
     else:
-        raise AssertionError("expected blank store path to fail")
+        raise AssertionError("expected malformed store path to fail")
 
     output = capsys.readouterr()
     assert output.out == ""

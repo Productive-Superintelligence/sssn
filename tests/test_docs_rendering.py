@@ -629,6 +629,8 @@ def test_python_api_reference_documents_resource_name_segments():
     assert "SSSNResolver.from_config(path)" in reference
     assert "local_store(ref)" in reference
     assert "client(ref)" in reference
+    assert "resolver config paths must be" in reference
+    assert "non-empty and unpadded" in reference
 
 
 def test_http_api_reference_lists_portable_endpoints():
