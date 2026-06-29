@@ -48,6 +48,7 @@ class SSSNClient:
 
     def create_channel(self, channel: Channel | dict[str, Any]) -> Channel:
         data = _dump_channel(channel)
+        _require_segment("channel.name", data.get("name"))
         return Channel.model_validate(
             self._request("POST", "/channels", json=data).json()
         )
@@ -62,6 +63,9 @@ class SSSNClient:
 
     def append_event(self, event: Event | dict[str, Any]) -> Event:
         data = _dump_event(event)
+        _require_optional_segment("event.id", data.get("id"))
+        _require_segment("event.channel", data.get("channel"))
+        _require_segments("event.parent_ids", data.get("parent_ids", ()))
         return Event.model_validate(self._request("POST", "/events", json=data).json())
 
     def query_events(
@@ -93,6 +97,8 @@ class SSSNClient:
         filters: dict[str, Any] | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> Subscription:
+        _require_segment("subscription.channel", channel)
+        _require_optional_segment("subscription.id", subscription_id)
         return Subscription.model_validate(
             self._request(
                 "POST",
@@ -138,6 +144,8 @@ class SSSNClient:
         metadata: dict[str, Any] | None = None,
         event_ids: tuple[str, ...] = (),
     ) -> Artifact:
+        _require_optional_segment("artifact.channel", channel)
+        _require_segments("artifact.event_ids", event_ids)
         payload = _artifact_payload(data)
         return Artifact.model_validate(
             self._request(
@@ -176,18 +184,24 @@ class SSSNClient:
         metadata: dict[str, Any] | None = None,
     ) -> Snapshot:
         _require_segment("snapshot.name", name)
+        payload = _snapshot_payload(
+            value,
+            channel=channel,
+            timestamp=timestamp,
+            schema=schema,
+            source_event_id=source_event_id,
+            metadata=metadata,
+        )
+        _require_optional_segment("snapshot.channel", payload.get("channel"))
+        _require_optional_segment(
+            "snapshot.source_event_id",
+            payload.get("source_event_id"),
+        )
         return Snapshot.model_validate(
             self._request(
                 "PUT",
                 f"/snapshots/{name}",
-                json=_snapshot_payload(
-                    value,
-                    channel=channel,
-                    timestamp=timestamp,
-                    schema=schema,
-                    source_event_id=source_event_id,
-                    metadata=metadata,
-                ),
+                json=payload,
             ).json()
         )
 
@@ -224,6 +238,7 @@ class AsyncSSSNClient:
 
     async def create_channel(self, channel: Channel | dict[str, Any]) -> Channel:
         data = _dump_channel(channel)
+        _require_segment("channel.name", data.get("name"))
         return Channel.model_validate(
             (await self._request("POST", "/channels", json=data)).json()
         )
@@ -238,6 +253,9 @@ class AsyncSSSNClient:
 
     async def append_event(self, event: Event | dict[str, Any]) -> Event:
         data = _dump_event(event)
+        _require_optional_segment("event.id", data.get("id"))
+        _require_segment("event.channel", data.get("channel"))
+        _require_segments("event.parent_ids", data.get("parent_ids", ()))
         return Event.model_validate((await self._request("POST", "/events", json=data)).json())
 
     async def query_events(
@@ -271,6 +289,8 @@ class AsyncSSSNClient:
         filters: dict[str, Any] | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> Subscription:
+        _require_segment("subscription.channel", channel)
+        _require_optional_segment("subscription.id", subscription_id)
         return Subscription.model_validate(
             (
                 await self._request(
@@ -320,6 +340,8 @@ class AsyncSSSNClient:
         metadata: dict[str, Any] | None = None,
         event_ids: tuple[str, ...] = (),
     ) -> Artifact:
+        _require_optional_segment("artifact.channel", channel)
+        _require_segments("artifact.event_ids", event_ids)
         payload = _artifact_payload(data)
         return Artifact.model_validate(
             (
@@ -360,19 +382,25 @@ class AsyncSSSNClient:
         metadata: dict[str, Any] | None = None,
     ) -> Snapshot:
         _require_segment("snapshot.name", name)
+        payload = _snapshot_payload(
+            value,
+            channel=channel,
+            timestamp=timestamp,
+            schema=schema,
+            source_event_id=source_event_id,
+            metadata=metadata,
+        )
+        _require_optional_segment("snapshot.channel", payload.get("channel"))
+        _require_optional_segment(
+            "snapshot.source_event_id",
+            payload.get("source_event_id"),
+        )
         return Snapshot.model_validate(
             (
                 await self._request(
                     "PUT",
                     f"/snapshots/{name}",
-                    json=_snapshot_payload(
-                        value,
-                        channel=channel,
-                        timestamp=timestamp,
-                        schema=schema,
-                        source_event_id=source_event_id,
-                        metadata=metadata,
-                    ),
+                    json=payload,
                 )
             ).json()
         )
@@ -417,7 +445,7 @@ def _artifact_payload(data: bytes | str) -> dict[str, str]:
     return {"data": data, "encoding": "text"}
 
 
-def _require_segment(field_name: str, value: str) -> None:
+def _require_segment(field_name: str, value: Any) -> None:
     if (
         not isinstance(value, str)
         or not value
@@ -425,6 +453,16 @@ def _require_segment(field_name: str, value: str) -> None:
         or any(ch in value for ch in "/:\\")
     ):
         raise InvalidPayloadError(f"{field_name} must be a non-empty path segment.")
+
+
+def _require_optional_segment(field_name: str, value: Any) -> None:
+    if value is not None:
+        _require_segment(field_name, value)
+
+
+def _require_segments(field_name: str, values: Any) -> None:
+    for value in values or ():
+        _require_segment(field_name, value)
 
 
 def _snapshot_payload(

@@ -167,6 +167,33 @@ def test_sync_client_rejects_path_control_lookup_names_without_request():
             call()
 
 
+def test_sync_client_rejects_path_control_body_ids_without_request():
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise AssertionError(f"unexpected request: {request.url}")
+
+    client = SSSNClient("http://testserver", transport=httpx.MockTransport(handler))
+    bad_name = "bad/name"
+    calls = (
+        lambda: client.create_channel({"name": bad_name}),
+        lambda: client.append_event({"id": bad_name, "channel": "events"}),
+        lambda: client.append_event({"channel": bad_name}),
+        lambda: client.append_event(
+            {"channel": "events", "parent_ids": [bad_name]}
+        ),
+        lambda: client.create_subscription(bad_name),
+        lambda: client.create_subscription("events", subscription_id=bad_name),
+        lambda: client.write_artifact("hello", channel=bad_name),
+        lambda: client.write_artifact("hello", event_ids=(bad_name,)),
+        lambda: client.put_snapshot("latest", {}, channel=bad_name),
+        lambda: client.put_snapshot("latest", {}, source_event_id=bad_name),
+        lambda: client.put_snapshot("latest", {"channel": bad_name, "value": {}}),
+    )
+
+    for call in calls:
+        with pytest.raises(InvalidPayloadError):
+            call()
+
+
 def test_async_client_rejects_path_control_lookup_names_without_request():
     def handler(request: httpx.Request) -> httpx.Response:
         raise AssertionError(f"unexpected request: {request.url}")
@@ -187,6 +214,39 @@ def test_async_client_rejects_path_control_lookup_names_without_request():
             lambda: client.read_artifact(bad_name),
             lambda: client.put_snapshot(bad_name, {}),
             lambda: client.get_snapshot(bad_name),
+        )
+
+        for call in calls:
+            with pytest.raises(InvalidPayloadError):
+                await call()
+
+    asyncio.run(run())
+
+
+def test_async_client_rejects_path_control_body_ids_without_request():
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise AssertionError(f"unexpected request: {request.url}")
+
+    async def run():
+        client = AsyncSSSNClient(
+            "http://testserver",
+            transport=httpx.MockTransport(handler),
+        )
+        bad_name = "bad/name"
+        calls = (
+            lambda: client.create_channel({"name": bad_name}),
+            lambda: client.append_event({"id": bad_name, "channel": "events"}),
+            lambda: client.append_event({"channel": bad_name}),
+            lambda: client.append_event(
+                {"channel": "events", "parent_ids": [bad_name]}
+            ),
+            lambda: client.create_subscription(bad_name),
+            lambda: client.create_subscription("events", subscription_id=bad_name),
+            lambda: client.write_artifact("hello", channel=bad_name),
+            lambda: client.write_artifact("hello", event_ids=(bad_name,)),
+            lambda: client.put_snapshot("latest", {}, channel=bad_name),
+            lambda: client.put_snapshot("latest", {}, source_event_id=bad_name),
+            lambda: client.put_snapshot("latest", {"channel": bad_name, "value": {}}),
         )
 
         for call in calls:
