@@ -9,6 +9,7 @@ from sssn.server import create_app, endpoint
 from sssn.server.endpoints import StoreEndpointSpec, endpoint_spec
 from sssn.server.fastapi import (
     ArtifactWriteRequest,
+    ErrorDetail,
     SnapshotWriteRequest,
     SubscriptionRequest,
 )
@@ -75,6 +76,21 @@ def test_fastapi_request_models_isolate_mutable_constructor_inputs():
 def test_fastapi_request_models_reject_bytes_for_string_fields(factory):
     with pytest.raises(ValidationError):
         factory()
+
+
+@pytest.mark.parametrize(
+    "value",
+    ("", "   ", ".", "..", "bad type", "bad/type", "bad:type", "bad\\type"),
+)
+def test_fastapi_error_detail_rejects_malformed_type_tokens(value):
+    with pytest.raises(ValidationError):
+        ErrorDetail(type=value, message="bad")
+
+
+def test_fastapi_error_detail_allows_common_type_tokens():
+    error = ErrorDetail(type="InvalidPayloadError", message="bad")
+
+    assert error.type == "InvalidPayloadError"
 
 
 def test_endpoint_decorator_normalizes_relative_paths():

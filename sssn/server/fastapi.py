@@ -10,7 +10,7 @@ from collections.abc import Callable, Sequence
 from copy import deepcopy
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, StrictStr
+from pydantic import BaseModel, Field, StrictStr, model_validator
 
 from ..core import (
     ArtifactNotFoundError,
@@ -41,6 +41,11 @@ _CUSTOM_ROUTE_METHODS = {"GET", "POST", "PUT", "PATCH", "DELETE"}
 class ErrorDetail(BaseModel):
     type: StrictStr
     message: StrictStr
+
+    @model_validator(mode="after")
+    def _validate_type(self) -> "ErrorDetail":
+        _validate_token(self.type, "error.type")
+        return self
 
 
 class ErrorResponse(BaseModel):
@@ -419,3 +424,14 @@ def _validation_error_message(exc: Exception) -> str:
         message = str(error.get("msg") or "Invalid request payload.")
         messages.append(f"{location}: {message}" if location else message)
     return "; ".join(messages) if messages else "Invalid request payload."
+
+
+def _validate_token(value: str, field_name: str) -> None:
+    if (
+        not isinstance(value, str)
+        or not value.strip()
+        or value in {".", ".."}
+        or any(ch.isspace() for ch in value)
+        or any(ch in value for ch in "/:\\")
+    ):
+        raise ValueError(f"{field_name} must be a non-empty token.")
