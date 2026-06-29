@@ -7,6 +7,7 @@ in a manifest-friendly shape.
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
+from copy import deepcopy
 from typing import Any
 
 from ..core import Channel, Snapshot
@@ -25,7 +26,7 @@ def channel_resource(
         "schema": channel.schema,
         "form": channel.form,
         "description": channel.description,
-        "metadata": dict(channel.metadata),
+        "metadata": deepcopy(channel.metadata),
         "endpoints": [
             {
                 "name": spec.name,
@@ -54,7 +55,7 @@ def snapshot_resource(
         "schema": snapshot.schema,
         "channel": snapshot.channel,
         "description": description,
-        "metadata": dict(snapshot.metadata),
+        "metadata": deepcopy(snapshot.metadata),
         "endpoints": [
             {
                 "name": spec.name,

@@ -89,6 +89,18 @@ def test_channel_resource_exports_full_custom_endpoint_methods():
     ]
 
 
+def test_channel_resource_isolates_nested_metadata():
+    channel = Channel(name="events", metadata={"labels": ["raw"]})
+    resource = channel_resource(channel)
+
+    channel.metadata["labels"].append("source-mutated")
+    resource["metadata"]["labels"].append("resource-mutated")
+
+    assert channel.metadata == {"labels": ["raw", "source-mutated"]}
+    assert channel_resource(channel)["metadata"] == {"labels": ["raw", "source-mutated"]}
+    assert resource["metadata"] == {"labels": ["raw", "resource-mutated"]}
+
+
 def test_snapshot_resource_exports_metadata_and_custom_endpoints():
     @endpoint.get(
         "/snapshots/latest",
@@ -129,3 +141,21 @@ def test_snapshot_resource_exports_metadata_and_custom_endpoints():
             }
         ],
     }
+
+
+def test_snapshot_resource_isolates_nested_metadata():
+    snapshot = Snapshot(
+        name="latest",
+        value={"summary": "ok"},
+        metadata={"labels": ["latest"]},
+    )
+    resource = snapshot_resource(snapshot)
+
+    snapshot.metadata["labels"].append("source-mutated")
+    resource["metadata"]["labels"].append("resource-mutated")
+
+    assert snapshot.metadata == {"labels": ["latest", "source-mutated"]}
+    assert snapshot_resource(snapshot)["metadata"] == {
+        "labels": ["latest", "source-mutated"]
+    }
+    assert resource["metadata"] == {"labels": ["latest", "resource-mutated"]}
