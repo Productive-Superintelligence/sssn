@@ -111,7 +111,9 @@ store = resolver.local_store("psi://demo/events/channels/raw")
 
 The resolver loads only `/channels/` and `/snapshots/` refs. Tactic, service,
 schema, docs, example, and asset refs remain available to their owning layers
-through the same config file.
+through the same config file. All binding keys must still be valid `psi://`
+resource refs; malformed SSSN and non-SSSN refs fail validation before any
+binding is loaded.
 
 ## Verify
 

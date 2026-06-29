@@ -703,6 +703,8 @@ def test_psihub_package_guide_documents_endpoint_metadata():
     assert "SSSNResolver.from_config" in guide
     assert "psi://demo/events/channels/raw" in guide
     assert "loads only `/channels/` and `/snapshots/` refs" in guide
+    assert "All binding keys must still be valid `psi://`" in guide
+    assert "malformed SSSN and non-SSSN refs fail validation" in guide
 
 
 def test_public_text_does_not_use_staging_name():

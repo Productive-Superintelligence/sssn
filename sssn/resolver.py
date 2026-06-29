@@ -282,8 +282,32 @@ def _is_sssn_config_ref(ref: Any) -> bool:
     if not isinstance(ref, str) or not ref.strip():
         raise SSSNRefError("Ref binding key must be a non-empty string.")
     parsed = urlparse(ref)
-    parts = [part for part in parsed.path.split("/") if part]
-    if len(parts) == 3 and parts[1] in _NON_SSSN_CONFIG_REF_SECTIONS:
+    raw_parts = parsed.path.split("/")
+    if (
+        parsed.scheme != "psi"
+        or not parsed.netloc
+        or parsed.params
+        or parsed.query
+        or parsed.fragment
+        or len(raw_parts) != 4
+        or raw_parts[0] != ""
+    ):
+        raise SSSNRefError(f"Ref binding key must be a psi:// resource ref: {ref}")
+    package, resource_kind, name = raw_parts[1:]
+    for segment in (parsed.netloc, package, resource_kind, name):
+        decoded = unquote(segment)
+        if (
+            decoded in {".", ".."}
+            or decoded != segment
+            or "%" in segment
+            or not decoded.strip()
+            or any(ch.isspace() for ch in decoded)
+            or any(ch in decoded for ch in "/\\:")
+        ):
+            raise SSSNRefError(
+                f"Ref binding key must use plain path segments: {ref}"
+            )
+    if resource_kind in _NON_SSSN_CONFIG_REF_SECTIONS:
         return False
     return True
 

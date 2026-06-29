@@ -163,6 +163,27 @@ url = "http://sssn"
             SSSNResolver().resolve(ref)
 
 
+@pytest.mark.parametrize(
+    "ref",
+    (
+        "http://demo/combo/tactics/analyze",
+        "psi://demo/combo/tactics/analyze?env=dev",
+        "psi://demo/combo/tactics/analyze#latest",
+        "psi://demo/combo/tactics/bad name",
+        "psi://demo/combo/tactics/analyze%2Fhidden",
+    ),
+)
+def test_resolver_validates_ignored_non_sssn_config_refs(tmp_path, ref):
+    with pytest.raises(SSSNRefError):
+        SSSNResolver.from_text(
+            f"""
+[refs."{ref}"]
+url = "http://lllm/tactics/analyze"
+""".lstrip(),
+            root=tmp_path,
+        )
+
+
 def test_resolver_requires_exactly_one_concrete_target(tmp_path):
     with pytest.raises(SSSNRefError, match="one concrete target"):
         SSSNResolver.from_text(
