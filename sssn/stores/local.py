@@ -44,6 +44,11 @@ class LocalStore:
         self._init_db()
 
     def create_channel(self, channel: Channel | dict[str, Any]) -> Channel:
+        if isinstance(channel, Mapping) and "metadata" in channel:
+            channel = {
+                **channel,
+                "metadata": _optional_mapping("channel.metadata", channel["metadata"]),
+            }
         value = _model(Channel, channel, "channel")
         try:
             with self._connect() as db:
@@ -83,6 +88,11 @@ class LocalStore:
         return _channel(row)
 
     def append_event(self, event: Event | dict[str, Any]) -> Event:
+        if isinstance(event, Mapping) and "metadata" in event:
+            event = {
+                **event,
+                "metadata": _optional_mapping("event.metadata", event["metadata"]),
+            }
         value = _model(Event, event, "event")
         self.get_channel(value.channel)
         self._require_events(value.parent_ids)

@@ -84,6 +84,17 @@ def test_channel_create_list_get_and_errors(tmp_path):
         store.get_channel("missing")
 
 
+@pytest.mark.parametrize("metadata", [[], [("owner", "tests")], "bad", 123])
+def test_local_store_create_channel_rejects_non_object_metadata(tmp_path, metadata):
+    store = LocalStore(tmp_path / "store")
+
+    with pytest.raises(InvalidPayloadError, match="channel.metadata"):
+        store.create_channel({"name": "events", "metadata": metadata})
+
+    with pytest.raises(ChannelNotFoundError):
+        store.get_channel("events")
+
+
 def test_core_models_isolate_mutable_constructor_inputs():
     channel_metadata = {"labels": ["raw"]}
     event_payload = {"items": ["event"]}
@@ -428,6 +439,17 @@ def test_event_append_and_query_with_metadata(tmp_path):
         store.append_event({"payload": {}})
     with pytest.raises(EventNotFoundError):
         store.get_event("missing")
+
+
+@pytest.mark.parametrize("metadata", [[], [("owner", "tests")], "bad", 123])
+def test_local_store_append_event_rejects_non_object_metadata(tmp_path, metadata):
+    store = LocalStore(tmp_path / "store")
+    store.create_channel({"name": "events"})
+
+    with pytest.raises(InvalidPayloadError, match="event.metadata"):
+        store.append_event({"channel": "events", "payload": {}, "metadata": metadata})
+
+    assert store.query_events("events") == ()
 
 
 def test_query_events_validates_cursor_and_limit(tmp_path):
