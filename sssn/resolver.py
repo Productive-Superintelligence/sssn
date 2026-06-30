@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
 from copy import deepcopy
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -177,10 +178,10 @@ class SSSNResolver:
         url: str | None = None,
         store: str | None = None,
         path: str | None = None,
-        metadata: dict[str, Any] | None = None,
+        metadata: Mapping[str, Any] | None = None,
     ) -> None:
         parsed = SSSNRef.parse(ref)
-        if metadata is not None and not isinstance(metadata, dict):
+        if metadata is not None and not isinstance(metadata, Mapping):
             raise SSSNRefError(f"Ref binding metadata must be a table: {parsed}")
         url = _normalize_text_target(parsed.value, "url", url)
         store = _normalize_text_target(parsed.value, "store", store)
@@ -193,7 +194,7 @@ class SSSNResolver:
             url=url,
             store=store,
             path=path,
-            metadata=deepcopy(metadata or {}),
+            metadata=deepcopy(dict(metadata or {})),
         )
 
     def resolve(self, ref: str | SSSNRef) -> ResolvedSSSNRef:

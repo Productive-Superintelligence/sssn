@@ -1,4 +1,5 @@
 from pathlib import Path
+from types import MappingProxyType
 
 import pytest
 
@@ -301,6 +302,25 @@ owner = "demo"
     stores["default"]["metadata"]["owner"] = "changed"
     assert resolver.stores() == {
         "default": {"path": ".sssn", "metadata": {"owner": "demo"}}
+    }
+
+
+def test_resolver_bind_accepts_and_isolates_mapping_metadata():
+    metadata = {"headers": {"x-policy": "demo"}}
+    resolver = SSSNResolver()
+    resolver.bind(
+        CHANNEL_REF,
+        store=".sssn",
+        metadata=MappingProxyType(metadata),
+    )
+
+    metadata["headers"]["x-policy"] = "changed"
+    resolved = resolver.resolve(CHANNEL_REF)
+    assert resolved.metadata == {"headers": {"x-policy": "demo"}}
+
+    resolved.metadata["headers"]["x-policy"] = "mutated"
+    assert resolver.resolve(CHANNEL_REF).metadata == {
+        "headers": {"x-policy": "demo"}
     }
 
 
