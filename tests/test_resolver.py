@@ -304,6 +304,28 @@ owner = "demo"
     }
 
 
+def test_resolver_rejects_non_table_metadata_config_values(tmp_path):
+    with pytest.raises(SSSNRefError, match=r"\[refs\."):
+        SSSNResolver.from_text(
+            f"""
+[refs."{CHANNEL_REF}"]
+store = ".sssn"
+metadata = "bad"
+""".lstrip(),
+            root=tmp_path / "bad-ref-metadata",
+        )
+
+    with pytest.raises(SSSNRefError, match=r"\[stores\.default\.metadata\]"):
+        SSSNResolver.from_text(
+            """
+[stores.default]
+path = ".sssn"
+metadata = "bad"
+""".lstrip(),
+            root=tmp_path / "bad-store-metadata",
+        )
+
+
 def test_resolver_rejects_invalid_store_tables(tmp_path):
     with pytest.raises(SSSNRefError, match=r"\[stores\.default\]"):
         SSSNResolver.from_text(

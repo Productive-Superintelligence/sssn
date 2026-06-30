@@ -138,6 +138,10 @@ class SSSNResolver:
                 continue
             if not isinstance(data, dict):
                 raise SSSNRefError(f"Ref binding must be a table: {raw_ref}")
+            if "metadata" in data and not isinstance(data["metadata"], dict):
+                raise SSSNRefError(
+                    f'[refs."{raw_ref}".metadata] must be a TOML table.'
+                )
             resolver.bind(
                 raw_ref,
                 url=data.get("url"),
@@ -350,6 +354,8 @@ def _validate_table_name(value: Any, label: str) -> None:
 
 
 def _validate_store_table_values(key: str, item: dict[str, Any]) -> None:
+    if "metadata" in item and not isinstance(item["metadata"], dict):
+        raise SSSNRefError(f"[stores.{key}.metadata] must be a TOML table.")
     if "path" not in item:
         return
     path = item["path"]
