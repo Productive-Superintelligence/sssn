@@ -169,12 +169,14 @@ class LocalStore:
     ) -> Subscription:
         batch_size = _positive_int("batch_size", batch_size)
         self.get_channel(channel)
+        subscription_filters = _optional_mapping("subscription.filters", filters)
+        subscription_metadata = _optional_mapping("subscription.metadata", metadata)
         payload: dict[str, Any] = {
             "channel": channel,
             "consumer": consumer,
             "batch_size": batch_size,
-            "filters": deepcopy(filters) if filters is not None else {},
-            "metadata": deepcopy(metadata) if metadata is not None else {},
+            "filters": subscription_filters,
+            "metadata": subscription_metadata,
         }
         if subscription_id is not None:
             payload["id"] = subscription_id

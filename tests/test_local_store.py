@@ -544,8 +544,12 @@ def test_subscription_validates_batch_size_and_pull_limit(tmp_path):
 
     with pytest.raises(InvalidPayloadError, match="batch_size"):
         store.create_subscription("events", batch_size=0)
-    with pytest.raises(InvalidPayloadError, match="filters"):
-        store.create_subscription("events", filters=[])
+    for filters in ([], "kind", 123):
+        with pytest.raises(InvalidPayloadError, match="subscription.filters"):
+            store.create_subscription("events", filters=filters)  # type: ignore[arg-type]
+    for metadata in ([], "bad", 123):
+        with pytest.raises(InvalidPayloadError, match="subscription.metadata"):
+            store.create_subscription("events", metadata=metadata)  # type: ignore[arg-type]
     with pytest.raises(InvalidPayloadError, match="limit"):
         store.pull_subscription(sub.id, limit=0)
 
