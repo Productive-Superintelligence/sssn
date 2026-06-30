@@ -1,4 +1,5 @@
 import sqlite3
+from types import MappingProxyType
 
 import pytest
 from pydantic import ValidationError
@@ -148,6 +149,59 @@ def test_core_models_isolate_mutable_constructor_inputs():
     assert subscription.metadata == {"labels": ["subscription"]}
 
 
+def test_core_models_accept_nested_read_only_mapping_inputs():
+    channel_inner = {"label": "raw"}
+    payload_inner = {"item": "event"}
+    event_inner = {"label": "event"}
+    artifact_inner = {"label": "artifact"}
+    snapshot_value_inner = {"item": "snapshot"}
+    snapshot_inner = {"label": "snapshot"}
+    filter_inner = {"kind": "raw"}
+    subscription_inner = {"label": "subscription"}
+
+    channel = Channel(name="events", metadata={"nested": MappingProxyType(channel_inner)})
+    event = Event(
+        channel="events",
+        payload={"nested": MappingProxyType(payload_inner)},
+        metadata={"nested": MappingProxyType(event_inner)},
+    )
+    artifact = Artifact(
+        id="artifact",
+        path="artifact.bin",
+        size=1,
+        metadata={"nested": MappingProxyType(artifact_inner)},
+    )
+    snapshot = Snapshot(
+        name="latest",
+        value={"nested": MappingProxyType(snapshot_value_inner)},
+        metadata={"nested": MappingProxyType(snapshot_inner)},
+    )
+    subscription = Subscription(
+        id="worker",
+        channel="events",
+        filters={"nested": MappingProxyType(filter_inner)},
+        metadata={"nested": MappingProxyType(subscription_inner)},
+    )
+
+    channel_inner["label"] = "changed"
+    payload_inner["item"] = "changed"
+    event_inner["label"] = "changed"
+    artifact_inner["label"] = "changed"
+    snapshot_value_inner["item"] = "changed"
+    snapshot_inner["label"] = "changed"
+    filter_inner["kind"] = "changed"
+    subscription_inner["label"] = "changed"
+
+    assert channel.metadata == {"nested": {"label": "raw"}}
+    assert event.payload == {"nested": {"item": "event"}}
+    assert event.metadata == {"nested": {"label": "event"}}
+    assert artifact.metadata == {"nested": {"label": "artifact"}}
+    assert snapshot.value == {"nested": {"item": "snapshot"}}
+    assert snapshot.metadata == {"nested": {"label": "snapshot"}}
+    assert subscription.filters == {"nested": {"kind": "raw"}}
+    assert subscription.metadata == {"nested": {"label": "subscription"}}
+
+
 def test_store_returns_isolated_mutable_write_inputs(tmp_path):
     store = LocalStore(tmp_path / "store")
     channel_input = Channel(name="events", metadata={"labels": ["raw"]})
@@ -210,6 +264,66 @@ def test_store_returns_isolated_mutable_write_inputs(tmp_path):
     assert snapshot.value == {"items": ["snapshot"]}
     assert snapshot.metadata == {"labels": ["snapshot"]}
     assert store.get_snapshot("latest").value == {"items": ["snapshot"]}
+
+
+def test_store_accepts_nested_read_only_mapping_write_inputs(tmp_path):
+    store = LocalStore(tmp_path / "store")
+    channel_inner = {"label": "raw"}
+    channel = store.create_channel(
+        {"name": "events", "metadata": {"nested": MappingProxyType(channel_inner)}}
+    )
+    payload_inner = {"item": "event"}
+    event_inner = {"label": "event"}
+    event = store.append_event(
+        {
+            "channel": "events",
+            "payload": {"nested": MappingProxyType(payload_inner)},
+            "metadata": {"nested": MappingProxyType(event_inner)},
+        }
+    )
+    subscription_inner = {"label": "subscription"}
+    subscription = store.create_subscription(
+        "events",
+        filters={"kind": "event"},
+        metadata={"nested": MappingProxyType(subscription_inner)},
+    )
+    artifact_inner = {"label": "artifact"}
+    artifact = store.write_artifact(
+        b"payload",
+        metadata={"nested": MappingProxyType(artifact_inner)},
+    )
+    snapshot_value_inner = {"item": "snapshot"}
+    snapshot_inner = {"label": "snapshot"}
+    snapshot = store.put_snapshot(
+        {
+            "name": "latest",
+            "value": {"nested": MappingProxyType(snapshot_value_inner)},
+            "metadata": {"nested": MappingProxyType(snapshot_inner)},
+        }
+    )
+
+    channel_inner["label"] = "changed"
+    payload_inner["item"] = "changed"
+    event_inner["label"] = "changed"
+    subscription_inner["label"] = "changed"
+    artifact_inner["label"] = "changed"
+    snapshot_value_inner["item"] = "changed"
+    snapshot_inner["label"] = "changed"
+
+    assert channel.metadata == {"nested": {"label": "raw"}}
+    assert event.payload == {"nested": {"item": "event"}}
+    assert event.metadata == {"nested": {"label": "event"}}
+    assert subscription.filters == {"kind": "event"}
+    assert subscription.metadata == {"nested": {"label": "subscription"}}
+    assert artifact.metadata == {"nested": {"label": "artifact"}}
+    assert snapshot.value == {"nested": {"item": "snapshot"}}
+    assert snapshot.metadata == {"nested": {"label": "snapshot"}}
+    assert store.get_channel("events").metadata == {"nested": {"label": "raw"}}
+    assert store.get_event(event.id).payload == {"nested": {"item": "event"}}
+    assert store.get_artifact(artifact.id).metadata == {
+        "nested": {"label": "artifact"}
+    }
+    assert store.get_snapshot("latest").value == {"nested": {"item": "snapshot"}}
 
 
 @pytest.mark.parametrize(

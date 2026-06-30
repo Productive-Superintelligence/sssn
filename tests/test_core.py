@@ -21,8 +21,10 @@ FORBIDDEN_CORE_IMPORT_PREFIXES = (
 )
 ALLOWED_CORE_IMPORTS = {
     "__future__",
+    "collections.abc",
     "copy",
     "pydantic",
+    "sssn.core._copy",
     "sssn.core.errors",
     "sssn.core.models",
     "time",

@@ -7,10 +7,10 @@ in a manifest-friendly shape.
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
-from copy import deepcopy
 from typing import Any
 
 from ..core import Channel, Snapshot
+from ..core._copy import copy_boundary_value
 from ..server.endpoints import StoreEndpointSpec, endpoint_specs
 
 
@@ -26,7 +26,7 @@ def channel_resource(
         "schema": channel.schema,
         "form": channel.form,
         "description": channel.description,
-        "metadata": deepcopy(channel.metadata),
+        "metadata": copy_boundary_value(channel.metadata),
         "endpoints": [
             _endpoint_metadata(spec) for _, spec in endpoint_specs(custom_endpoints)
         ],
@@ -46,7 +46,7 @@ def snapshot_resource(
         "schema": snapshot.schema,
         "channel": snapshot.channel,
         "description": description,
-        "metadata": deepcopy(snapshot.metadata),
+        "metadata": copy_boundary_value(snapshot.metadata),
         "endpoints": [
             _endpoint_metadata(spec) for _, spec in endpoint_specs(custom_endpoints)
         ],

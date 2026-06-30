@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import base64
 from collections.abc import Iterable, Mapping
-from copy import deepcopy
 from typing import Any
 from urllib.parse import urlsplit
 
 from ..core import Artifact, Channel, Event, InvalidPayloadError, Snapshot, Subscription
+from ..core._copy import copy_boundary_value
 
 
 class SSSNClientError(RuntimeError):
@@ -532,13 +532,13 @@ class AsyncSSSNClient:
 
 def _dump_channel(channel: Channel | dict[str, Any]) -> dict[str, Any]:
     if isinstance(channel, Channel):
-        return deepcopy(channel.model_dump(mode="json", by_alias=True))
+        return copy_boundary_value(channel.model_dump(mode="json", by_alias=True))
     return _mapping_payload("channel", channel)
 
 
 def _dump_event(event: Event | dict[str, Any]) -> dict[str, Any]:
     if isinstance(event, Event):
-        return deepcopy(event.model_dump(mode="json", by_alias=True))
+        return copy_boundary_value(event.model_dump(mode="json", by_alias=True))
     return _mapping_payload("event", event)
 
 
@@ -628,7 +628,7 @@ def _snapshot_payload(
     metadata: dict[str, Any] | None,
 ) -> dict[str, Any]:
     if isinstance(value, Snapshot):
-        payload = deepcopy(
+        payload = copy_boundary_value(
             value.model_dump(mode="json", by_alias=True, exclude_none=True)
         )
         payload.pop("name", None)
@@ -641,11 +641,11 @@ def _snapshot_payload(
         if source_event_id is not None:
             payload["source_event_id"] = source_event_id
         if metadata is not None:
-            payload["metadata"] = deepcopy(metadata)
+            payload["metadata"] = _mapping_payload("snapshot.metadata", metadata)
         return payload
     raw_keys = {"channel", "timestamp", "value", "schema", "source_event_id", "metadata"}
     if (
-        isinstance(value, dict)
+        isinstance(value, Mapping)
         and raw_keys.intersection(value)
         and channel is None
         and timestamp is None
@@ -653,8 +653,8 @@ def _snapshot_payload(
         and source_event_id is None
         and metadata is None
     ):
-        return deepcopy(value)
-    payload: dict[str, Any] = {"value": deepcopy(value)}
+        return copy_boundary_value(value)
+    payload: dict[str, Any] = {"value": copy_boundary_value(value)}
     if channel is not None:
         payload["channel"] = channel
     if timestamp is not None:
@@ -664,17 +664,17 @@ def _snapshot_payload(
     if source_event_id is not None:
         payload["source_event_id"] = source_event_id
     if metadata is not None:
-        payload["metadata"] = deepcopy(metadata)
+        payload["metadata"] = _mapping_payload("snapshot.metadata", metadata)
     return payload
 
 
 def _mapping_payload(field_name: str, value: Any) -> dict[str, Any]:
     if not isinstance(value, Mapping):
         raise InvalidPayloadError(f"{field_name} must be an object.")
-    return deepcopy(dict(value))
+    return copy_boundary_value(value)
 
 
-def _copy_mapping(field_name: str, value: dict[str, Any] | None) -> dict[str, Any]:
+def _copy_mapping(field_name: str, value: Any) -> dict[str, Any]:
     return _mapping_payload(field_name, value) if value is not None else {}
 
 

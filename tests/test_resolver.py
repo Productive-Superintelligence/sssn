@@ -306,7 +306,8 @@ owner = "demo"
 
 
 def test_resolver_bind_accepts_and_isolates_mapping_metadata():
-    metadata = {"headers": {"x-policy": "demo"}}
+    headers = {"x-policy": "demo"}
+    metadata = {"headers": MappingProxyType(headers)}
     resolver = SSSNResolver()
     resolver.bind(
         CHANNEL_REF,
@@ -314,7 +315,7 @@ def test_resolver_bind_accepts_and_isolates_mapping_metadata():
         metadata=MappingProxyType(metadata),
     )
 
-    metadata["headers"]["x-policy"] = "changed"
+    headers["x-policy"] = "changed"
     resolved = resolver.resolve(CHANNEL_REF)
     assert resolved.metadata == {"headers": {"x-policy": "demo"}}
 

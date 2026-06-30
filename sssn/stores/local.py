@@ -7,7 +7,6 @@ import json
 import os
 import sqlite3
 from collections.abc import Iterable, Mapping
-from copy import deepcopy
 from pathlib import Path
 from typing import Any, TypeVar
 
@@ -28,6 +27,7 @@ from ..core import (
     SubscriptionExistsError,
     SubscriptionNotFoundError,
 )
+from ..core._copy import copy_boundary_value
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
 
@@ -523,7 +523,7 @@ def _model(model_type: type[ModelT], value: ModelT | dict[str, Any], label: str)
     if isinstance(value, model_type):
         return value.model_copy(deep=True)
     try:
-        return model_type.model_validate(deepcopy(value))
+        return model_type.model_validate(copy_boundary_value(value))
     except ValidationError as exc:
         raise InvalidPayloadError(f"Invalid {label}: {exc}") from exc
 
@@ -608,7 +608,7 @@ def _optional_mapping(field_name: str, value: Any) -> dict[str, Any]:
         return {}
     if not isinstance(value, Mapping):
         raise InvalidPayloadError(f"{field_name} must be an object.")
-    return deepcopy(dict(value))
+    return copy_boundary_value(value)
 
 
 def _is_relative_to(path: Path, base_dir: Path) -> bool:

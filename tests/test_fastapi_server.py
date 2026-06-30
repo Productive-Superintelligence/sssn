@@ -1,4 +1,5 @@
 import asyncio
+from types import MappingProxyType
 
 import httpx
 import pytest
@@ -56,6 +57,39 @@ def test_fastapi_request_models_isolate_mutable_constructor_inputs():
     assert artifact.metadata == {"tags": ["artifact"]}
     assert snapshot.value == {"state": ["ok"]}
     assert snapshot.metadata == {"tags": ["snapshot"]}
+
+
+def test_fastapi_request_models_accept_nested_read_only_mapping_inputs():
+    filter_inner = {"kind": "raw"}
+    subscription_inner = {"tag": "sub"}
+    subscription = SubscriptionRequest(
+        channel="events",
+        filters={"nested": MappingProxyType(filter_inner)},
+        metadata={"nested": MappingProxyType(subscription_inner)},
+    )
+    artifact_inner = {"tag": "artifact"}
+    artifact = ArtifactWriteRequest(
+        data="hello",
+        metadata={"nested": MappingProxyType(artifact_inner)},
+    )
+    value_inner = {"state": "ok"}
+    snapshot_inner = {"tag": "snapshot"}
+    snapshot = SnapshotWriteRequest(
+        value={"nested": MappingProxyType(value_inner)},
+        metadata={"nested": MappingProxyType(snapshot_inner)},
+    )
+
+    filter_inner["kind"] = "changed"
+    subscription_inner["tag"] = "changed"
+    artifact_inner["tag"] = "changed"
+    value_inner["state"] = "changed"
+    snapshot_inner["tag"] = "changed"
+
+    assert subscription.filters == {"nested": {"kind": "raw"}}
+    assert subscription.metadata == {"nested": {"tag": "sub"}}
+    assert artifact.metadata == {"nested": {"tag": "artifact"}}
+    assert snapshot.value == {"nested": {"state": "ok"}}
+    assert snapshot.metadata == {"nested": {"tag": "snapshot"}}
 
 
 @pytest.mark.parametrize(

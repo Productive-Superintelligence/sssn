@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 from collections.abc import Mapping
-from copy import deepcopy
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -12,6 +11,7 @@ from urllib.parse import unquote, urlparse
 
 from .client import AsyncSSSNClient, SSSNClient
 from .core import SSSNError
+from .core._copy import copy_boundary_value
 from .stores import LocalStore
 
 _SSSN_CONFIG_REF_SECTIONS = {"channels", "snapshots"}
@@ -194,7 +194,7 @@ class SSSNResolver:
             url=url,
             store=store,
             path=path,
-            metadata=deepcopy(dict(metadata or {})),
+            metadata=copy_boundary_value(metadata or {}),
         )
 
     def resolve(self, ref: str | SSSNRef) -> ResolvedSSSNRef:
@@ -243,12 +243,12 @@ class SSSNResolver:
         return LocalStore(self.store_path(ref))
 
     def stores(self) -> dict[str, dict[str, Any]]:
-        return deepcopy(self._stores)
+        return copy_boundary_value(self._stores)
 
     def store(self, name: str) -> dict[str, Any]:
         _validate_table_name(name, f"stores.{name}")
         try:
-            return deepcopy(self._stores[name])
+            return copy_boundary_value(self._stores[name])
         except KeyError as exc:
             raise KeyError(f"Store config is not bound: {name}") from exc
 
@@ -261,7 +261,7 @@ def _copy_binding(binding: ResolvedSSSNRef) -> ResolvedSSSNRef:
         url=binding.url,
         store=binding.store,
         path=binding.path,
-        metadata=deepcopy(binding.metadata),
+        metadata=copy_boundary_value(binding.metadata),
     )
 
 
@@ -336,7 +336,7 @@ def _table_of_tables(value: Any, name: str) -> dict[str, dict[str, Any]]:
                 f"[{name}.{key}] must use a non-empty path-segment name."
             )
         _validate_table_name(key, f"{name}.{key}")
-        item_copy = deepcopy(item)
+        item_copy = copy_boundary_value(item)
         _validate_store_table_values(key, item_copy)
         result[key] = item_copy
     return result

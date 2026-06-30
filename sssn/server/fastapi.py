@@ -7,7 +7,6 @@ import binascii
 import inspect
 import re
 from collections.abc import Callable, Sequence
-from copy import deepcopy
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, StrictStr, model_validator
@@ -26,6 +25,7 @@ from ..core import (
     SubscriptionExistsError,
     SubscriptionNotFoundError,
 )
+from ..core._copy import copy_boundary_value
 from ..stores import LocalStore
 from .endpoints import (
     StoreEndpointSpec,
@@ -61,8 +61,8 @@ class SubscriptionRequest(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     def model_post_init(self, __context: Any) -> None:
-        self.filters = deepcopy(self.filters)
-        self.metadata = deepcopy(self.metadata)
+        self.filters = copy_boundary_value(self.filters)
+        self.metadata = copy_boundary_value(self.metadata)
 
 
 class ArtifactWriteRequest(BaseModel):
@@ -74,7 +74,7 @@ class ArtifactWriteRequest(BaseModel):
     event_ids: tuple[StrictStr, ...] = Field(default_factory=tuple)
 
     def model_post_init(self, __context: Any) -> None:
-        self.metadata = deepcopy(self.metadata)
+        self.metadata = copy_boundary_value(self.metadata)
 
     def bytes(self) -> bytes:
         if self.encoding == "base64":
@@ -94,8 +94,8 @@ class SnapshotWriteRequest(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     def model_post_init(self, __context: Any) -> None:
-        self.value = deepcopy(self.value)
-        self.metadata = deepcopy(self.metadata)
+        self.value = copy_boundary_value(self.value)
+        self.metadata = copy_boundary_value(self.metadata)
 
 
 def create_app(

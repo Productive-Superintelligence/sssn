@@ -1,5 +1,6 @@
 import asyncio
 import json
+from types import MappingProxyType
 
 import httpx
 import pytest
@@ -896,6 +897,137 @@ def test_sync_client_isolates_mutable_request_inputs():
     assert client.payloads[3]["metadata"] == {"labels": ["artifact"]}
     assert client.payloads[4]["value"] == {"items": ["snapshot"]}
     assert client.payloads[4]["metadata"] == {"labels": ["snapshot"]}
+
+
+def test_sync_client_accepts_nested_read_only_mapping_request_inputs():
+    class CapturingClient(SSSNClient):
+        def __init__(self):
+            super().__init__("http://testserver")
+            self.payloads = []
+
+        def _request(self, method, path, **kwargs):
+            self.payloads.append(kwargs["json"])
+            if path == "/channels":
+                return httpx.Response(
+                    200,
+                    json={
+                        "name": "events",
+                        "schema": None,
+                        "form": "log",
+                        "description": "",
+                        "metadata": {},
+                    },
+                )
+            if path == "/events":
+                return httpx.Response(
+                    200,
+                    json={
+                        "id": "event-1",
+                        "cursor": 1,
+                        "channel": "events",
+                        "timestamp": 1.0,
+                        "source": None,
+                        "kind": "raw",
+                        "payload": {"nested": {"item": "event"}},
+                        "schema": None,
+                        "metadata": {"nested": {"label": "event"}},
+                        "correlation_id": None,
+                        "parent_ids": [],
+                    },
+                )
+            if path == "/subscriptions":
+                return httpx.Response(
+                    200,
+                    json={
+                        "id": "worker",
+                        "channel": "events",
+                        "cursor": 0,
+                        "consumer": None,
+                        "batch_size": 100,
+                        "filters": {"nested": {"kind": "raw"}},
+                        "metadata": {"nested": {"label": "sub"}},
+                    },
+                )
+            if path == "/artifacts":
+                return httpx.Response(
+                    200,
+                    json={
+                        "id": "artifact-1",
+                        "channel": "events",
+                        "path": "artifacts/artifact-1",
+                        "media_type": "text/plain",
+                        "size": 5,
+                        "metadata": {"nested": {"label": "artifact"}},
+                        "event_ids": [],
+                    },
+                )
+            return httpx.Response(
+                200,
+                json={
+                    "name": "latest",
+                    "channel": "events",
+                    "timestamp": 1.0,
+                    "value": {"nested": {"item": "snapshot"}},
+                    "metadata": {"nested": {"label": "snapshot"}},
+                },
+            )
+
+    client = CapturingClient()
+    channel_inner = {"label": "channel"}
+    payload_inner = {"item": "event"}
+    event_inner = {"label": "event"}
+    filter_inner = {"kind": "raw"}
+    sub_inner = {"label": "sub"}
+    artifact_inner = {"label": "artifact"}
+    snapshot_value_inner = {"item": "snapshot"}
+    snapshot_inner = {"label": "snapshot"}
+
+    client.create_channel(
+        {"name": "events", "metadata": {"nested": MappingProxyType(channel_inner)}}
+    )
+    client.append_event(
+        {
+            "channel": "events",
+            "kind": "raw",
+            "payload": {"nested": MappingProxyType(payload_inner)},
+            "metadata": {"nested": MappingProxyType(event_inner)},
+        }
+    )
+    client.create_subscription(
+        "events",
+        subscription_id="worker",
+        filters={"nested": MappingProxyType(filter_inner)},
+        metadata={"nested": MappingProxyType(sub_inner)},
+    )
+    client.write_artifact(
+        "hello",
+        channel="events",
+        metadata={"nested": MappingProxyType(artifact_inner)},
+    )
+    client.put_snapshot(
+        "latest",
+        {"nested": MappingProxyType(snapshot_value_inner)},
+        channel="events",
+        metadata={"nested": MappingProxyType(snapshot_inner)},
+    )
+
+    channel_inner["label"] = "changed"
+    payload_inner["item"] = "changed"
+    event_inner["label"] = "changed"
+    filter_inner["kind"] = "changed"
+    sub_inner["label"] = "changed"
+    artifact_inner["label"] = "changed"
+    snapshot_value_inner["item"] = "changed"
+    snapshot_inner["label"] = "changed"
+
+    assert client.payloads[0]["metadata"] == {"nested": {"label": "channel"}}
+    assert client.payloads[1]["payload"] == {"nested": {"item": "event"}}
+    assert client.payloads[1]["metadata"] == {"nested": {"label": "event"}}
+    assert client.payloads[2]["filters"] == {"nested": {"kind": "raw"}}
+    assert client.payloads[2]["metadata"] == {"nested": {"label": "sub"}}
+    assert client.payloads[3]["metadata"] == {"nested": {"label": "artifact"}}
+    assert client.payloads[4]["value"] == {"nested": {"item": "snapshot"}}
+    assert client.payloads[4]["metadata"] == {"nested": {"label": "snapshot"}}
 
 
 def test_sync_client_gets_artifact_metadata():

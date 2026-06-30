@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from copy import deepcopy
 import time
 import uuid
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StrictStr, model_validator
+
+from ._copy import copy_boundary_value
 
 ChannelForm = Literal[
     "log",
@@ -42,7 +43,7 @@ class Channel(BaseModel):
         return self.schema_ref
 
     def model_post_init(self, __context: Any) -> None:
-        _set_model_attr(self, "metadata", deepcopy(self.metadata))
+        _set_model_attr(self, "metadata", copy_boundary_value(self.metadata))
 
     @model_validator(mode="after")
     def _validate_name(self) -> "Channel":
@@ -70,8 +71,8 @@ class Event(BaseModel):
         return self.schema_ref
 
     def model_post_init(self, __context: Any) -> None:
-        _set_model_attr(self, "payload", deepcopy(self.payload))
-        _set_model_attr(self, "metadata", deepcopy(self.metadata))
+        _set_model_attr(self, "payload", copy_boundary_value(self.payload))
+        _set_model_attr(self, "metadata", copy_boundary_value(self.metadata))
 
     @model_validator(mode="after")
     def _validate_identity(self) -> "Event":
@@ -98,7 +99,7 @@ class Artifact(BaseModel):
     event_ids: tuple[StrictStr, ...] = Field(default_factory=tuple)
 
     def model_post_init(self, __context: Any) -> None:
-        _set_model_attr(self, "metadata", deepcopy(self.metadata))
+        _set_model_attr(self, "metadata", copy_boundary_value(self.metadata))
 
     @model_validator(mode="after")
     def _validate_identity(self) -> "Artifact":
@@ -125,8 +126,8 @@ class Snapshot(BaseModel):
         return self.schema_ref
 
     def model_post_init(self, __context: Any) -> None:
-        _set_model_attr(self, "value", deepcopy(self.value))
-        _set_model_attr(self, "metadata", deepcopy(self.metadata))
+        _set_model_attr(self, "value", copy_boundary_value(self.value))
+        _set_model_attr(self, "metadata", copy_boundary_value(self.metadata))
 
     @model_validator(mode="after")
     def _validate_identity(self) -> "Snapshot":
@@ -148,8 +149,8 @@ class Subscription(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     def model_post_init(self, __context: Any) -> None:
-        _set_model_attr(self, "filters", deepcopy(self.filters))
-        _set_model_attr(self, "metadata", deepcopy(self.metadata))
+        _set_model_attr(self, "filters", copy_boundary_value(self.filters))
+        _set_model_attr(self, "metadata", copy_boundary_value(self.metadata))
 
     @model_validator(mode="after")
     def _validate_identity(self) -> "Subscription":
