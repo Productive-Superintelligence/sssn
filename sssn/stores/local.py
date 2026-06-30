@@ -333,6 +333,14 @@ class LocalStore:
         return _artifact(row)
 
     def put_snapshot(self, snapshot: Snapshot | dict[str, Any]) -> Snapshot:
+        if isinstance(snapshot, Mapping) and "metadata" in snapshot:
+            snapshot = {
+                **snapshot,
+                "metadata": _optional_mapping(
+                    "snapshot.metadata",
+                    snapshot["metadata"],
+                ),
+            }
         value = _model(Snapshot, snapshot, "snapshot")
         if value.channel is not None:
             self.get_channel(value.channel)

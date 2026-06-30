@@ -658,3 +658,14 @@ def test_snapshot_put_get_and_missing(tmp_path):
         )
     with pytest.raises(SnapshotNotFoundError):
         store.get_snapshot("missing")
+
+
+@pytest.mark.parametrize("metadata", [[], [("role", "latest")], "bad", 123])
+def test_local_store_put_snapshot_rejects_non_object_metadata(tmp_path, metadata):
+    store = LocalStore(tmp_path / "store")
+
+    with pytest.raises(InvalidPayloadError, match="snapshot.metadata"):
+        store.put_snapshot({"name": "latest", "value": {}, "metadata": metadata})
+
+    with pytest.raises(SnapshotNotFoundError):
+        store.get_snapshot("latest")
