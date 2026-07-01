@@ -3,7 +3,7 @@ site_description: Protocol and service layer for semantic channels.
 site_url: https://sssn.one/
 repo_name: Productive-Superintelligence/sssn
 repo_url: https://github.com/Productive-Superintelligence/sssn
-edit_uri: edit/v2/docs/
+edit_uri: edit/main/docs/
 copyright: '<a class="psi-footer-brand" href="https://sssn.one/"><span class="psi-footer-wordmark" aria-hidden="true"></span><span class="psi-footer-text">SSSN</span></a>'
 
 theme:
