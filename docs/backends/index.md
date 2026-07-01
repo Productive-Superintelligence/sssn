@@ -1,10 +1,11 @@
-# Runtime
+# Backends
 
-Runtime pages explain the implementations that sit behind the SSSN protocol
-boundary.
+Backend pages explain the implementations that sit behind the stable SSSN
+protocol boundary.
 
-The protocol is stable; the backing implementation can be local, HTTP-backed,
-or composed with package metadata and tactics.
+The protocol is stable; the backing implementation can be a local store,
+an HTTP-exposed store, an HTTP client bound to a remote store, or package
+metadata that tells tools where channels live.
 
 <div class="psi-tiles">
   <div class="psi-tile">
@@ -13,12 +14,12 @@ or composed with package metadata and tactics.
     development.
   </div>
   <div class="psi-tile">
-    <strong>HTTP Service</strong>
-    FastAPI service exposing the same channel, event, artifact, snapshot, and
-    subscription operations.
+    <strong>FastAPI Store</strong>
+    A portable HTTP API exposing the same channel, event, artifact, snapshot,
+    and subscription operations.
   </div>
   <div class="psi-tile">
-    <strong>HTTP Client</strong>
+    <strong>HTTP Clients</strong>
     Sync and async clients that keep remote stores shaped like local stores.
   </div>
   <div class="psi-tile">
@@ -28,30 +29,31 @@ or composed with package metadata and tactics.
   </div>
 </div>
 
-## Runtime Boundary
+## Backend Boundary
 
 ```mermaid
 flowchart TD
   A["Application code"] --> B["SSSN protocol models"]
-  B --> L["LocalStore"]
-  B --> H["HTTP service"]
-  B --> C["Sync / async HTTP client"]
+  B --> L["LocalStore backend"]
+  B --> H["FastAPI store API"]
+  B --> C["Sync / async HTTP clients"]
   B --> P["PsiHub package refs"]
   L --> D["SQLite + filesystem"]
-  H --> R["Remote backing store"]
+  H --> R["Store backend"]
+  C --> H
   P --> F[".psi/config.toml"]
 ```
 
-The local runtime is intentionally simple so tests and examples can run
-without infrastructure. Remote runtimes should preserve the same payload
-envelopes, validation behavior, and error shape.
+The first backend is intentionally simple so tests and examples can run
+without infrastructure. Remote services and clients should preserve the same
+payload envelopes, validation behavior, and error shape.
 
-## Runtime Choices
+## Backend Choices
 
-| Runtime | Use when |
+| Backend path | Use when |
 | --- | --- |
 | `LocalStore` | You need deterministic local state, tests, or examples. |
-| FastAPI service | You need other processes to read and write the store. |
+| FastAPI store service | You need other processes to read and write a store. |
 | HTTP clients | You want local-store-like code against a remote service. |
 | PsiHub refs | You want package metadata and local config to describe channels. |
 

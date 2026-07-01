@@ -40,19 +40,19 @@ nav:
           - Channels: concepts/channels.md
           - Events, Artifacts, Snapshots: concepts/events-artifacts-snapshots.md
           - Data Plane: concepts/data-plane.md
-  - Runtime:
-      - Runtime: runtime/index.md
-      - Guides:
+  - Backends:
+      - Backends: backends/index.md
+      - Store Backends:
           - Local Store: guides/local-store.md
+      - Remote Access:
           - HTTP Client: guides/http-client.md
           - PsiHub Packages: guides/psihub-packages.md
   - Tutorials:
       - Protocol Level:
           - First Channel: tutorials/first-channel.md
           - Event Envelope: tutorials/event-envelope.md
-      - Native Runtime:
+      - Backends:
           - Local Store: tutorials/local-store.md
-      - Client Runtime:
           - HTTP Client: tutorials/http-client.md
       - Composition:
           - LLLM Tactic Processor: tutorials/lllm-tactic.md
