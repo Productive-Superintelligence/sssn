@@ -1,7 +1,7 @@
 site_name: SSSN
 site_description: Protocol and service layer for semantic channels.
 site_url: https://sssn.one/
-repo_name: GitHub
+repo_name: Productive-Superintelligence/sssn
 repo_url: https://github.com/Productive-Superintelligence/sssn
 edit_uri: edit/v2/docs/
 copyright: '<a class="psi-footer-brand" href="https://sssn.one/"><span class="psi-footer-wordmark" aria-hidden="true"></span><span class="psi-footer-text">SSSN</span></a>'
@@ -19,7 +19,6 @@ theme:
       primary: white
       accent: black
   features:
-    - navigation.tabs
     - navigation.sections
     - navigation.indexes
     - navigation.instant
@@ -32,16 +31,17 @@ theme:
     - search.highlight
 
 nav:
-  - Overview: index.md
-  - Getting Started: getting-started.md
-  - Concepts:
-      - Channels: concepts/channels.md
-      - Events, Artifacts, Snapshots: concepts/events-artifacts-snapshots.md
-      - Data Plane: concepts/data-plane.md
-  - Guides:
-      - Local Store: guides/local-store.md
-      - HTTP Client: guides/http-client.md
-      - PsiHub Packages: guides/psihub-packages.md
+  - Overview:
+      - Overview: index.md
+      - Getting Started: getting-started.md
+      - Concepts:
+          - Channels: concepts/channels.md
+          - Events, Artifacts, Snapshots: concepts/events-artifacts-snapshots.md
+          - Data Plane: concepts/data-plane.md
+      - Guides:
+          - Local Store: guides/local-store.md
+          - HTTP Client: guides/http-client.md
+          - PsiHub Packages: guides/psihub-packages.md
   - Tutorials:
       - Protocol Level:
           - First Channel: tutorials/first-channel.md
