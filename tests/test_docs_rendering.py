@@ -325,13 +325,17 @@ def test_docs_chrome_matches_light_visual_contract(tmp_path):
     assert metrics["headerNav"]["display"] == "flex"
     assert metrics["headerNavLinks"] == [
         "Overview",
+        "Protocol",
+        "Runtime",
         "Tutorials",
         "Reference",
     ]
     assert "Overview" in metrics["sidebarText"]
     assert "Getting Started" in metrics["sidebarText"]
-    assert "Concepts" in metrics["sidebarText"]
-    assert "Guides" in metrics["sidebarText"]
+    assert "Concepts" not in metrics["sidebarText"]
+    assert "Guides" not in metrics["sidebarText"]
+    assert "Protocol" not in metrics["sidebarText"]
+    assert "Runtime" not in metrics["sidebarText"]
     assert "Tutorials" not in metrics["sidebarText"]
     assert "Reference" not in metrics["sidebarText"]
     assert "Protocol Level" in tutorial_sidebar
@@ -666,7 +670,9 @@ def test_docs_nav_keeps_foldable_tutorial_groups():
     assert "scheme: slate" not in config
     assert "material/weather-night" not in config
     assert "  - Overview:\n      - Overview: index.md\n      - Getting Started:" in config
+    assert "  - Protocol:\n      - Protocol: protocol/index.md" in config
     assert "      - Concepts:" in config
+    assert "  - Runtime:\n      - Runtime: runtime/index.md" in config
     assert "      - Guides:" in config
     assert "  - Tutorials:\n      - Protocol Level:" in config
     assert "      - Native Runtime:" in config

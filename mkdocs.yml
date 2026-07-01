@@ -34,10 +34,14 @@ nav:
   - Overview:
       - Overview: index.md
       - Getting Started: getting-started.md
+  - Protocol:
+      - Protocol: protocol/index.md
       - Concepts:
           - Channels: concepts/channels.md
           - Events, Artifacts, Snapshots: concepts/events-artifacts-snapshots.md
           - Data Plane: concepts/data-plane.md
+  - Runtime:
+      - Runtime: runtime/index.md
       - Guides:
           - Local Store: guides/local-store.md
           - HTTP Client: guides/http-client.md
