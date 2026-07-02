@@ -1,6 +1,6 @@
-# Protocol
+# Channel
 
-SSSN's protocol is the stable contract for semantic channels. It describes how
+SSSN's channel protocol is the stable contract for semantic channels. It describes how
 services, workers, robots, apps, and agents name data streams, append typed
 events, attach artifacts, materialize snapshots, and subscribe to new records.
 

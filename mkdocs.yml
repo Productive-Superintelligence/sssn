@@ -34,8 +34,8 @@ nav:
   - Overview:
       - Overview: index.md
       - Getting Started: getting-started.md
-  - Protocol:
-      - Protocol: protocol/index.md
+  - Channel:
+      - Channel: protocol/index.md
       - Concepts:
           - Channels: concepts/channels.md
           - Events, Artifacts, Snapshots: concepts/events-artifacts-snapshots.md
@@ -48,7 +48,7 @@ nav:
           - HTTP Client: guides/http-client.md
           - PsiHub Packages: guides/psihub-packages.md
   - Tutorials:
-      - Protocol Level:
+      - Channel Level:
           - First Channel: tutorials/first-channel.md
           - Event Envelope: tutorials/event-envelope.md
       - Backends:

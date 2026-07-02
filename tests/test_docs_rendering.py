@@ -325,7 +325,7 @@ def test_docs_chrome_matches_light_visual_contract(tmp_path):
     assert metrics["headerNav"]["display"] == "flex"
     assert metrics["headerNavLinks"] == [
         "Overview",
-        "Protocol",
+        "Channel",
         "Backends",
         "Tutorials",
         "Reference",
@@ -338,7 +338,7 @@ def test_docs_chrome_matches_light_visual_contract(tmp_path):
     assert "Backends" not in metrics["sidebarText"]
     assert "Tutorials" not in metrics["sidebarText"]
     assert "Reference" not in metrics["sidebarText"]
-    assert "Protocol Level" in tutorial_sidebar
+    assert "Channel Level" in tutorial_sidebar
     assert "Backends" in tutorial_sidebar
     assert "Channels" not in tutorial_sidebar
     assert "HTTP API" not in tutorial_sidebar
@@ -669,12 +669,12 @@ def test_docs_nav_keeps_foldable_tutorial_groups():
     assert "scheme: slate" not in config
     assert "material/weather-night" not in config
     assert "  - Overview:\n      - Overview: index.md\n      - Getting Started:" in config
-    assert "  - Protocol:\n      - Protocol: protocol/index.md" in config
+    assert "  - Channel:\n      - Channel: protocol/index.md" in config
     assert "      - Concepts:" in config
     assert "  - Backends:\n      - Backends: backends/index.md" in config
     assert "      - Store Backends:" in config
     assert "      - Remote Access:" in config
-    assert "  - Tutorials:\n      - Protocol Level:" in config
+    assert "  - Tutorials:\n      - Channel Level:" in config
     assert "      - Backends:" in config
     assert "      - Composition:" in config
     assert "          - First Channel: tutorials/first-channel.md" in config
