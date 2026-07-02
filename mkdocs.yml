@@ -40,8 +40,8 @@ nav:
           - Channels: concepts/channels.md
           - Events, Artifacts, Snapshots: concepts/events-artifacts-snapshots.md
           - Data Plane: concepts/data-plane.md
-  - Backends:
-      - Backends: backends/index.md
+  - Backend:
+      - Backend: backends/index.md
       - Store Backends:
           - Local Store: guides/local-store.md
       - Remote Access:
@@ -51,7 +51,7 @@ nav:
       - Channel Level:
           - First Channel: tutorials/first-channel.md
           - Event Envelope: tutorials/event-envelope.md
-      - Backends:
+      - Backend:
           - Local Store: tutorials/local-store.md
           - HTTP Client: tutorials/http-client.md
       - Composition:

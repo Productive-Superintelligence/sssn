@@ -1,7 +1,8 @@
-# Backends
+# Backend
 
-Backend pages explain the implementations that sit behind the stable SSSN
-protocol boundary.
+Backend is the implementation layer behind SSSN's stable Channel abstraction.
+Multiple backends can provide the same channel, event, artifact, snapshot, and
+subscription contract.
 
 The protocol is stable; the backing implementation can be a local store,
 an HTTP-exposed store, an HTTP client bound to a remote store, or package

@@ -89,6 +89,6 @@ annotations, and latest-state materializations.
 
 - Start with [Getting Started](getting-started.md).
 - Learn the channel contract in [Channel](protocol/index.md).
-- Choose an implementation path in [Backends](backends/index.md).
+- Choose an implementation path in [Backend](backends/index.md).
 - Follow the first tutorial in [First Channel](tutorials/first-channel.md).
 - Compose with tactics in [LLLM Tactic Processor](tutorials/lllm-tactic.md).

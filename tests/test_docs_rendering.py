@@ -326,7 +326,7 @@ def test_docs_chrome_matches_light_visual_contract(tmp_path):
     assert metrics["headerNavLinks"] == [
         "Overview",
         "Channel",
-        "Backends",
+        "Backend",
         "Tutorials",
         "Reference",
     ]
@@ -335,11 +335,11 @@ def test_docs_chrome_matches_light_visual_contract(tmp_path):
     assert "Concepts" not in metrics["sidebarText"]
     assert "Guides" not in metrics["sidebarText"]
     assert "Protocol" not in metrics["sidebarText"]
-    assert "Backends" not in metrics["sidebarText"]
+    assert "Backend" not in metrics["sidebarText"]
     assert "Tutorials" not in metrics["sidebarText"]
     assert "Reference" not in metrics["sidebarText"]
     assert "Channel Level" in tutorial_sidebar
-    assert "Backends" in tutorial_sidebar
+    assert "Backend" in tutorial_sidebar
     assert "Channels" not in tutorial_sidebar
     assert "HTTP API" not in tutorial_sidebar
     assert metrics["source"]["component"] == "source"
@@ -671,11 +671,11 @@ def test_docs_nav_keeps_foldable_tutorial_groups():
     assert "  - Overview:\n      - Overview: index.md\n      - Getting Started:" in config
     assert "  - Channel:\n      - Channel: protocol/index.md" in config
     assert "      - Concepts:" in config
-    assert "  - Backends:\n      - Backends: backends/index.md" in config
+    assert "  - Backend:\n      - Backend: backends/index.md" in config
     assert "      - Store Backends:" in config
     assert "      - Remote Access:" in config
     assert "  - Tutorials:\n      - Channel Level:" in config
-    assert "      - Backends:" in config
+    assert "      - Backend:" in config
     assert "      - Composition:" in config
     assert "          - First Channel: tutorials/first-channel.md" in config
     assert "          - Local Store: tutorials/local-store.md" in config
