@@ -1,10 +1,11 @@
-# SSSN
+# SSSN Semantic Channel Network
 
 <p align="center">
   <img src="assets/sssn-logo-text-dark.png" alt="SSSN" width="420">
 </p>
 
-SSSN is the protocol and service layer for semantic channels in PSI services.
+SSSN Semantic Channel Network is the protocol and service layer for semantic
+channels in PSI services.
 
 The center model is `Channel`: a named semantic data interface. Stores,
 brokers, databases, feeds, object stores, graph stores, and local filesystems
