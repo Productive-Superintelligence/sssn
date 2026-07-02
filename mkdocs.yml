@@ -1,10 +1,10 @@
-site_name: SSSN Semantic Channel Network
+site_name: Simple System of Systems Network (SSSN)
 site_description: Protocol and service layer for semantic channels.
 site_url: https://sssn.one/
 repo_name: Productive-Superintelligence/sssn
 repo_url: https://github.com/Productive-Superintelligence/sssn
 edit_uri: edit/main/docs/
-copyright: '<a class="psi-footer-brand" href="https://sssn.one/"><span class="psi-footer-wordmark" aria-hidden="true"></span><span class="psi-footer-text">SSSN Semantic Channel Network</span></a>'
+copyright: '<a class="psi-footer-brand" href="https://sssn.one/"><span class="psi-footer-wordmark" aria-hidden="true"></span><span class="psi-footer-text">Simple System of Systems Network (SSSN)</span></a>'
 
 theme:
   name: material
@@ -66,27 +66,24 @@ extra:
   homepage: https://sssn.one/
   current_doc: sssn
   docs_switch:
+    - key: psi
+      title: Psi
+      url: https://prosi.io/docs/
     - key: lllm
-      title: LLLM Tactic Framework
+      title: LLLM · Low-Level Language Models
       url: https://lllm.one/
     - key: sssn
-      title: SSSN Semantic Channel Network
+      title: SSSN · Simple System of Systems Network
       url: https://sssn.one/
     - key: aaax
-      title: AAAX Agentic Application Shell
+      title: AAAX · Advanced Autonomous Agent Executor
       url: https://aaax.one/
-    - key: psihub
-      title: PsiHub
-      url: https://prosi.io/docs/hub/
-    - key: psicli
-      title: PsiCLI
-      url: https://prosi.io/docs/cli/
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/Productive-Superintelligence/sssn
 
 extra_css:
-  - stylesheets/custom.20260629.css
+  - stylesheets/custom.20260702.css
 
 extra_javascript:
   - javascripts/vendor/mermaid.min.js
