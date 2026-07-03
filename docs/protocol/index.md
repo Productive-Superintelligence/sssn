@@ -10,22 +10,24 @@ channel boundary.
 
 ## Design Concept
 
-SSSN channels combine two complementary patterns:
+SSSN channels combine three complementary patterns:
 
-- **Flow.** A channel can behave like a pub/sub stream for ongoing inputs:
-  news, articles, time series, robot observations, policy calls, application
-  events, or other signals that arrive over time.
-- **Blackboard.** A channel can also behave like a shared accumulation surface:
-  findings, experiments, artifacts, analyses, snapshots, and derived records
-  that distributed agents read from and write back to.
+- **Societal flow.** A channel can behave like a pub/sub stream for ongoing
+  inputs: news, articles, time series, claims, indicators, and other signals
+  that arrive over time.
+- **Scientific blackboard.** A channel can behave like a shared accumulation
+  surface for findings, hypotheses, experiments, artifacts, implementations,
+  evaluations, snapshots, and derived records. This is the Genesys-style
+  discovery pattern: distributed agents coordinate around a growing center of
+  research state.
+- **Robotic topic graph.** A channel can mirror ROS-style topic flow at the
+  semantic layer: observations, actions, state, traces, annotations, analyses,
+  and warnings move between producers and subscribers while robot middleware
+  keeps owning low-latency control.
 
-This lineage comes from agent systems for societal analysis and scientific
-discovery: SocioDojo uses real-world text and time-series flows for lifelong
-analytical agents, while Language Modeling by Language Models organizes
-research-agent work around accumulating findings, experiments, literature, code,
-and evaluations. SSSN keeps the protocol neutral so the same channel contract
-can serve robotics, society, science, business, infrastructure, and other
-system-of-systems applications.
+The protocol stays neutral so the same channel contract can serve society,
+science, robotics, business, infrastructure, and other system-of-systems
+applications.
 
 <div class="psi-tiles">
   <div class="psi-tile">

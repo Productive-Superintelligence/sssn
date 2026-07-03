@@ -9,23 +9,29 @@ behind the channel interface.
 
 ## Design Lineage
 
-SSSN treats a channel as a domain-neutral communication boundary. Two agentic
-systems helped shape that idea:
+SSSN treats a channel as a domain-neutral communication boundary. Three iconic
+scenarios show the intended range:
 
-- **Pub/sub flow for living environments.** In SocioDojo, real-world text,
-  news, articles, and time-series signals flow into lifelong analytical agents
-  as continuously updated societal context. SSSN keeps that pattern as
+- **Society: pub/sub flow for living environments.** In SocioDojo, real-world
+  text, news, articles, and time-series signals flow into lifelong analytical
+  agents as continuously updated societal context. SSSN keeps that pattern as
   `topic`, `log`, and `time-series` channels that services can publish to and
   workers can subscribe from.
-- **Blackboard accumulation for discovery.** In Language Modeling by Language
-  Models, research agents coordinate around evolving findings, experiments,
-  literature, implementations, and evaluations. SSSN keeps that pattern as
+- **Science: blackboard accumulation for discovery.** In Language Modeling by
+  Language Models, Genesys (Genetic Discovery System) coordinates autonomous
+  language-model discovery across ideas, literature, implementations, checks,
+  training runs, evaluations, and verified designs. SSSN keeps that pattern as
   append-only events, artifacts, snapshots, and derived channels that let many
   agents accumulate shared state without sharing one runtime.
+- **Robotics: topic flow for embodied systems.** ROS-style systems organize
+  robot components around topics that publishers write to and subscribers read
+  from. SSSN keeps that pattern at the semantic layer: observations, actions,
+  state, traces, annotations, and warnings can flow through channels without
+  making SSSN a robot middleware or replacing ROS.
 
-The result is deliberately neutral: the same `Channel` contract can carry news
-feeds, robot traces, business events, scientific artifacts, or any other
-semantic stream.
+The result is deliberately neutral: the same `Channel` contract can carry
+societal feeds, scientific discovery traces, robot telemetry, business events,
+or any other semantic stream.
 
 ```python
 from sssn import Channel
@@ -86,3 +92,4 @@ so names can appear safely in URLs, refs, package cards, and local config.
 - Cheng, Junyan, Peter Clark, and Kyle Richardson. "Language Modeling by
   Language Models." *Advances in Neural Information Processing Systems 38
   (NeurIPS 2025)*, 2025. Spotlight.
+- Open Robotics. "Understanding Topics." *ROS 2 Documentation*.
