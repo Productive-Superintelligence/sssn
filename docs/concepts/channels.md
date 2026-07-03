@@ -17,12 +17,14 @@ scenarios show the intended range:
   agents as continuously updated societal context. SSSN keeps that pattern as
   `topic`, `log`, and `time-series` channels that services can publish to and
   workers can subscribe from.
-- **Science: blackboard accumulation for discovery.** In Language Modeling by
+- **Science: blackboard communication for discovery.** In Language Modeling by
   Language Models, Genesys (Genetic Discovery System) coordinates autonomous
   language-model discovery across ideas, literature, implementations, checks,
-  training runs, evaluations, and verified designs. SSSN keeps that pattern as
-  append-only events, artifacts, snapshots, and derived channels that let many
-  agents accumulate shared state without sharing one runtime.
+  training runs, evaluations, and verified designs. It works like a small
+  artificial academia: agents publish findings, inspect prior work, challenge
+  results, and build on shared evidence. SSSN keeps that pattern as append-only
+  events, artifacts, snapshots, and derived channels that let many agents
+  communicate through shared state without sharing one runtime.
 - **Robotics: topic flow for embodied systems.** ROS-style systems organize
   robot components around topics that publishers write to and subscribers read
   from. SSSN keeps that pattern at the semantic layer: observations, actions,

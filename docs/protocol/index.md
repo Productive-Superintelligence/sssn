@@ -15,11 +15,11 @@ SSSN channels combine three complementary patterns:
 - **Societal flow.** A channel can behave like a pub/sub stream for ongoing
   inputs: news, articles, time series, claims, indicators, and other signals
   that arrive over time.
-- **Scientific blackboard.** A channel can behave like a shared accumulation
-  surface for findings, hypotheses, experiments, artifacts, implementations,
-  evaluations, snapshots, and derived records. This is the Genesys-style
-  discovery pattern: distributed agents coordinate around a growing center of
-  research state.
+- **Scientific blackboard communication.** A channel can behave like an
+  academia-style shared surface for findings, hypotheses, experiments,
+  artifacts, implementations, evaluations, snapshots, and derived records. This
+  is the Genesys-style discovery pattern: distributed agents publish, inspect,
+  challenge, and build on a growing center of research state.
 - **Robotic topic graph.** A channel can mirror ROS-style topic flow at the
   semantic layer: observations, actions, state, traces, annotations, analyses,
   and warnings move between producers and subscribers while robot middleware
