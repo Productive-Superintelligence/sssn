@@ -15,7 +15,7 @@ SSSN channels combine two core lineage patterns:
 - **Societal living analysis.** A channel can behave like a pub/sub stream for
   ongoing inputs: news, articles, time series, claims, indicators, and other
   signals that arrive over time.
-- **Scientific blackboard communication.** A channel can behave like an
+- **Scientific blackboard for distributed discovery.** A channel can behave like an
   academia-style shared surface for findings, literature, code, experiments,
   coordination notes, evaluations, results, snapshots, and derived records. This
   is the Genesys-style discovery pattern: distributed agents publish, inspect,

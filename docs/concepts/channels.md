@@ -17,7 +17,7 @@ lineage comes from two complementary agentic settings:
   as continuously updated societal context. SSSN keeps that pattern as
   `topic`, `log`, and `time-series` channels that services can publish to and
   workers can subscribe from.
-- **Science: blackboard communication for discovery.** In Language Modeling by
+- **Science: blackboard for distributed discovery.** In Language Modeling by
   Language Models, Genesys works like a small artificial academia: agents share
   findings, literature, code, experiments, coordination notes, evaluations, and
   results, then inspect, challenge, and extend that shared evidence. SSSN keeps
