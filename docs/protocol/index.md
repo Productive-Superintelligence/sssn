@@ -8,6 +8,25 @@ The protocol does not require one storage engine. SQLite, object stores,
 brokers, feeds, graph stores, or hosted services can sit behind the same
 channel boundary.
 
+## Design Concept
+
+SSSN channels combine two complementary patterns:
+
+- **Flow.** A channel can behave like a pub/sub stream for ongoing inputs:
+  news, articles, time series, robot observations, policy calls, application
+  events, or other signals that arrive over time.
+- **Blackboard.** A channel can also behave like a shared accumulation surface:
+  findings, experiments, artifacts, analyses, snapshots, and derived records
+  that distributed agents read from and write back to.
+
+This lineage comes from agent systems for societal analysis and scientific
+discovery: SocioDojo uses real-world text and time-series flows for lifelong
+analytical agents, while Language Modeling by Language Models organizes
+research-agent work around accumulating findings, experiments, literature, code,
+and evaluations. SSSN keeps the protocol neutral so the same channel contract
+can serve robotics, society, science, business, infrastructure, and other
+system-of-systems applications.
+
 <div class="psi-tiles">
   <div class="psi-tile">
     <strong>Channel</strong>

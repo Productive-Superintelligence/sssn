@@ -7,6 +7,26 @@ The protocol layer is the stable part. Stores, brokers, databases, feeds,
 graph stores, object stores, and local filesystems are backing implementations
 behind the channel interface.
 
+## Design Lineage
+
+SSSN treats a channel as a domain-neutral communication boundary. Two agentic
+systems helped shape that idea:
+
+- **Pub/sub flow for living environments.** In SocioDojo, real-world text,
+  news, articles, and time-series signals flow into lifelong analytical agents
+  as continuously updated societal context. SSSN keeps that pattern as
+  `topic`, `log`, and `time-series` channels that services can publish to and
+  workers can subscribe from.
+- **Blackboard accumulation for discovery.** In Language Modeling by Language
+  Models, research agents coordinate around evolving findings, experiments,
+  literature, implementations, and evaluations. SSSN keeps that pattern as
+  append-only events, artifacts, snapshots, and derived channels that let many
+  agents accumulate shared state without sharing one runtime.
+
+The result is deliberately neutral: the same `Channel` contract can carry news
+feeds, robot traces, business events, scientific artifacts, or any other
+semantic stream.
+
 ```python
 from sssn import Channel
 
@@ -57,3 +77,12 @@ Channel names are portable resource names. Keep them non-empty and path-like:
 letters, numbers, underscores, and hyphens are the most predictable choice.
 Avoid whitespace, path separators, percent escapes, and path-control segments
 so names can appear safely in URLs, refs, package cards, and local config.
+
+## References
+
+- Cheng, Junyan, and Peter Chin. "SocioDojo: Building Lifelong Analytical Agents
+  with Real-World Text and Time Series." *The Twelfth International Conference
+  on Learning Representations (ICLR)*, 2024. Spotlight.
+- Cheng, Junyan, Peter Clark, and Kyle Richardson. "Language Modeling by
+  Language Models." *Advances in Neural Information Processing Systems 38
+  (NeurIPS 2025)*, 2025. Spotlight.
