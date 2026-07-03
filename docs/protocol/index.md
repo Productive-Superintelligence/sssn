@@ -12,9 +12,9 @@ channel boundary.
 
 SSSN channels combine two core lineage patterns:
 
-- **Societal flow.** A channel can behave like a pub/sub stream for ongoing
-  inputs: news, articles, time series, claims, indicators, and other signals
-  that arrive over time.
+- **Societal living analysis.** A channel can behave like a pub/sub stream for
+  ongoing inputs: news, articles, time series, claims, indicators, and other
+  signals that arrive over time.
 - **Scientific blackboard communication.** A channel can behave like an
   academia-style shared surface for findings, hypotheses, experiments,
   artifacts, implementations, evaluations, snapshots, and derived records. This

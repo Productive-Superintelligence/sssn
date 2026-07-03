@@ -12,19 +12,15 @@ behind the channel interface.
 SSSN treats a channel as a domain-neutral communication boundary. Its design
 lineage comes from two complementary agentic settings:
 
-- **Society: pub/sub flow for living environments.** In SocioDojo, real-world
-  text, news, articles, and time-series signals flow into lifelong analytical
-  agents as continuously updated societal context. SSSN keeps that pattern as
+- **Society: pub/sub flow for living analysis.** In SocioDojo, real-world text,
+  news, articles, and time-series signals flow into lifelong analytical agents
+  as continuously updated societal context. SSSN keeps that pattern as
   `topic`, `log`, and `time-series` channels that services can publish to and
   workers can subscribe from.
 - **Science: blackboard communication for discovery.** In Language Modeling by
-  Language Models, Genesys (Genetic Discovery System) coordinates autonomous
-  language-model discovery across ideas, literature, implementations, checks,
-  training runs, evaluations, and verified designs. It works like a small
-  artificial academia: agents publish findings, inspect prior work, challenge
-  results, and build on shared evidence. SSSN keeps that pattern as append-only
-  events, artifacts, snapshots, and derived channels that let many agents
-  communicate through shared state without sharing one runtime.
+  Language Models, Genesys works like a small artificial academia: agents
+  publish, inspect, challenge, and extend shared research evidence. SSSN keeps
+  that pattern as events, artifacts, snapshots, and derived channels.
 
 The result is deliberately neutral: the same `Channel` contract can carry
 societal feeds, scientific discovery traces, business events, robot telemetry,
