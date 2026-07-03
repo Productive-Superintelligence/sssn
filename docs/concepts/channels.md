@@ -88,4 +88,3 @@ so names can appear safely in URLs, refs, package cards, and local config.
 - Cheng, Junyan, Peter Clark, and Kyle Richardson. "Language Modeling by
   Language Models." *Advances in Neural Information Processing Systems 38
   (NeurIPS 2025)*, 2025. Spotlight.
-- Open Robotics. "Understanding Topics." *ROS 2 Documentation*.
