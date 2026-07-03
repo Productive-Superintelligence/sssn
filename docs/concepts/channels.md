@@ -9,8 +9,8 @@ behind the channel interface.
 
 ## Design Lineage
 
-SSSN treats a channel as a domain-neutral communication boundary. Three iconic
-scenarios show the intended range:
+SSSN treats a channel as a domain-neutral communication boundary. Its design
+lineage comes from two complementary agentic settings:
 
 - **Society: pub/sub flow for living environments.** In SocioDojo, real-world
   text, news, articles, and time-series signals flow into lifelong analytical
@@ -25,15 +25,12 @@ scenarios show the intended range:
   results, and build on shared evidence. SSSN keeps that pattern as append-only
   events, artifacts, snapshots, and derived channels that let many agents
   communicate through shared state without sharing one runtime.
-- **Robotics: topic flow for embodied systems.** ROS-style systems organize
-  robot components around topics that publishers write to and subscribers read
-  from. SSSN keeps that pattern at the semantic layer: observations, actions,
-  state, traces, annotations, and warnings can flow through channels without
-  making SSSN a robot middleware or replacing ROS.
 
 The result is deliberately neutral: the same `Channel` contract can carry
-societal feeds, scientific discovery traces, robot telemetry, business events,
-or any other semantic stream.
+societal feeds, scientific discovery traces, business events, robot telemetry,
+or any other semantic stream. It is also compatible with ROS-style topic
+thinking in robotics, while staying a semantic data protocol rather than robot
+middleware.
 
 ```python
 from sssn import Channel

@@ -10,7 +10,7 @@ channel boundary.
 
 ## Design Concept
 
-SSSN channels combine three complementary patterns:
+SSSN channels combine two core lineage patterns:
 
 - **Societal flow.** A channel can behave like a pub/sub stream for ongoing
   inputs: news, articles, time series, claims, indicators, and other signals
@@ -20,14 +20,12 @@ SSSN channels combine three complementary patterns:
   artifacts, implementations, evaluations, snapshots, and derived records. This
   is the Genesys-style discovery pattern: distributed agents publish, inspect,
   challenge, and build on a growing center of research state.
-- **Robotic topic graph.** A channel can mirror ROS-style topic flow at the
-  semantic layer: observations, actions, state, traces, annotations, analyses,
-  and warnings move between producers and subscribers while robot middleware
-  keeps owning low-latency control.
 
 The protocol stays neutral so the same channel contract can serve society,
-science, robotics, business, infrastructure, and other system-of-systems
-applications.
+science, business, infrastructure, robotics, and other system-of-systems
+applications. Robotics is a natural fit because SSSN's channel model is also
+compatible with ROS-style topic flow, but SSSN remains a semantic data protocol
+rather than robot middleware.
 
 <div class="psi-tiles">
   <div class="psi-tile">
