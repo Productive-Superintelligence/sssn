@@ -23,7 +23,7 @@ from .client import AsyncSSSNClient, SSSNClient, SSSNClientError
 from .integrations import channel_resource, snapshot_resource
 from .resolver import ResolvedSSSNRef, SSSNRef, SSSNRefError, SSSNResolver
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 __all__ = [
     "Artifact",

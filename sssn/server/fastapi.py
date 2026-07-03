@@ -114,7 +114,7 @@ def create_app(
         raise RuntimeError("Install sssn[server] to use the FastAPI server.") from exc
 
     local_store = store or LocalStore()
-    app = FastAPI(title="SSSN Store", version="0.1.0")
+    app = FastAPI(title="SSSN Store", version="0.1.1")
     app.state.sssn_store = local_store
 
     @app.exception_handler(RequestValidationError)
