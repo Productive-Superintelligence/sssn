@@ -16,8 +16,8 @@ SSSN channels combine two core lineage patterns:
   ongoing inputs: news, articles, time series, claims, indicators, and other
   signals that arrive over time.
 - **Scientific blackboard communication.** A channel can behave like an
-  academia-style shared surface for findings, hypotheses, experiments,
-  artifacts, implementations, evaluations, snapshots, and derived records. This
+  academia-style shared surface for findings, literature, code, experiments,
+  coordination notes, evaluations, results, snapshots, and derived records. This
   is the Genesys-style discovery pattern: distributed agents publish, inspect,
   challenge, and build on a growing center of research state.
 
