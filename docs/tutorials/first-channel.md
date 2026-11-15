@@ -23,7 +23,7 @@ python -m pip install -e ".[dev]"
 ```python
 from sssn import Channel, LocalStore
 
-store = LocalStore(".sssn")
+store = LocalStore(".lllm/network")
 store.create_channel(
     Channel(
         name="events",
@@ -60,12 +60,12 @@ assert events[0].payload == {"text": "hello"}
 
 ```bash
 python - <<'PY'
-from sssn import Channel, LocalStore
+from sssn import Channel, ChannelExistsError, LocalStore
 
-store = LocalStore(".sssn")
+store = LocalStore(".lllm/network")
 try:
     store.create_channel(Channel(name="events", schema="demo.schemas:Event"))
-except Exception:
+except ChannelExistsError:
     pass
 event = store.append_event(
     {"channel": "events", "kind": "message", "payload": {"text": "hello"}}
@@ -80,4 +80,5 @@ Expected output:
 {'text': 'hello'}
 ```
 
-Next, serve the same store with `sssn.server.create_app` or the `sssn` CLI.
+Next, serve the same store with `sssn serve` (or `lllm network serve`), or
+mount it in your own app with `sssn.create_app`.

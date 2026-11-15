@@ -8,10 +8,14 @@
 [sssn.one](https://sssn.one){ .psi-domain }
 
 Simple System of Systems Network (SSSN) is the protocol and service layer for
-semantic channels in PSI services. It carries typed events, artifacts, and
-snapshots between services, workers, robots, apps, and agents while keeping
-databases, brokers, feeds, object stores, graph stores, and local filesystems
-behind the stable `Channel` interface.
+semantic channels. It carries typed events, artifacts, and snapshots between
+services, workers, robots, apps, and agents while keeping databases, brokers,
+feeds, object stores, graph stores, and local filesystems behind the stable
+`Channel` interface.
+
+SSSN is built on [LLLM](https://lllm.one/). Any LLLM tactic can run over a
+channel, channel packages are LLLM packages that the LLLM hub indexes, and
+installing `sssn` adds `lllm network` to the `lllm` command.
 
 <div class="psi-tiles">
   <div class="psi-tile">
@@ -34,10 +38,15 @@ behind the stable `Channel` interface.
 
 ## Fast Path
 
+```bash
+pip install sssn                    # brings lllm-core
+pip install "sssn[server,client]"   # with the store server and clients
+```
+
 ```python
 from sssn import Channel, Event, LocalStore
 
-store = LocalStore(".sssn")
+store = LocalStore(".lllm/network")
 store.create_channel(Channel(name="events", schema="demo.schemas:Event"))
 event = store.append_event(
     Event(channel="events", source="demo", kind="message", payload={"text": "hello"})
@@ -49,8 +58,8 @@ assert store.query_events("events")[0].id == event.id
 The default local backend is intentionally boring:
 
 ```text
-.sssn/
-  sssn.sqlite
+.lllm/network/
+  network.sqlite
   artifacts/
 ```
 
@@ -67,8 +76,9 @@ flowchart LR
   B --> D["Artifacts"]
   B --> E["Snapshots"]
   C --> F["Worker subscription"]
-  F --> G["Derived event"]
-  G --> B
+  F --> G["LLLM tactic"]
+  G --> H["Derived event"]
+  H --> B
 ```
 
 SSSN is not observability. Observability systems explain how software behaves.
@@ -82,8 +92,12 @@ annotations, and latest-state materializations.
 - local store semantics and cursor validation,
 - a portable HTTP service for store access,
 - sync and async HTTP clients,
-- PsiHub metadata helpers for channel and snapshot resources,
-- shared local config resolution for SSSN refs.
+- `TacticProcessor`, which runs LLLM tactics over channels,
+- channel and snapshot metadata for LLLM packages and the LLLM hub,
+- `lllm://` channel ref resolution from `.lllm/config.toml`.
+
+LLLM owns tactics, package manifests (`lllm.toml`), and the hub. SSSN depends
+on `lllm-core` for them, and LLLM never needs SSSN to run tactics.
 
 ## Next
 
@@ -91,4 +105,4 @@ annotations, and latest-state materializations.
 - Learn the channel contract in [Channel](protocol/index.md).
 - Choose an implementation path in [Backend](backends/index.md).
 - Follow the first tutorial in [First Channel](tutorials/first-channel.md).
-- Compose with tactics in [LLLM Tactic Processor](tutorials/lllm-tactic.md).
+- Run tactics over channels in [Use with LLLM](guides/lllm.md).

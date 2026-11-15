@@ -42,19 +42,32 @@ channel = Channel(
 
 ## Channel Forms
 
-Common channel forms include:
+A form says how a channel is meant to be used. `Channel.form` is one of:
 
-| Form | Meaning |
+| Form | Meant for |
 | --- | --- |
-| `log` | Append-only event history. |
-| `queue` | Work queue semantics. |
-| `topic` | Broadcast or pub/sub stream. |
-| `latest-state` | Latest materialized state for a key. |
+| `log` | Append-only event history (the default). |
+| `queue` | Work items that consumers take in order. |
+| `topic` | Broadcast or pub/sub streams. |
+| `blackboard` | A shared surface where agents post and build on findings. |
+| `latest-state` | The latest materialized state for a key. |
 | `artifact-index` | Event metadata over larger payloads. |
+| `pipeline-edge` | The hand-off between two processing stages. |
+| `database-view` | Records mirrored from, or derived for, a database. |
+| `feed` | Items from an outside source as they arrive. |
 | `time-series` | Ordered observations with temporal meaning. |
+| `tree` | Records that form a hierarchy through parent links. |
+| `forum` | Threads of posts and replies. |
+| `hub` | A meeting point that gathers several channels. |
 
-The form is metadata, not a hard-coded backend. A local SQLite store and a
-future broker-backed implementation can advertise the same channel contract.
+Any other value fails validation. The LLLM hub checks `[channels.<name>]`
+forms in package manifests against the same list.
+
+The form is metadata, not a hard-coded backend: `LocalStore` keeps every
+channel as an append-only log whatever its form, and a future broker-backed
+implementation can advertise the same channel contract. Channels cannot be
+updated or deleted through the API, and creating a channel whose name is taken
+raises `ChannelExistsError`.
 
 ## Events, Artifacts, Snapshots
 

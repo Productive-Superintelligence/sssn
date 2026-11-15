@@ -5,27 +5,27 @@ Goal: use the portable HTTP client against a running store service.
 ## Prerequisites
 
 ```bash
-python -m pip install -e ".[dev]"
+python -m pip install -e ".[dev,server]"
 ```
 
 ## Files Used
 
 - `sssn/server/fastapi.py` exposes the portable FastAPI app.
-- `sssn/client/http.py` implements `SSSNClient` and `AsyncSSSNClient`.
+- `sssn/client/http.py` implements `RemoteStore` and `AsyncRemoteStore`.
 - `tests/test_http_client.py` verifies the client against the API shape.
 
 ## Start The Server
 
 ```bash
-sssn --store .sssn serve --host 127.0.0.1 --port 7700
+sssn serve --host 127.0.0.1 --port 7700
 ```
 
 ## Call The Server
 
 ```python
-from sssn import SSSNClient
+from sssn import RemoteStore
 
-client = SSSNClient("http://127.0.0.1:7700")
+client = RemoteStore("http://127.0.0.1:7700")
 client.create_channel({"name": "events", "schema": "demo.Event"})
 event = client.append_event(
     {"channel": "events", "kind": "message", "payload": {"text": "hello"}}
@@ -33,6 +33,9 @@ event = client.append_event(
 
 assert client.get_event(event.id).payload == {"text": "hello"}
 ```
+
+Server errors come back as `RemoteStoreError` with `status_code` and
+`error_type`; creating `events` a second time is a 409 `ChannelExistsError`.
 
 ## Verify
 

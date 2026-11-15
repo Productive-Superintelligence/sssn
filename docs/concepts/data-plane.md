@@ -4,7 +4,7 @@ SSSN is not observability. Observability systems explain how software behaves.
 SSSN defines the channel protocol and service surface for data that other
 systems consume.
 
-Use SSSN for domain data moving between PSI components:
+Use SSSN for domain data moving between services, workers, and LLLM tactics:
 
 - policy samples,
 - analysis results,
@@ -45,3 +45,8 @@ A typical processor:
 
 This keeps workers restartable. The subscription cursor records how far the
 worker progressed, while the event log keeps the full history.
+
+`TacticProcessor` is this loop for LLLM tactics. It acknowledges an event only
+after writing the tactic's output, so processing is at least once: an event
+cut short by an error or a crash runs again on the next call. See
+[Use with LLLM](../guides/lllm.md#run-tactics-over-channels).

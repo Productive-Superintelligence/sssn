@@ -46,6 +46,8 @@ def test_sdist_includes_repo_materials(tmp_path):
         "docs/backends/index.md",
         "docs/stylesheets/custom.20260702.css",
         "docs/tutorials/first-channel.md",
+        "docs/guides/lllm.md",
+        "docs/guides/packages.md",
         "examples/first_channel/README.md",
         "examples/first_channel/workflow.py",
         "examples/channel_processor/README.md",

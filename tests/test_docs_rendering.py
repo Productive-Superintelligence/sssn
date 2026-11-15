@@ -9,6 +9,13 @@ import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
+PAPER = "rgb(253, 253, 252)"
+NAV_SECTIONS = ["Tutorials", "Channel", "Backend", "Use with LLLM", "Reference"]
+DOCS_SWITCH = [
+    ("https://lllm.one/", "LLLM"),
+    ("https://sssn.one/", "SSSN"),
+    ("https://aaax.one/", "AAAX"),
+]
 
 
 def chromium_executable() -> str | None:
@@ -312,32 +319,24 @@ def test_docs_chrome_matches_light_visual_contract(tmp_path):
 
     assert metrics["header"]["backgroundColor"] == "rgb(255, 255, 255)"
     assert metrics["tabs"] is None
-    assert metrics["footer"]["backgroundColor"] == "rgb(255, 255, 255)"
+    assert metrics["footer"]["backgroundColor"] == PAPER  # --psi-paper
     assert metrics["header"]["color"] == "rgb(5, 5, 5)"
     assert metrics["footer"]["color"] == "rgb(5, 5, 5)"
     assert metrics["header"]["boxShadow"] == "none"
-    assert metrics["title"]["fontWeight"] == "700"
+    assert metrics["title"]["fontWeight"] == "400"
     assert metrics["headerLogo"]["width"] == pytest.approx(24, abs=1)
     assert metrics["headerLogo"]["height"] == pytest.approx(24, abs=1)
     assert metrics["palette"]["width"] == pytest.approx(0, abs=1)
     assert metrics["palette"]["height"] == pytest.approx(0, abs=1)
     assert metrics["drawerSections"]["display"] == "none"
     assert metrics["headerNav"]["display"] == "flex"
-    assert metrics["headerNavLinks"] == [
-        "Overview",
-        "Channel",
-        "Backend",
-        "Tutorials",
-        "Reference",
-    ]
-    assert "Overview" in metrics["sidebarText"]
-    assert "Getting Started" in metrics["sidebarText"]
-    assert "Concepts" not in metrics["sidebarText"]
-    assert "Guides" not in metrics["sidebarText"]
-    assert "Protocol" not in metrics["sidebarText"]
-    assert "Backend" not in metrics["sidebarText"]
-    assert "Tutorials" not in metrics["sidebarText"]
-    assert "Reference" not in metrics["sidebarText"]
+    assert metrics["headerNavLinks"] == NAV_SECTIONS
+    # index.md is outside the nav, so the home page sidebar shows every section.
+    for title in NAV_SECTIONS + ["Getting Started", "Concepts", "Python API"]:
+        assert title in metrics["sidebarText"]
+    assert "Overview" not in metrics["sidebarText"]
+    assert "Home" not in metrics["sidebarText"]
+    assert "Getting Started" in tutorial_sidebar
     assert "Channel Level" in tutorial_sidebar
     assert "Backend" in tutorial_sidebar
     assert "Channels" not in tutorial_sidebar
@@ -492,7 +491,7 @@ def test_docs_mobile_chrome_keeps_visual_contract(tmp_path):
 
     assert metrics["docWidth"] <= metrics["viewportWidth"] + 1
     assert metrics["header"]["backgroundColor"] == "rgb(255, 255, 255)"
-    assert metrics["footer"]["backgroundColor"] == "rgb(255, 255, 255)"
+    assert metrics["footer"]["backgroundColor"] == PAPER  # --psi-paper
     assert metrics["header"]["color"] == "rgb(5, 5, 5)"
     assert metrics["footer"]["color"] == "rgb(5, 5, 5)"
     assert metrics["header"]["height"] == pytest.approx(49, abs=1)
@@ -513,9 +512,10 @@ def test_docs_mobile_chrome_keeps_visual_contract(tmp_path):
     assert drawer_metrics["logo"]["width"] == pytest.approx(48, abs=1)
     assert drawer_metrics["logo"]["height"] == pytest.approx(48, abs=1)
     assert drawer_metrics["sections"]["display"] == "grid"
-    assert "Overview" in drawer_metrics["sectionsText"]
-    assert "Tutorials" in drawer_metrics["sectionsText"]
-    assert "Reference" in drawer_metrics["sectionsText"]
+    for title in NAV_SECTIONS + [title for _url, title in DOCS_SWITCH]:
+        assert title in drawer_metrics["sectionsText"]
+    assert "Overview" not in drawer_metrics["sectionsText"]
+    assert "Psi" not in drawer_metrics["sectionsText"]
     assert "Getting Started" not in drawer_metrics["sectionsText"]
 
     visible_brands = [
@@ -668,15 +668,16 @@ def test_docs_nav_keeps_foldable_tutorial_groups():
     assert "- navigation.tabs.sticky" not in config
     assert "scheme: slate" not in config
     assert "material/weather-night" not in config
-    assert "  - Overview:\n      - Overview: index.md\n      - Getting Started:" in config
+    assert "  - Tutorials:\n      - Getting Started: getting-started.md\n      - Channel Level:" in config
     assert "  - Channel:\n      - Channel: protocol/index.md" in config
     assert "      - Concepts:" in config
     assert "  - Backend:\n      - Backend: backends/index.md" in config
     assert "      - Store Backends:" in config
     assert "      - Remote Access:" in config
-    assert "  - Tutorials:\n      - Channel Level:" in config
+    assert "          - Refs and Packages: guides/packages.md" in config
     assert "      - Backend:" in config
     assert "      - Composition:" in config
+    assert "  - Use with LLLM: guides/lllm.md" in config
     assert "          - First Channel: tutorials/first-channel.md" in config
     assert "          - Local Store: tutorials/local-store.md" in config
     assert "          - HTTP Client: tutorials/http-client.md" in config
@@ -704,7 +705,7 @@ def test_python_api_reference_documents_resource_name_segments():
     assert "must be non-empty path segments" in reference
     assert "avoid percent escapes, `.`, `..`, `/`" in reference
     assert "`\\`, and `:`" in reference
-    assert "SSSNResolver.from_config(path)" in reference
+    assert "ChannelResolver.from_config(path)" in reference
     assert "local_store(ref)" in reference
     assert "client(ref)" in reference
     assert "resolver config paths must be" in reference
@@ -766,23 +767,42 @@ def test_cli_reference_lists_portable_resource_commands():
         assert command in reference
 
 
-def test_psihub_package_guide_documents_endpoint_metadata():
-    guide = (ROOT / "docs" / "guides" / "psihub-packages.md").read_text(
-        encoding="utf-8"
-    )
+def test_packages_guide_documents_endpoint_metadata_and_refs():
+    guide = (ROOT / "docs" / "guides" / "packages.md").read_text(encoding="utf-8")
 
     assert "custom_endpoints=[channel_tail]" in guide
     assert '"path": "/channels/{name}/tail"' in guide
     assert "create_app(..., custom_endpoints=...)" in guide
     assert (
-        "python -m pytest tests/test_psihub_integration.py tests/test_examples.py -q"
-        in guide
+        "python -m pytest tests/test_resources.py tests/test_resolver.py "
+        "tests/test_examples.py -q" in guide
     )
-    assert "SSSNResolver.from_config" in guide
-    assert "psi://demo/events/channels/raw" in guide
+    assert "ChannelResolver.from_config" in guide
+    assert "ChannelResolver.from_text" in guide
+    assert "lllm://demo/events/channels/raw" in guide
+    assert "[stores.archive]" in guide
     assert "loads only `/channels/` and `/snapshots/` refs" in guide
-    assert "All binding keys must still be valid `psi://`" in guide
+    assert "All binding keys must still be valid `lllm://`" in guide
     assert "malformed SSSN and non-SSSN refs fail validation" in guide
+
+
+def test_lllm_guide_covers_every_integration_point():
+    guide = (ROOT / "docs" / "guides" / "lllm.md").read_text(encoding="utf-8")
+
+    for text in (
+        "TacticProcessor",
+        "at least once",
+        '"<tactic name>-<source>-processor"',
+        'errors="record"',
+        '[project.entry-points."lllm.commands"]',
+        "lllm network needs the sssn package: pip install sssn",
+        "open_package_store",
+        "lllm serve support-desk --resource channels.inbox",
+        "lllm hub publish",
+        "Resolver.from_config",
+        "https://aaax.one/",
+    ):
+        assert text in guide, text
 
 
 def test_public_text_does_not_use_staging_name():
@@ -871,3 +891,88 @@ def test_docs_local_asset_references_resolve():
                     )
 
     assert missing == []
+
+
+def nav_pages(config: str) -> list[str]:
+    return re.findall(r"^\s*-\s+(?:[^:\n]+:\s+)?([\w./-]+\.md)\s*$", config, re.M)
+
+
+def test_docs_nav_sections_and_no_orphan_pages():
+    config = (ROOT / "mkdocs.yml").read_text(encoding="utf-8")
+    nav = config.split("\nnav:\n", 1)[1].split("\n\n", 1)[0]
+
+    # The header renders the top-level sections as tabs; the logo is the way
+    # home, so there is no Home section and index.md stays out of the nav.
+    assert re.findall(r"^  - ([^:\n]+):", nav, re.M) == NAV_SECTIONS
+    assert "homepage: https://sssn.one/" in config
+    pages = nav_pages(config)
+    docs = ROOT / "docs"
+    assert [page for page in pages if not (docs / page).is_file()] == []
+    assert "index.md" not in pages
+    assert pages[0] == "getting-started.md"
+    all_pages = {
+        path.relative_to(docs).as_posix()
+        for path in docs.rglob("*.md")
+        if "overrides" not in path.parts
+    }
+    assert sorted(all_pages - set(pages)) == ["index.md"]
+
+
+def test_docs_header_has_section_tabs_and_switches_between_the_three_sites(tmp_path):
+    site_dir = build_docs(tmp_path)
+    config = (ROOT / "mkdocs.yml").read_text(encoding="utf-8")
+    switch = config.split("  docs_switch:\n", 1)[1].split("\n  social:", 1)[0]
+
+    assert re.findall(r"title: (\w+)\n\s+url: (\S+)", switch) == [
+        (title, url) for url, title in DOCS_SWITCH
+    ]
+    for page in (
+        "index.html",
+        "getting-started/index.html",
+        "guides/lllm/index.html",
+        "reference/cli/index.html",
+    ):
+        html = (site_dir / page).read_text(encoding="utf-8")
+        header = html.split('class="psi-header-nav"', 1)[1].split("</div>", 1)[0]
+        tabs = re.findall(r'class="psi-header-nav__link[^"]*">\s*(.*?)\s*</a>', header, re.S)
+        menu = html.split('class="psi-doc-switch__menu"', 1)[1].split("</div>", 1)[0]
+        docs = re.findall(r'<a href="([^"]+)" class="psi-doc-switch__link[^"]*">\s*(\w+)', menu)
+        drawer = html.split('class="psi-drawer-sections"', 1)[1].split("</div>", 1)[0]
+        drawer_links = re.findall(
+            r'class="psi-drawer-sections__link[^"]*">\s*(.*?)\s*</a>', drawer, re.S
+        )
+
+        assert tabs == NAV_SECTIONS, page
+        assert docs == DOCS_SWITCH, page
+        assert drawer_links == NAV_SECTIONS + [title for _url, title in DOCS_SWITCH], page
+        assert 'href="https://sssn.one/" title="SSSN" class="md-header__button md-logo"' in html
+        assert re.search(r'psi-doc-switch__link--active">\s*SSSN', html), page
+
+
+def test_public_text_uses_lllm_names():
+    text_paths = [ROOT / "README.md", ROOT / "CONTRIBUTING.md", ROOT / "SECURITY.md"]
+    text_paths.extend((ROOT / "docs").rglob("*.md"))
+    text_paths.extend((ROOT / "docs" / "overrides").rglob("*.html"))
+    text_paths.extend(
+        path
+        for path in (ROOT / "examples").rglob("*")
+        if path.suffix in {".md", ".py", ".toml"}
+    )
+    text_paths.extend([ROOT / "mkdocs.yml", ROOT / "pyproject.toml"])
+    # PsiHub, psi.toml, psi:// refs, and PsiCLI are gone: packages are LLLM
+    # packages (lllm.toml, lllm:// refs) and the CLI family is lllm.
+    gone = re.compile(
+        r"psihub|psi\.toml|psi://|\.psi/|psicli|psisdk|prosi\.io/docs"
+        r"|SSSNClient|SSSNError|SSSNRef|SSSNResolver|\.sssn/|sssn\.sqlite",
+        re.IGNORECASE,
+    )
+    # The deprecated lllm.network path is named only where the docs explain it.
+    old_module = re.compile(r"(?<![\w./])lllm\.network\b")
+
+    for path in text_paths:
+        text = path.read_text(encoding="utf-8")
+        match = gone.search(text)
+        assert match is None, f"{path.relative_to(ROOT)} mentions {match.group(0)}"
+        if path != ROOT / "docs" / "guides" / "lllm.md":
+            match = old_module.search(text)
+            assert match is None, f"{path.relative_to(ROOT)} mentions {match.group(0)}"

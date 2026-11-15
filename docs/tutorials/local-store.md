@@ -20,7 +20,7 @@ python -m pip install -e ".[dev]"
 ```python
 from sssn import Channel, LocalStore
 
-store = LocalStore(".sssn")
+store = LocalStore(".lllm/network")
 store.create_channel(Channel(name="events"))
 first = store.append_event({"channel": "events", "payload": {"n": 1}})
 second = store.append_event({"channel": "events", "payload": {"n": 2}})
@@ -36,13 +36,19 @@ Expected output:
 ({'n': 2},)
 ```
 
+Cursors increase across the whole store, so resume from the last cursor you
+read instead of computing `cursor + 1`.
+
 ## Inspect The Layout
 
 ```text
-.sssn/
-  sssn.sqlite
+.lllm/network/
+  network.sqlite
   artifacts/
 ```
+
+`LocalStore()` with no argument, `sssn`, and `lllm network` all default to
+this folder.
 
 ## Verify
 
@@ -56,4 +62,4 @@ Expected output:
 ... passed
 ```
 
-Next, serve the same store with the CLI or FastAPI app helper.
+Next, serve the same store with the CLI or the FastAPI app helper.

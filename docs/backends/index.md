@@ -24,9 +24,9 @@ metadata that tells tools where channels live.
     Sync and async clients that keep remote stores shaped like local stores.
   </div>
   <div class="psi-tile">
-    <strong>PsiHub</strong>
-    Passive package metadata for channels, snapshots, services, and local
-    config bindings.
+    <strong>LLLM Packages</strong>
+    Channel and snapshot metadata in <code>lllm.toml</code>, plus
+    <code>lllm://</code> refs bound in <code>.lllm/config.toml</code>.
   </div>
 </div>
 
@@ -38,11 +38,11 @@ flowchart TD
   B --> L["LocalStore backend"]
   B --> H["FastAPI store API"]
   B --> C["Sync / async HTTP clients"]
-  B --> P["PsiHub package refs"]
+  B --> P["lllm:// channel refs"]
   L --> D["SQLite + filesystem"]
   H --> R["Store backend"]
   C --> H
-  P --> F[".psi/config.toml"]
+  P --> F[".lllm/config.toml"]
 ```
 
 The first backend is intentionally simple so tests and examples can run
@@ -56,10 +56,11 @@ payload envelopes, validation behavior, and error shape.
 | `LocalStore` | You need deterministic local state, tests, or examples. |
 | FastAPI store service | You need other processes to read and write a store. |
 | HTTP clients | You want local-store-like code against a remote service. |
-| PsiHub refs | You want package metadata and local config to describe channels. |
+| `lllm://` refs | You want package metadata and local config to describe channels. |
 
 ## Next
 
 - Use [Local Store](../guides/local-store.md) for local persistence.
 - Use [HTTP Client](../guides/http-client.md) for remote access.
-- Use [PsiHub Packages](../guides/psihub-packages.md) for package metadata.
+- Use [Refs and Packages](../guides/packages.md) for package metadata and refs.
+- Use [Use with LLLM](../guides/lllm.md) to run tactics over a backend.

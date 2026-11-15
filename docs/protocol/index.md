@@ -72,8 +72,9 @@ flowchart TD
 
 - the concrete database, broker, object store, or filesystem,
 - process launch and orchestration,
-- package storage and cards,
-- tactic/model execution,
+- package manifests, publication, and cards, which LLLM and its hub own,
+- tactic and model execution, which LLLM owns (`TacticProcessor` feeds
+  channel events to LLLM tactics),
 - observability vendor formats.
 
 That split lets a local `LocalStore` and a hosted SSSN service speak the same

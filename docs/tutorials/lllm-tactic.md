@@ -9,42 +9,22 @@ The same flow is available as an executable example at
 ## Prerequisites
 
 ```bash
-python -m pip install -e ".[dev]"
-python -m pip install lllm
+python -m pip install -e ".[dev]"   # brings lllm-core
 ```
 
 ## Files Used
 
 - `examples/lllm_tactic_processor/workflow.py` contains the runnable
   composition.
-- `tests/test_examples.py` verifies the example when `lllm` is installed.
+- `tests/test_examples.py` keeps the example executable.
+- `sssn/processing.py` implements `TacticProcessor`.
 - `sssn/stores/local.py` provides durable channels and subscription cursors.
 
 ## Boundary
 
 SSSN owns the durable data plane: channels, subscriptions, cursors, event
-lineage, artifacts, and snapshots. LLLM owns the typed compute boundary. The
-processor between them should stay small.
-
-## Config Refs
-
-When channels come from a PsiHub package, keep their local binding in
-`.psi/config.toml` and let SSSN resolve only the refs it owns:
-
-```toml
-[refs."psi://demo/events/channels/raw"]
-store = ".sssn"
-
-[refs."psi://demo/events/channels/analysis"]
-store = ".sssn"
-```
-
-```python
-from sssn import SSSNResolver
-
-resolver = SSSNResolver.from_config(".")
-store = resolver.local_store("psi://demo/events/channels/raw")
-```
+lineage, artifacts, and snapshots. LLLM owns the typed compute boundary.
+`TacticProcessor` is the small piece between them.
 
 ## Tactic
 
@@ -77,15 +57,19 @@ class AnalyzeMessage(Tactic[RawMessage, AnalysisMessage]):
 ## Processor
 
 ```python
-from sssn import Event, LocalStore
+from sssn import Event, LocalStore, TacticProcessor
 
-store = LocalStore(".sssn")
+store = LocalStore(".lllm/network")
 store.create_channel({"name": "raw", "schema": "demo.RawMessage"})
 store.create_channel({"name": "analysis", "schema": "demo.AnalysisMessage"})
-subscription = store.create_subscription(
-    "raw",
+processor = TacticProcessor(
+    AnalyzeMessage(),
+    store,
+    source="raw",
+    sink="analysis",
     consumer="lllm_tactic_processor",
-    filters={"kind": "message"},
+    kind="message",
+    output_kind="analysis",
 )
 
 raw = store.append_event(
@@ -98,23 +82,45 @@ raw = store.append_event(
     )
 )
 
-tactic = AnalyzeMessage()
-for event in store.pull_subscription(subscription.id):
-    result = tactic.run(event.payload)
-    store.append_event(
-        Event(
-            channel="analysis",
-            source="lllm_tactic_processor",
-            kind="analysis",
-            payload=result.model_dump(),
-            correlation_id=event.correlation_id or event.id,
-            parent_ids=(event.id,),
-        )
-    )
+for output in processor.process():
+    print(output.kind, output.payload, output.parent_ids == (raw.id,))
 ```
 
-The analysis event keeps the raw event as a parent, so downstream services can
-trace an LLLM result back to the SSSN input that produced it.
+```text
+analysis {'summary': 'HELLO FROM SSSN', 'length': 15} True
+```
+
+The analysis event keeps the raw event as a parent and carries its
+`correlation_id`, so downstream services can trace an LLLM result back to the
+SSSN input that produced it.
+
+The `lllm_tactic_processor` subscription lives in the store, so the next
+`process()` call handles only new events. Processing is at least once: an event
+is acknowledged only after its output is written, so an event cut short by an
+error or a crash runs again. [Use with LLLM](../guides/lllm.md#run-tactics-over-channels)
+covers failures, default consumer names, and async workers.
+
+## Config Refs
+
+When channels come from an LLLM package, keep their local binding in
+`.lllm/config.toml`:
+
+```toml
+[refs."lllm://demo/events/channels/raw"]
+store = ".lllm/network"
+
+[refs."lllm://demo/events/channels/analysis"]
+store = ".lllm/network"
+```
+
+```python
+from lllm import Resolver
+
+store = Resolver.from_config(".").store("lllm://demo/events/channels/raw")
+```
+
+`lllm.Resolver` reads tactic refs from the same file, and `sssn.ChannelResolver`
+reads only the channel and snapshot refs.
 
 ## Verify
 
@@ -133,5 +139,5 @@ Expected output:
 }
 ```
 
-Next, replace the local tactic with a remote LLLM service while keeping the
-SSSN subscription and output-channel shape unchanged.
+Next, replace the local tactic with a `RemoteTactic` from `lllm.Resolver`
+while keeping the SSSN subscription and output-channel shape unchanged.

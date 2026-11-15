@@ -1,5 +1,5 @@
 site_name: SSSN
-site_description: Protocol and service layer for semantic channels.
+site_description: Protocol and service layer for semantic channels, built on LLLM.
 site_url: https://sssn.one/
 repo_name: Productive-Superintelligence/sssn
 repo_url: https://github.com/Productive-Superintelligence/sssn
@@ -30,9 +30,16 @@ theme:
     - search.highlight
 
 nav:
-  - Overview:
-      - Overview: index.md
+  - Tutorials:
       - Getting Started: getting-started.md
+      - Channel Level:
+          - First Channel: tutorials/first-channel.md
+          - Event Envelope: tutorials/event-envelope.md
+      - Backend:
+          - Local Store: tutorials/local-store.md
+          - HTTP Client: tutorials/http-client.md
+      - Composition:
+          - LLLM Tactic Processor: tutorials/lllm-tactic.md
   - Channel:
       - Channel: protocol/index.md
       - Concepts:
@@ -45,16 +52,8 @@ nav:
           - Local Store: guides/local-store.md
       - Remote Access:
           - HTTP Client: guides/http-client.md
-          - PsiHub Packages: guides/psihub-packages.md
-  - Tutorials:
-      - Channel Level:
-          - First Channel: tutorials/first-channel.md
-          - Event Envelope: tutorials/event-envelope.md
-      - Backend:
-          - Local Store: tutorials/local-store.md
-          - HTTP Client: tutorials/http-client.md
-      - Composition:
-          - LLLM Tactic Processor: tutorials/lllm-tactic.md
+          - Refs and Packages: guides/packages.md
+  - Use with LLLM: guides/lllm.md
   - Reference:
       - Python API: reference/python-api.md
       - HTTP API: reference/http-api.md
@@ -65,9 +64,6 @@ extra:
   homepage: https://sssn.one/
   current_doc: sssn
   docs_switch:
-    - key: psi
-      title: Psi
-      url: https://prosi.io/docs/
     - key: lllm
       title: LLLM
       url: https://lllm.one/

@@ -28,6 +28,8 @@ Security-sensitive areas include:
 
 - local store path handling
 - event, artifact, and snapshot payload validation
-- HTTP server/client request handling
+- HTTP server/client request handling (the store server has no
+  authentication; keep it on localhost or behind a gateway)
 - custom channel endpoint mounting
-- package metadata exported for PsiHub cards and config templates
+- `lllm://` ref bindings read from `.lllm/config.toml`
+- package metadata exported for LLLM hub cards and config templates
