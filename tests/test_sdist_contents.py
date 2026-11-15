@@ -35,6 +35,12 @@ def test_sdist_includes_repo_materials(tmp_path):
         "assets/sssn-logo-text-dark.png",
         "assets/sssn-logo-text-white.png",
         "mkdocs.yml",
+        # setuptools ships tests/test*.py; the deploy test reads the deploy
+        # script and the Firebase config.
+        "tests/test_deploy_firebase_hosting.py",
+        ".firebaserc",
+        "firebase.json",
+        "scripts/deploy_firebase_hosting.py",
         "docs/index.md",
         "docs/assets/logo.svg",
         "docs/assets/sssn-logo-text-dark.png",

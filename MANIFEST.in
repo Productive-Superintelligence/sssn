@@ -4,6 +4,10 @@ include LICENSE
 include README.md
 include SECURITY.md
 include mkdocs.yml
+# tests/test_deploy_firebase_hosting.py reads the deploy script and its config.
+include .firebaserc
+include firebase.json
+include scripts/deploy_firebase_hosting.py
 recursive-include assets *
 recursive-include docs *
 recursive-include examples *
