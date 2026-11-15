@@ -13,3 +13,4 @@ site/
 .env
 .sssn/
 .lllm/
+secrets/

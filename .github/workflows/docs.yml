@@ -7,10 +7,16 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 concurrency:
   group: docs
   cancel-in-progress: false
+
+env:
+  # sssn needs lllm-core 0.4, which is not on PyPI yet. Until lllm-core 0.4.0
+  # is released, install it from LLLM's main branch before sssn.
+  LLLM_CORE: "lllm-core @ git+https://github.com/Productive-Superintelligence/lllm@main"
 
 jobs:
   deploy:
@@ -21,9 +27,28 @@ jobs:
         with:
           python-version: "3.12"
       - run: python -m pip install -U pip
+      - run: python -m pip install "$LLLM_CORE"
       - run: python -m pip install -e ".[docs]"
       - run: mkdocs build --strict --site-dir site
-      - run: |
+      # Firebase Hosting serves sssn.one: the "docs" target in firebase.json
+      # is site sssn-one in project prosi-501105 (.firebaserc). Until the
+      # FIREBASE_PROJECT variable is set, the docs deploy to GitHub Pages
+      # instead.
+      - if: vars.FIREBASE_PROJECT != ''
+        id: gcp
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          token_format: access_token
+      # firebase-tools cannot use keyless credentials, so deploy through the
+      # Firebase Hosting REST API with the short-lived token.
+      - if: vars.FIREBASE_PROJECT != ''
+        run: python scripts/deploy_firebase_hosting.py --project "${{ vars.FIREBASE_PROJECT }}"
+        env:
+          FIREBASE_ACCESS_TOKEN: ${{ steps.gcp.outputs.access_token }}
+      - if: vars.FIREBASE_PROJECT == ''
+        run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           mkdocs gh-deploy --force --clean --remote-branch gh-pages --message "Deploy docs from ${GITHUB_SHA}"

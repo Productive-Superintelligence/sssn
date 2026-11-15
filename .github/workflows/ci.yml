@@ -4,15 +4,26 @@ on:
   push:
   pull_request:
 
+env:
+  # sssn needs lllm-core 0.4, which is not on PyPI yet. Until lllm-core 0.4.0
+  # is released, install it from LLLM's main branch before sssn; then delete
+  # LLLM_CORE and the steps that install it, and let pip resolve lllm-core.
+  LLLM_CORE: "lllm-core @ git+https://github.com/Productive-Superintelligence/lllm@main"
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ matrix.python-version }}
       - run: python -m pip install -U pip
+      - run: python -m pip install "$LLLM_CORE"
       - run: python -m pip install -e ".[dev,docs]"
       - run: pytest
       - run: mkdocs build --strict
@@ -21,6 +32,9 @@ jobs:
       - run: |
           python -m venv /tmp/sssn-wheel-smoke
           /tmp/sssn-wheel-smoke/bin/python -m pip install -U pip
+          /tmp/sssn-wheel-smoke/bin/python -m pip install "$LLLM_CORE"
           /tmp/sssn-wheel-smoke/bin/python -m pip install dist/*.whl
           cd /tmp
           /tmp/sssn-wheel-smoke/bin/python -c "from sssn import LocalStore; print(LocalStore.__name__)"
+          /tmp/sssn-wheel-smoke/bin/sssn --help
+          /tmp/sssn-wheel-smoke/bin/lllm network --help
