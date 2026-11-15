@@ -12,3 +12,4 @@ site/
 .venv/
 .env
 .sssn/
+.lllm/

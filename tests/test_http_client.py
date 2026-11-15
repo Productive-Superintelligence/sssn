@@ -6,11 +6,11 @@ import httpx
 import pytest
 
 from sssn import (
-    AsyncSSSNClient,
+    AsyncRemoteStore,
     InvalidPayloadError,
     LocalStore,
-    SSSNClient,
-    SSSNClientError,
+    RemoteStore,
+    RemoteStoreError,
     Snapshot,
 )
 from sssn.server import create_app
@@ -20,7 +20,7 @@ def test_async_client_calls_fastapi_server(tmp_path):
     app = create_app(LocalStore(tmp_path / "store"))
 
     async def run():
-        client = AsyncSSSNClient(
+        client = AsyncRemoteStore(
             "http://testserver",
             transport=httpx.ASGITransport(app=app),
         )
@@ -135,7 +135,7 @@ def test_async_client_preserves_fastapi_missing_resource_errors(tmp_path):
     app = create_app(LocalStore(tmp_path / "store"))
 
     async def run():
-        client = AsyncSSSNClient(
+        client = AsyncRemoteStore(
             "http://testserver",
             transport=httpx.ASGITransport(app=app),
         )
@@ -157,7 +157,7 @@ def test_async_client_preserves_fastapi_missing_resource_errors(tmp_path):
         ]
 
         for call, error_type in cases:
-            with pytest.raises(SSSNClientError) as exc_info:
+            with pytest.raises(RemoteStoreError) as exc_info:
                 await call()
             assert exc_info.value.status_code == 404
             assert exc_info.value.error_type == error_type
@@ -167,7 +167,7 @@ def test_async_client_preserves_fastapi_missing_resource_errors(tmp_path):
     asyncio.run(run())
 
 
-@pytest.mark.parametrize("client_cls", [SSSNClient, AsyncSSSNClient])
+@pytest.mark.parametrize("client_cls", [RemoteStore, AsyncRemoteStore])
 @pytest.mark.parametrize(
     "base_url",
     [
@@ -196,7 +196,7 @@ def test_sync_client_uses_portable_api_shape():
             json={"name": "events", "schema": None, "form": "log", "description": "", "metadata": {}},
         )
 
-    client = SSSNClient("http://testserver", transport=httpx.MockTransport(handler))
+    client = RemoteStore("http://testserver", transport=httpx.MockTransport(handler))
 
     assert client.create_channel({"name": "events"}).name == "events"
 
@@ -215,9 +215,9 @@ def test_sync_client_reports_invalid_success_responses(response, expected):
         assert request.url.path == "/channels/events"
         return response
 
-    client = SSSNClient("http://testserver", transport=httpx.MockTransport(handler))
+    client = RemoteStore("http://testserver", transport=httpx.MockTransport(handler))
 
-    with pytest.raises(SSSNClientError) as exc_info:
+    with pytest.raises(RemoteStoreError) as exc_info:
         client.get_channel("events")
 
     assert exc_info.value.status_code == 200
@@ -232,13 +232,13 @@ def test_async_client_reports_invalid_success_responses():
         return httpx.Response(200, json={"name": "events"})
 
     async def run():
-        client = AsyncSSSNClient(
+        client = AsyncRemoteStore(
             "http://testserver",
             transport=httpx.MockTransport(handler),
         )
         await client.list_channels()
 
-    with pytest.raises(SSSNClientError) as exc_info:
+    with pytest.raises(RemoteStoreError) as exc_info:
         asyncio.run(run())
 
     assert exc_info.value.status_code == 200
@@ -255,7 +255,7 @@ def test_async_client_reports_invalid_success_responses():
 )
 def test_client_error_rejects_bytes_for_text_fields(field_name, kwargs):
     with pytest.raises(TypeError, match=field_name):
-        SSSNClientError(500, **kwargs)
+        RemoteStoreError(500, **kwargs)
 
 
 @pytest.mark.parametrize(
@@ -274,7 +274,7 @@ def test_client_error_rejects_bytes_for_text_fields(field_name, kwargs):
 )
 def test_client_error_rejects_malformed_error_type_tokens(error_type):
     with pytest.raises(ValueError, match="error_type"):
-        SSSNClientError(500, error_type=error_type)
+        RemoteStoreError(500, error_type=error_type)
 
 
 def test_sync_client_ignores_non_string_error_payload_fields():
@@ -286,9 +286,9 @@ def test_sync_client_ignores_non_string_error_payload_fields():
             json={"detail": {"error": {"type": 123, "message": ["bad"]}}},
         )
 
-    client = SSSNClient("http://testserver", transport=httpx.MockTransport(handler))
+    client = RemoteStore("http://testserver", transport=httpx.MockTransport(handler))
 
-    with pytest.raises(SSSNClientError) as exc_info:
+    with pytest.raises(RemoteStoreError) as exc_info:
         client.get_channel("events")
 
     assert exc_info.value.status_code == 500
@@ -312,9 +312,9 @@ def test_sync_client_ignores_malformed_error_type_payload_tokens():
             },
         )
 
-    client = SSSNClient("http://testserver", transport=httpx.MockTransport(handler))
+    client = RemoteStore("http://testserver", transport=httpx.MockTransport(handler))
 
-    with pytest.raises(SSSNClientError) as exc_info:
+    with pytest.raises(RemoteStoreError) as exc_info:
         client.get_channel("events")
 
     assert exc_info.value.status_code == 500
@@ -327,7 +327,7 @@ def test_sync_client_rejects_path_control_lookup_names_without_request(bad_name)
     def handler(request: httpx.Request) -> httpx.Response:
         raise AssertionError(f"unexpected request: {request.url}")
 
-    client = SSSNClient("http://testserver", transport=httpx.MockTransport(handler))
+    client = RemoteStore("http://testserver", transport=httpx.MockTransport(handler))
     calls = (
         lambda: client.get_channel(bad_name),
         lambda: client.query_events(bad_name),
@@ -350,7 +350,7 @@ def test_sync_client_rejects_path_control_body_ids_without_request(bad_name):
     def handler(request: httpx.Request) -> httpx.Response:
         raise AssertionError(f"unexpected request: {request.url}")
 
-    client = SSSNClient("http://testserver", transport=httpx.MockTransport(handler))
+    client = RemoteStore("http://testserver", transport=httpx.MockTransport(handler))
     calls = (
         lambda: client.create_channel({"name": bad_name}),
         lambda: client.append_event({"id": bad_name, "channel": "events"}),
@@ -364,7 +364,9 @@ def test_sync_client_rejects_path_control_body_ids_without_request(bad_name):
         lambda: client.write_artifact("hello", event_ids=(bad_name,)),
         lambda: client.put_snapshot("latest", {}, channel=bad_name),
         lambda: client.put_snapshot("latest", {}, source_event_id=bad_name),
-        lambda: client.put_snapshot("latest", {"channel": bad_name, "value": {}}),
+        lambda: client.put_snapshot(
+            {"name": "latest", "channel": bad_name, "value": {}}
+        ),
     )
 
     for call in calls:
@@ -377,7 +379,7 @@ def test_sync_client_rejects_malformed_artifact_data_without_request(bad_data):
     def handler(request: httpx.Request) -> httpx.Response:
         raise AssertionError(f"unexpected request: {request.url}")
 
-    client = SSSNClient("http://testserver", transport=httpx.MockTransport(handler))
+    client = RemoteStore("http://testserver", transport=httpx.MockTransport(handler))
 
     with pytest.raises(InvalidPayloadError, match="artifact data"):
         client.write_artifact(bad_data)  # type: ignore[arg-type]
@@ -387,7 +389,7 @@ def test_sync_client_rejects_malformed_payload_shapes_without_request():
     def handler(request: httpx.Request) -> httpx.Response:
         raise AssertionError(f"unexpected request: {request.url}")
 
-    client = SSSNClient("http://testserver", transport=httpx.MockTransport(handler))
+    client = RemoteStore("http://testserver", transport=httpx.MockTransport(handler))
     calls = (
         (lambda: client.create_channel(["bad"]), "channel"),
         (lambda: client.create_channel({"name": "events", "metadata": []}), "metadata"),
@@ -405,7 +407,9 @@ def test_sync_client_rejects_malformed_payload_shapes_without_request():
         (lambda: client.write_artifact("hello", event_ids="event-1"), "event_ids"),
         (lambda: client.put_snapshot("latest", {}, metadata=[]), "metadata"),
         (
-            lambda: client.put_snapshot("latest", {"value": {}, "metadata": []}),
+            lambda: client.put_snapshot(
+                {"name": "latest", "value": {}, "metadata": []}
+            ),
             "metadata",
         ),
     )
@@ -433,7 +437,7 @@ def test_sync_client_rejects_malformed_event_kind_without_request(bad_kind):
     def handler(request: httpx.Request) -> httpx.Response:
         raise AssertionError(f"unexpected request: {request.url}")
 
-    client = SSSNClient("http://testserver", transport=httpx.MockTransport(handler))
+    client = RemoteStore("http://testserver", transport=httpx.MockTransport(handler))
     calls = (
         lambda: client.append_event({"channel": "events", "kind": bad_kind}),
         lambda: client.query_events("events", kind=bad_kind),
@@ -462,7 +466,7 @@ def test_sync_client_rejects_malformed_coordination_ids_without_request(bad_id):
     def handler(request: httpx.Request) -> httpx.Response:
         raise AssertionError(f"unexpected request: {request.url}")
 
-    client = SSSNClient("http://testserver", transport=httpx.MockTransport(handler))
+    client = RemoteStore("http://testserver", transport=httpx.MockTransport(handler))
     calls = (
         (
             lambda: client.append_event(
@@ -487,7 +491,7 @@ def test_async_client_rejects_path_control_lookup_names_without_request(bad_name
         raise AssertionError(f"unexpected request: {request.url}")
 
     async def run():
-        client = AsyncSSSNClient(
+        client = AsyncRemoteStore(
             "http://testserver",
             transport=httpx.MockTransport(handler),
         )
@@ -529,7 +533,7 @@ def test_async_client_rejects_malformed_event_kind_without_request(bad_kind):
         raise AssertionError(f"unexpected request: {request.url}")
 
     async def run():
-        client = AsyncSSSNClient(
+        client = AsyncRemoteStore(
             "http://testserver",
             transport=httpx.MockTransport(handler),
         )
@@ -564,7 +568,7 @@ def test_async_client_rejects_malformed_coordination_ids_without_request(bad_id)
         raise AssertionError(f"unexpected request: {request.url}")
 
     async def run():
-        client = AsyncSSSNClient(
+        client = AsyncRemoteStore(
             "http://testserver",
             transport=httpx.MockTransport(handler),
         )
@@ -594,7 +598,7 @@ def test_async_client_rejects_path_control_body_ids_without_request(bad_name):
         raise AssertionError(f"unexpected request: {request.url}")
 
     async def run():
-        client = AsyncSSSNClient(
+        client = AsyncRemoteStore(
             "http://testserver",
             transport=httpx.MockTransport(handler),
         )
@@ -611,7 +615,9 @@ def test_async_client_rejects_path_control_body_ids_without_request(bad_name):
             lambda: client.write_artifact("hello", event_ids=(bad_name,)),
             lambda: client.put_snapshot("latest", {}, channel=bad_name),
             lambda: client.put_snapshot("latest", {}, source_event_id=bad_name),
-            lambda: client.put_snapshot("latest", {"channel": bad_name, "value": {}}),
+            lambda: client.put_snapshot(
+                {"name": "latest", "channel": bad_name, "value": {}}
+            ),
         )
 
         for call in calls:
@@ -627,7 +633,7 @@ def test_async_client_rejects_malformed_artifact_data_without_request(bad_data):
         raise AssertionError(f"unexpected request: {request.url}")
 
     async def run():
-        client = AsyncSSSNClient(
+        client = AsyncRemoteStore(
             "http://testserver",
             transport=httpx.MockTransport(handler),
         )
@@ -642,7 +648,7 @@ def test_async_client_rejects_malformed_payload_shapes_without_request():
         raise AssertionError(f"unexpected request: {request.url}")
 
     async def run():
-        client = AsyncSSSNClient(
+        client = AsyncRemoteStore(
             "http://testserver",
             transport=httpx.MockTransport(handler),
         )
@@ -677,8 +683,7 @@ def test_async_client_rejects_malformed_payload_shapes_without_request():
             (lambda: client.put_snapshot("latest", {}, metadata=[]), "metadata"),
             (
                 lambda: client.put_snapshot(
-                    "latest",
-                    {"value": {}, "metadata": []},
+                    {"name": "latest", "value": {}, "metadata": []},
                 ),
                 "metadata",
             ),
@@ -717,7 +722,7 @@ def test_sync_client_sends_artifact_metadata_and_event_ids():
             },
         )
 
-    client = SSSNClient("http://testserver", transport=httpx.MockTransport(handler))
+    client = RemoteStore("http://testserver", transport=httpx.MockTransport(handler))
 
     artifact = client.write_artifact(
         "hello",
@@ -757,7 +762,7 @@ def test_sync_client_sends_subscription_id():
             },
         )
 
-    client = SSSNClient("http://testserver", transport=httpx.MockTransport(handler))
+    client = RemoteStore("http://testserver", transport=httpx.MockTransport(handler))
 
     sub = client.create_subscription(
         "events",
@@ -773,7 +778,7 @@ def test_sync_client_sends_subscription_id():
 
 
 def test_sync_client_isolates_mutable_request_inputs():
-    class CapturingClient(SSSNClient):
+    class CapturingClient(RemoteStore):
         def __init__(self):
             super().__init__("http://testserver")
             self.payloads = []
@@ -900,7 +905,7 @@ def test_sync_client_isolates_mutable_request_inputs():
 
 
 def test_sync_client_accepts_nested_read_only_mapping_request_inputs():
-    class CapturingClient(SSSNClient):
+    class CapturingClient(RemoteStore):
         def __init__(self):
             super().__init__("http://testserver")
             self.payloads = []
@@ -1048,7 +1053,7 @@ def test_sync_client_gets_artifact_metadata():
             },
         )
 
-    client = SSSNClient("http://testserver", transport=httpx.MockTransport(handler))
+    client = RemoteStore("http://testserver", transport=httpx.MockTransport(handler))
 
     artifact = client.get_artifact("artifact-1")
 
@@ -1078,7 +1083,7 @@ def test_sync_client_gets_event_by_id():
             },
         )
 
-    client = SSSNClient("http://testserver", transport=httpx.MockTransport(handler))
+    client = RemoteStore("http://testserver", transport=httpx.MockTransport(handler))
 
     event = client.get_event("event-1")
 
@@ -1112,7 +1117,7 @@ def test_sync_client_sends_snapshot_metadata_and_source_event():
             },
         )
 
-    client = SSSNClient("http://testserver", transport=httpx.MockTransport(handler))
+    client = RemoteStore("http://testserver", transport=httpx.MockTransport(handler))
 
     snapshot = client.put_snapshot(
         "latest",
@@ -1153,7 +1158,7 @@ def test_sync_client_sends_snapshot_model_payload():
             },
         )
 
-    client = SSSNClient("http://testserver", transport=httpx.MockTransport(handler))
+    client = RemoteStore("http://testserver", transport=httpx.MockTransport(handler))
 
     snapshot = client.put_snapshot(
         "latest",
@@ -1192,7 +1197,7 @@ def test_sync_client_snapshot_model_allows_field_overrides():
             },
         )
 
-    client = SSSNClient("http://testserver", transport=httpx.MockTransport(handler))
+    client = RemoteStore("http://testserver", transport=httpx.MockTransport(handler))
 
     snapshot = client.put_snapshot(
         "latest",
@@ -1219,13 +1224,13 @@ def test_async_client_maps_server_errors(tmp_path):
     app = create_app(LocalStore(tmp_path / "store"))
 
     async def run():
-        client = AsyncSSSNClient(
+        client = AsyncRemoteStore(
             "http://testserver",
             transport=httpx.ASGITransport(app=app),
         )
         await client.get_channel("missing")
 
-    with pytest.raises(SSSNClientError) as exc_info:
+    with pytest.raises(RemoteStoreError) as exc_info:
         asyncio.run(run())
 
     assert exc_info.value.status_code == 404
@@ -1237,7 +1242,7 @@ def test_async_client_maps_subscription_conflicts(tmp_path):
     app = create_app(LocalStore(tmp_path / "store"))
 
     async def run():
-        client = AsyncSSSNClient(
+        client = AsyncRemoteStore(
             "http://testserver",
             transport=httpx.ASGITransport(app=app),
         )
@@ -1249,7 +1254,7 @@ def test_async_client_maps_subscription_conflicts(tmp_path):
             subscription_id="worker-events",
         )
 
-    with pytest.raises(SSSNClientError) as exc_info:
+    with pytest.raises(RemoteStoreError) as exc_info:
         asyncio.run(run())
 
     assert exc_info.value.status_code == 409

@@ -10,6 +10,6 @@ from sssn import LocalStore
 
 from workflow import run_workflow
 
-result = run_workflow(LocalStore(".sssn"))
+result = run_workflow(LocalStore(".lllm/network"))
 print(result["events"][0].payload)
 ```

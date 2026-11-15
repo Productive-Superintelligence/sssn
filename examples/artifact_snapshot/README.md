@@ -10,5 +10,5 @@ This example shows a small local-store workflow:
 from sssn import LocalStore
 from examples.artifact_snapshot.workflow import run_workflow
 
-result = run_workflow(LocalStore(".sssn"))
+result = run_workflow(LocalStore(".lllm/network"))
 ```

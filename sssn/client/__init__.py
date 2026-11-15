@@ -1,5 +1,5 @@
 """SSSN HTTP clients."""
 
-from .http import AsyncSSSNClient, SSSNClient, SSSNClientError
+from .http import AsyncRemoteStore, RemoteStore, RemoteStoreError
 
-__all__ = ["AsyncSSSNClient", "SSSNClient", "SSSNClientError"]
+__all__ = ["AsyncRemoteStore", "RemoteStore", "RemoteStoreError"]

@@ -4,29 +4,29 @@ from types import MappingProxyType
 import pytest
 
 from sssn import (
-    AsyncSSSNClient,
+    AsyncRemoteStore,
     LocalStore,
-    SSSNClient,
-    SSSNRef,
-    SSSNRefError,
-    SSSNResolver,
+    RemoteStore,
+    ChannelRef,
+    ChannelRefError,
+    ChannelResolver,
 )
 
 
-CHANNEL_REF = "psi://demo/combo/channels/events"
-SNAPSHOT_REF = "psi://demo/combo/snapshots/latest"
-TACTIC_REF = "psi://demo/combo/tactics/analyze"
-SERVICE_REF = "psi://demo/combo/services/api"
+CHANNEL_REF = "lllm://demo/combo/channels/events"
+SNAPSHOT_REF = "lllm://demo/combo/snapshots/latest"
+TACTIC_REF = "lllm://demo/combo/tactics/analyze"
+SERVICE_REF = "lllm://demo/combo/services/api"
 
 
-def test_resolver_loads_sssn_refs_from_shared_local_config(tmp_path):
-    resolver = SSSNResolver.from_text(
+def test_resolver_loads_channel_refs_from_shared_local_config(tmp_path):
+    resolver = ChannelResolver.from_text(
         f"""
 [refs."{CHANNEL_REF}"]
-store = ".sssn"
+store = ".lllm/network"
 
 [refs."{SNAPSHOT_REF}"]
-store = ".sssn"
+store = ".lllm/network"
 retention = "latest"
 
 [refs."{TACTIC_REF}"]
@@ -36,35 +36,35 @@ url = "http://lllm/tactics/analyze"
 url = "http://sssn"
 
 [stores.default]
-path = ".sssn"
+path = ".lllm/network"
 """.lstrip(),
         root=tmp_path,
     )
 
     assert resolver.refs() == (CHANNEL_REF, SNAPSHOT_REF)
-    assert resolver.stores() == {"default": {"path": ".sssn"}}
-    assert resolver.store("default") == {"path": ".sssn"}
+    assert resolver.stores() == {"default": {"path": ".lllm/network"}}
+    assert resolver.store("default") == {"path": ".lllm/network"}
 
     channel = resolver.resolve(CHANNEL_REF)
     snapshot = resolver.resolve(SNAPSHOT_REF)
 
     assert channel.resource_kind == "channels"
     assert channel.name == "events"
-    assert channel.store == ".sssn"
+    assert channel.store == ".lllm/network"
     assert channel.metadata == {}
     assert snapshot.resource_kind == "snapshots"
     assert snapshot.name == "latest"
     assert snapshot.metadata == {"retention": "latest"}
-    assert resolver.store_path(CHANNEL_REF) == (tmp_path / ".sssn").resolve()
+    assert resolver.store_path(CHANNEL_REF) == (tmp_path / ".lllm/network").resolve()
 
     store = resolver.local_store(CHANNEL_REF)
 
     assert isinstance(store, LocalStore)
-    assert store.root == (tmp_path / ".sssn").resolve()
+    assert store.root == (tmp_path / ".lllm/network").resolve()
 
 
 def test_resolver_uses_config_file_parent_as_relative_root(tmp_path):
-    config = tmp_path / "workspace" / ".psi" / "config.toml"
+    config = tmp_path / "workspace" / ".lllm" / "config.toml"
     config.parent.mkdir(parents=True)
     config.write_text(
         f"""
@@ -74,7 +74,7 @@ store = "data/sssn"
         encoding="utf-8",
     )
 
-    resolver = SSSNResolver.from_config(config)
+    resolver = ChannelResolver.from_config(config)
 
     assert resolver.store_path(CHANNEL_REF) == (
         tmp_path / "workspace" / "data" / "sssn"
@@ -82,39 +82,39 @@ store = "data/sssn"
 
 
 def test_resolver_creates_clients_for_http_channel_refs():
-    resolver = SSSNResolver()
+    resolver = ChannelResolver()
     transport = object()
     resolver.bind(CHANNEL_REF, url="http://testserver/api")
 
     client = resolver.client(CHANNEL_REF, timeout=3.0, transport=transport)
     async_client = resolver.async_client(CHANNEL_REF, timeout=5.0, transport=transport)
 
-    assert isinstance(client, SSSNClient)
+    assert isinstance(client, RemoteStore)
     assert client.base_url == "http://testserver/api"
     assert client.timeout == 3.0
     assert client.transport is transport
-    assert isinstance(async_client, AsyncSSSNClient)
+    assert isinstance(async_client, AsyncRemoteStore)
     assert async_client.base_url == "http://testserver/api"
     assert async_client.timeout == 5.0
     assert async_client.transport is transport
 
-    with pytest.raises(SSSNRefError, match="local store"):
+    with pytest.raises(ChannelRefError, match="local store"):
         resolver.store_path(CHANNEL_REF)
 
 
 def test_resolver_rejects_clients_for_store_only_refs(tmp_path):
-    resolver = SSSNResolver(root=tmp_path)
-    resolver.bind(CHANNEL_REF, store=".sssn")
+    resolver = ChannelResolver(root=tmp_path)
+    resolver.bind(CHANNEL_REF, store=".lllm/network")
 
-    with pytest.raises(SSSNRefError, match="HTTP URL"):
+    with pytest.raises(ChannelRefError, match="HTTP URL"):
         resolver.client(CHANNEL_REF)
 
-    with pytest.raises(SSSNRefError, match="HTTP URL"):
+    with pytest.raises(ChannelRefError, match="HTTP URL"):
         resolver.async_client(CHANNEL_REF)
 
 
 def test_resolver_rejects_invalid_refs_and_ignores_other_layers(tmp_path):
-    resolver = SSSNResolver.from_text(
+    resolver = ChannelResolver.from_text(
         f"""
 [refs."{TACTIC_REF}"]
 url = "http://lllm/tactics/analyze"
@@ -130,53 +130,53 @@ url = "http://sssn"
     for ref in (
         None,
         123,
-        b"psi://demo/combo/channels/events",
+        b"lllm://demo/combo/channels/events",
         "",
         "   ",
     ):
-        with pytest.raises(SSSNRefError, match="non-empty string"):
-            SSSNRef.parse(ref)  # type: ignore[arg-type]
-        with pytest.raises(SSSNRefError, match="non-empty string"):
-            SSSNResolver().bind(ref, store=".sssn")  # type: ignore[arg-type]
+        with pytest.raises(ChannelRefError, match="non-empty string"):
+            ChannelRef.parse(ref)  # type: ignore[arg-type]
+        with pytest.raises(ChannelRefError, match="non-empty string"):
+            ChannelResolver().bind(ref, store=".lllm/network")  # type: ignore[arg-type]
 
     for ref in (
         "not-a-ref",
-        "psi://demo/combo/widgets/events",
-        "psi://demo/combo/channels/events?env=dev",
-        "psi://demo/combo/channels//events",
-        "psi://demo/../channels/events",
-        "psi://demo/combo/channels/..",
-        "psi://demo org/combo/channels/events",
-        "psi://demo/combo pkg/channels/events",
-        "psi://demo/combo/chan nels/events",
-        "psi://demo/combo/channels/event name",
-        "psi://demo%2Forg/combo/channels/events",
-        "psi://demo/combo%2Fpkg/channels/events",
-        "psi://demo/combo/channels/event%2Fname",
-        "psi://demo/combo/channels/event%5Cname",
-        "psi://demo/combo/channels/%2E%2E",
-        "psi://demo/combo/channels/event%20name",
-        "psi://demo/combo/channels/event%3Aname",
+        "lllm://demo/combo/widgets/events",
+        "lllm://demo/combo/channels/events?env=dev",
+        "lllm://demo/combo/channels//events",
+        "lllm://demo/../channels/events",
+        "lllm://demo/combo/channels/..",
+        "lllm://demo org/combo/channels/events",
+        "lllm://demo/combo pkg/channels/events",
+        "lllm://demo/combo/chan nels/events",
+        "lllm://demo/combo/channels/event name",
+        "lllm://demo%2Forg/combo/channels/events",
+        "lllm://demo/combo%2Fpkg/channels/events",
+        "lllm://demo/combo/channels/event%2Fname",
+        "lllm://demo/combo/channels/event%5Cname",
+        "lllm://demo/combo/channels/%2E%2E",
+        "lllm://demo/combo/channels/event%20name",
+        "lllm://demo/combo/channels/event%3Aname",
     ):
-        with pytest.raises(SSSNRefError):
-            SSSNResolver().bind(ref, store=".sssn")
-        with pytest.raises(SSSNRefError):
-            SSSNResolver().resolve(ref)
+        with pytest.raises(ChannelRefError):
+            ChannelResolver().bind(ref, store=".lllm/network")
+        with pytest.raises(ChannelRefError):
+            ChannelResolver().resolve(ref)
 
 
 @pytest.mark.parametrize(
     "ref",
     (
         "http://demo/combo/tactics/analyze",
-        "psi://demo/combo/tactics/analyze?env=dev",
-        "psi://demo/combo/tactics/analyze#latest",
-        "psi://demo/combo/tactics/bad name",
-        "psi://demo/combo/tactics/analyze%2Fhidden",
+        "lllm://demo/combo/tactics/analyze?env=dev",
+        "lllm://demo/combo/tactics/analyze#latest",
+        "lllm://demo/combo/tactics/bad name",
+        "lllm://demo/combo/tactics/analyze%2Fhidden",
     ),
 )
-def test_resolver_validates_ignored_non_sssn_config_refs(tmp_path, ref):
-    with pytest.raises(SSSNRefError):
-        SSSNResolver.from_text(
+def test_resolver_validates_ignored_non_channel_config_refs(tmp_path, ref):
+    with pytest.raises(ChannelRefError):
+        ChannelResolver.from_text(
             f"""
 [refs."{ref}"]
 url = "http://lllm/tactics/analyze"
@@ -186,20 +186,20 @@ url = "http://lllm/tactics/analyze"
 
 
 def test_resolver_requires_exactly_one_concrete_target(tmp_path):
-    with pytest.raises(SSSNRefError, match="one concrete target"):
-        SSSNResolver.from_text(
+    with pytest.raises(ChannelRefError, match="one concrete target"):
+        ChannelResolver.from_text(
             f"""
 [refs."{CHANNEL_REF}"]
 """.lstrip(),
             root=tmp_path / "missing-target",
         )
 
-    with pytest.raises(SSSNRefError, match="only one concrete target"):
-        SSSNResolver.from_text(
+    with pytest.raises(ChannelRefError, match="only one concrete target"):
+        ChannelResolver.from_text(
             f"""
 [refs."{CHANNEL_REF}"]
 url = "http://sssn"
-store = ".sssn"
+store = ".lllm/network"
 """.lstrip(),
             root=tmp_path / "many-targets",
         )
@@ -220,8 +220,8 @@ store = ".sssn"
         ),
         start=1,
     ):
-        with pytest.raises(SSSNRefError, match="non-empty string"):
-            SSSNResolver.from_text(
+        with pytest.raises(ChannelRefError, match="non-empty string"):
+            ChannelResolver.from_text(
                 f"""
 [refs."{CHANNEL_REF}"]
 {target_line}
@@ -231,19 +231,19 @@ store = ".sssn"
 
 
 def test_resolver_rejects_whitespace_bearing_store_targets(tmp_path):
-    resolver = SSSNResolver()
+    resolver = ChannelResolver()
 
-    with pytest.raises(SSSNRefError, match="without whitespace"):
+    with pytest.raises(ChannelRefError, match="without whitespace"):
         resolver.bind(CHANNEL_REF, store="bad store")
-    with pytest.raises(SSSNRefError, match="without whitespace"):
+    with pytest.raises(ChannelRefError, match="without whitespace"):
         resolver.bind(CHANNEL_REF, path="bad path")
 
     for index, target_line in enumerate(
         ('store = "bad store"', 'path = "bad path"'),
         start=1,
     ):
-        with pytest.raises(SSSNRefError, match="without whitespace"):
-            SSSNResolver.from_text(
+        with pytest.raises(ChannelRefError, match="without whitespace"):
+            ChannelResolver.from_text(
                 f"""
 [refs."{CHANNEL_REF}"]
 {target_line}
@@ -253,21 +253,21 @@ def test_resolver_rejects_whitespace_bearing_store_targets(tmp_path):
 
 
 def test_resolver_rejects_malformed_url_targets(tmp_path):
-    resolver = SSSNResolver()
+    resolver = ChannelResolver()
     for url in (
         "service",
         "/service",
         "ftp://service",
         "http://",
     ):
-        with pytest.raises(SSSNRefError, match="absolute HTTP"):
+        with pytest.raises(ChannelRefError, match="absolute HTTP"):
             resolver.bind(CHANNEL_REF, url=url)
-    with pytest.raises(SSSNRefError, match="without whitespace"):
+    with pytest.raises(ChannelRefError, match="without whitespace"):
         resolver.bind(CHANNEL_REF, url="http://test server")
 
     for index, url in enumerate(("service", "/service", "ftp://service"), start=1):
-        with pytest.raises(SSSNRefError, match="absolute HTTP"):
-            SSSNResolver.from_text(
+        with pytest.raises(ChannelRefError, match="absolute HTTP"):
+            ChannelResolver.from_text(
                 f"""
 [refs."{CHANNEL_REF}"]
 url = "{url}"
@@ -277,16 +277,16 @@ url = "{url}"
 
 
 def test_resolver_returns_isolated_metadata_and_store_tables(tmp_path):
-    resolver = SSSNResolver.from_text(
+    resolver = ChannelResolver.from_text(
         f"""
 [refs."{CHANNEL_REF}"]
-store = ".sssn"
+store = ".lllm/network"
 
 [refs."{CHANNEL_REF}".metadata]
 owner = "demo"
 
 [stores.default]
-path = ".sssn"
+path = ".lllm/network"
 
 [stores.default.metadata]
 owner = "demo"
@@ -301,17 +301,17 @@ owner = "demo"
     stores = resolver.stores()
     stores["default"]["metadata"]["owner"] = "changed"
     assert resolver.stores() == {
-        "default": {"path": ".sssn", "metadata": {"owner": "demo"}}
+        "default": {"path": ".lllm/network", "metadata": {"owner": "demo"}}
     }
 
 
 def test_resolver_bind_accepts_and_isolates_mapping_metadata():
     headers = {"x-policy": "demo"}
     metadata = {"headers": MappingProxyType(headers)}
-    resolver = SSSNResolver()
+    resolver = ChannelResolver()
     resolver.bind(
         CHANNEL_REF,
-        store=".sssn",
+        store=".lllm/network",
         metadata=MappingProxyType(metadata),
     )
 
@@ -326,21 +326,21 @@ def test_resolver_bind_accepts_and_isolates_mapping_metadata():
 
 
 def test_resolver_rejects_non_table_metadata_config_values(tmp_path):
-    with pytest.raises(SSSNRefError, match=r"\[refs\."):
-        SSSNResolver.from_text(
+    with pytest.raises(ChannelRefError, match=r"\[refs\."):
+        ChannelResolver.from_text(
             f"""
 [refs."{CHANNEL_REF}"]
-store = ".sssn"
+store = ".lllm/network"
 metadata = "bad"
 """.lstrip(),
             root=tmp_path / "bad-ref-metadata",
         )
 
-    with pytest.raises(SSSNRefError, match=r"\[stores\.default\.metadata\]"):
-        SSSNResolver.from_text(
+    with pytest.raises(ChannelRefError, match=r"\[stores\.default\.metadata\]"):
+        ChannelResolver.from_text(
             """
 [stores.default]
-path = ".sssn"
+path = ".lllm/network"
 metadata = "bad"
 """.lstrip(),
             root=tmp_path / "bad-store-metadata",
@@ -348,11 +348,11 @@ metadata = "bad"
 
 
 def test_resolver_rejects_invalid_store_tables(tmp_path):
-    with pytest.raises(SSSNRefError, match=r"\[stores\.default\]"):
-        SSSNResolver.from_text(
+    with pytest.raises(ChannelRefError, match=r"\[stores\.default\]"):
+        ChannelResolver.from_text(
             """
 [stores]
-default = ".sssn"
+default = ".lllm/network"
 """.lstrip(),
             root=tmp_path / "bad-stores",
         )
@@ -361,15 +361,15 @@ default = ".sssn"
         (
             """
 [stores."bad/name"]
-path = ".sssn"
+path = ".lllm/network"
 """,
             """
 [stores."bad%2Fname"]
-path = ".sssn"
+path = ".lllm/network"
 """,
             """
 [stores."bad store"]
-path = ".sssn"
+path = ".lllm/network"
 """,
             """
 [stores.default]
@@ -386,20 +386,20 @@ path = "bad path"
         ),
         start=1,
     ):
-        with pytest.raises(SSSNRefError):
-            SSSNResolver.from_text(text.lstrip(), root=tmp_path / f"bad-store-{index}")
+        with pytest.raises(ChannelRefError):
+            ChannelResolver.from_text(text.lstrip(), root=tmp_path / f"bad-store-{index}")
 
 
 def test_resolver_store_lookup_rejects_malformed_names(tmp_path):
-    resolver = SSSNResolver.from_text(
+    resolver = ChannelResolver.from_text(
         """
 [stores.default]
-path = ".sssn"
+path = ".lllm/network"
 """.lstrip(),
         root=tmp_path,
     )
 
-    assert resolver.store("default") == {"path": ".sssn"}
+    assert resolver.store("default") == {"path": ".lllm/network"}
     with pytest.raises(KeyError):
         resolver.store("missing")
 
@@ -414,22 +414,22 @@ path = ".sssn"
         "bad name",
         "bad%2Fname",
     ):
-        with pytest.raises(SSSNRefError, match="path-segment"):
+        with pytest.raises(ChannelRefError, match="path-segment"):
             resolver.store(invalid_name)  # type: ignore[arg-type]
 
 
 def test_path_value_rejects_malformed_config_paths(tmp_path):
     padded_root = tmp_path / "workspace"
-    padded_config = tmp_path / "workspace" / ".psi" / "config.toml"
-    for value in ("", "   ", 123, b".psi/config.toml", f" {padded_config} "):
+    padded_config = tmp_path / "workspace" / ".lllm" / "config.toml"
+    for value in ("", "   ", 123, b".lllm/config.toml", f" {padded_config} "):
         with pytest.raises(ValueError, match="config path|config root"):
-            SSSNResolver.from_config(value)  # type: ignore[arg-type]
+            ChannelResolver.from_config(value)  # type: ignore[arg-type]
 
     for root in ("", "   ", 123, f" {padded_root} "):
         with pytest.raises(ValueError, match="config root"):
-            SSSNResolver(root=root)  # type: ignore[arg-type]
+            ChannelResolver(root=root)  # type: ignore[arg-type]
         with pytest.raises(ValueError, match="config root"):
-            SSSNResolver.from_text("", root=root)  # type: ignore[arg-type]
+            ChannelResolver.from_text("", root=root)  # type: ignore[arg-type]
 
     assert not padded_root.exists()
 
@@ -437,6 +437,6 @@ def test_path_value_rejects_malformed_config_paths(tmp_path):
 def test_resolver_from_text_rejects_non_string_text(tmp_path):
     for index, value in enumerate((None, 123, b"[refs]\n"), start=1):
         root = tmp_path / f"workspace-{index}"
-        with pytest.raises(SSSNRefError, match="config text"):
-            SSSNResolver.from_text(value, root=root)  # type: ignore[arg-type]
+        with pytest.raises(ChannelRefError, match="config text"):
+            ChannelResolver.from_text(value, root=root)  # type: ignore[arg-type]
         assert not root.exists()

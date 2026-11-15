@@ -52,13 +52,17 @@ def test_sdist_includes_repo_materials(tmp_path):
         "examples/channel_processor/processor.py",
         "examples/artifact_snapshot/README.md",
         "examples/artifact_snapshot/workflow.py",
-        "examples/psihub_manifest/README.md",
-        "examples/psihub_manifest/package_manifest.py",
+        "examples/hub_manifest/README.md",
+        "examples/hub_manifest/package_manifest.py",
         "examples/lllm_tactic_processor/README.md",
         "examples/lllm_tactic_processor/workflow.py",
+        "sssn/processing.py",
         "sssn/resolver.py",
+        "sssn/resources.py",
+        "sssn/py.typed",
     ]
     missing = [path for path in required if f"{root}/{path}" not in names]
 
     assert not missing
     assert not any(name.startswith(f"{root}/site/") for name in names)
+    assert not any("/sssn/integrations/" in name for name in names)

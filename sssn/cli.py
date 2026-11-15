@@ -1,4 +1,8 @@
-"""Small SSSN CLI."""
+"""Small SSSN CLI.
+
+It runs as ``sssn`` and, through the ``lllm.commands`` entry point, as
+``lllm network``. Both work on a local store, ``.lllm/network`` by default.
+"""
 
 from __future__ import annotations
 
@@ -6,8 +10,10 @@ import argparse
 import base64
 import binascii
 import json
+import sys
+from pathlib import Path
 
-from . import LocalStore, SSSNError
+from . import LocalStore, NetworkError
 
 
 def _json_object(raw: str) -> dict[str, object]:
@@ -37,11 +43,13 @@ def _artifact_data(raw: str, encoding: str) -> bytes:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="sssn")
-    parser.add_argument("--store", default=".sssn", help="Local store directory")
+    parser = argparse.ArgumentParser(
+        prog=_prog(), description="Work with a local SSSN channel store."
+    )
+    parser.add_argument("--store", default=".lllm/network", help="Local store directory")
     subcommands = parser.add_subparsers(dest="command", required=True)
 
-    channels = subcommands.add_parser("channels", help="List channels")
+    subcommands.add_parser("channels", help="List channels")
 
     create_channel = subcommands.add_parser("create-channel", help="Create a channel")
     create_channel.add_argument("name")
@@ -167,7 +175,7 @@ def main(argv: list[str] | None = None) -> int:
                     "metadata": args.metadata or {},
                 }
             )
-        except SSSNError as exc:
+        except NetworkError as exc:
             parser.error(str(exc))
         print(channel.model_dump_json(by_alias=True))
         return 0
@@ -175,7 +183,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "get-channel":
         try:
             channel = store.get_channel(args.name)
-        except SSSNError as exc:
+        except NetworkError as exc:
             parser.error(str(exc))
         print(channel.model_dump_json(by_alias=True))
         return 0
@@ -199,7 +207,7 @@ def main(argv: list[str] | None = None) -> int:
             event_data["timestamp"] = args.timestamp
         try:
             event = store.append_event(event_data)
-        except SSSNError as exc:
+        except NetworkError as exc:
             parser.error(str(exc))
         print(event.model_dump_json(by_alias=True))
         return 0
@@ -212,7 +220,7 @@ def main(argv: list[str] | None = None) -> int:
                 limit=args.limit,
                 kind=args.kind,
             )
-        except SSSNError as exc:
+        except NetworkError as exc:
             parser.error(str(exc))
         for event in events:
             print(event.model_dump_json(by_alias=True))
@@ -221,7 +229,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "get-event":
         try:
             event = store.get_event(args.id)
-        except SSSNError as exc:
+        except NetworkError as exc:
             parser.error(str(exc))
         print(event.model_dump_json(by_alias=True))
         return 0
@@ -236,7 +244,7 @@ def main(argv: list[str] | None = None) -> int:
                 batch_size=args.batch_size,
                 filters=filters,
             )
-        except SSSNError as exc:
+        except NetworkError as exc:
             parser.error(str(exc))
         print(subscription.model_dump_json(by_alias=True))
         return 0
@@ -244,7 +252,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "get-subscription":
         try:
             subscription = store.get_subscription(args.id)
-        except SSSNError as exc:
+        except NetworkError as exc:
             parser.error(str(exc))
         print(subscription.model_dump_json(by_alias=True))
         return 0
@@ -252,7 +260,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "pull-subscription":
         try:
             events = store.pull_subscription(args.id, limit=args.limit)
-        except SSSNError as exc:
+        except NetworkError as exc:
             parser.error(str(exc))
         for event in events:
             print(event.model_dump_json(by_alias=True))
@@ -271,7 +279,7 @@ def main(argv: list[str] | None = None) -> int:
                 metadata=args.metadata or {},
                 event_ids=tuple(args.event_ids or ()),
             )
-        except SSSNError as exc:
+        except NetworkError as exc:
             parser.error(str(exc))
         print(artifact.model_dump_json(by_alias=True))
         return 0
@@ -279,7 +287,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "get-artifact":
         try:
             artifact = store.get_artifact(args.id)
-        except SSSNError as exc:
+        except NetworkError as exc:
             parser.error(str(exc))
         print(artifact.model_dump_json(by_alias=True))
         return 0
@@ -287,7 +295,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "read-artifact":
         try:
             data = store.read_artifact(args.id)
-        except SSSNError as exc:
+        except NetworkError as exc:
             parser.error(str(exc))
         if args.encoding == "base64":
             print(base64.b64encode(data).decode("ascii"))
@@ -315,7 +323,7 @@ def main(argv: list[str] | None = None) -> int:
                     "metadata": args.metadata or {},
                 }
             )
-        except SSSNError as exc:
+        except NetworkError as exc:
             parser.error(str(exc))
         print(snapshot.model_dump_json(by_alias=True))
         return 0
@@ -323,7 +331,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "get-snapshot":
         try:
             snapshot = store.get_snapshot(args.name)
-        except SSSNError as exc:
+        except NetworkError as exc:
             parser.error(str(exc))
         print(snapshot.model_dump_json(by_alias=True))
         return 0
@@ -343,6 +351,14 @@ def main(argv: list[str] | None = None) -> int:
 
     parser.error(f"Unknown command: {args.command}")
     return 2
+
+
+def _prog() -> str:
+    # The lllm command runs this CLI as `lllm network`; name the command the
+    # user typed in usage and error messages.
+    if sys.argv and Path(sys.argv[0]).name == "lllm":
+        return "lllm network"
+    return "sssn"
 
 
 def _serve_host(value: str) -> str:

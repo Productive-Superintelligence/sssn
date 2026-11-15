@@ -1,7 +1,9 @@
 import pytest
 
-from sssn import Channel, Snapshot
-from sssn.integrations import channel_resource, snapshot_resource
+from lllm.hub import load_manifest
+
+from sssn import Channel, LocalStore, Snapshot
+from sssn.resources import channel_resource, open_package_store, snapshot_resource
 from sssn.server import endpoint
 
 
@@ -191,3 +193,61 @@ def test_snapshot_resource_isolates_nested_metadata():
         "labels": ["latest", "source-mutated"]
     }
     assert resource["metadata"] == {"labels": ["latest", "resource-mutated"]}
+
+
+PACKAGE_MANIFEST = """
+[package]
+org = "demo"
+name = "support-desk"
+version = "0.1.0"
+kind = "channel"
+primary = "channels.inbox"
+
+[channels.inbox]
+form = "queue"
+description = "Support messages."
+metadata = { owner = "support" }
+
+[channels.triaged]
+description = "One result per message."
+
+[snapshots.latest]
+channel = "triaged"
+"""
+
+
+def test_open_package_store_creates_the_declared_channels(tmp_path):
+    package = tmp_path / "support-desk"
+    package.mkdir()
+    (package / "lllm.toml").write_text(PACKAGE_MANIFEST, encoding="utf-8")
+    manifest = load_manifest(package)
+
+    store = open_package_store(manifest)
+
+    assert isinstance(store, LocalStore)
+    assert store.root == (package / ".lllm" / "network").resolve()
+    assert [channel.name for channel in store.list_channels()] == ["inbox", "triaged"]
+    inbox = store.get_channel("inbox")
+    assert (inbox.form, inbox.description, inbox.metadata) == (
+        "queue",
+        "Support messages.",
+        {"owner": "support"},
+    )
+    assert store.get_channel("triaged").form == "log"
+
+
+def test_open_package_store_keeps_existing_channels_and_takes_a_store(tmp_path):
+    package = tmp_path / "support-desk"
+    package.mkdir()
+    (package / "lllm.toml").write_text(PACKAGE_MANIFEST, encoding="utf-8")
+    manifest = load_manifest(package)
+    root = tmp_path / "elsewhere"
+    LocalStore(root).create_channel({"name": "inbox", "description": "Already here."})
+
+    store = open_package_store(manifest, store=root)
+    again = open_package_store(manifest, store=root)
+
+    assert store.root == again.root == root.resolve()
+    assert store.get_channel("inbox").description == "Already here."
+    assert [channel.name for channel in again.list_channels()] == ["inbox", "triaged"]
+    assert not (package / ".lllm").exists()

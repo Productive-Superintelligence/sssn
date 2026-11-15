@@ -25,7 +25,7 @@ from sssn import (
 def test_store_initializes_deterministic_layout(tmp_path):
     store = LocalStore(tmp_path / "store")
 
-    assert store.db_path == (tmp_path / "store" / "sssn.sqlite").resolve()
+    assert store.db_path == (tmp_path / "store" / "network.sqlite").resolve()
     assert store.artifacts_dir == (tmp_path / "store" / "artifacts").resolve()
     assert store.db_path.exists()
     assert store.artifacts_dir.is_dir()

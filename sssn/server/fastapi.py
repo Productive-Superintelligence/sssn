@@ -11,21 +11,23 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, StrictStr, model_validator
 
+from lllm.protocol.validation import copy_boundary_value
+
 from ..core import (
     ArtifactNotFoundError,
     Channel,
     ChannelExistsError,
     ChannelNotFoundError,
     Event,
+    EventExistsError,
     EventNotFoundError,
     InvalidPayloadError,
-    SSSNError,
+    NetworkError,
     Snapshot,
     SnapshotNotFoundError,
     SubscriptionExistsError,
     SubscriptionNotFoundError,
 )
-from ..core._copy import copy_boundary_value
 from ..stores import LocalStore
 from .endpoints import (
     StoreEndpointSpec,
@@ -113,8 +115,10 @@ def create_app(
     except ImportError as exc:  # pragma: no cover
         raise RuntimeError("Install sssn[server] to use the FastAPI server.") from exc
 
+    from .. import __version__
+
     local_store = store or LocalStore()
-    app = FastAPI(title="SSSN Store", version="0.1.1")
+    app = FastAPI(title="SSSN Store", version=__version__)
     app.state.sssn_store = local_store
 
     @app.exception_handler(RequestValidationError)
@@ -296,7 +300,15 @@ def _mount_custom_endpoint(
                     body = await request.json()
                 except Exception:
                     body = None
-            result = fn(**_custom_kwargs(fn, store=store, body=body, path=request.path_params))
+            result = fn(
+                **_custom_kwargs(
+                    fn,
+                    store=store,
+                    body=body,
+                    params=dict(request.query_params),
+                    path=request.path_params,
+                )
+            )
             if inspect.isawaitable(result):
                 result = await result
             return jsonable_encoder(result)
@@ -321,6 +333,7 @@ def _custom_kwargs(
     *,
     store: LocalStore,
     body: Any,
+    params: dict[str, str],
     path: dict[str, Any],
 ) -> dict[str, Any]:
     signature = inspect.signature(fn)
@@ -332,6 +345,8 @@ def _custom_kwargs(
             kwargs[name] = body
         elif name in path:
             kwargs[name] = path[name]
+        elif name == "params":
+            kwargs[name] = params
         elif parameter.default is inspect.Parameter.empty:
             raise TypeError(f"Cannot bind custom endpoint parameter: {name}")
     return kwargs
@@ -398,9 +413,12 @@ def _http_error(exc: Exception):
         ),
     ):
         status_code = 404
-    elif isinstance(exc, (ChannelExistsError, SubscriptionExistsError)):
+    elif isinstance(
+        exc,
+        (ChannelExistsError, EventExistsError, SubscriptionExistsError),
+    ):
         status_code = 409
-    elif isinstance(exc, SSSNError):
+    elif isinstance(exc, NetworkError):
         status_code = 400
     return HTTPException(
         status_code=status_code,

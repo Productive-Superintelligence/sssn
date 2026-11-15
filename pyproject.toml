@@ -4,12 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sssn"
-version = "0.1.1"
-description = "Protocol and service layer for semantic channels."
+version = "0.2.0"
+description = "Protocol and service layer for semantic channels, built on LLLM."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"
 dependencies = [
+    "lllm-core>=0.4",
     "pydantic>=2.7",
     "tomli>=2.0; python_version<'3.11'",
 ]
@@ -30,8 +31,13 @@ all = ["fastapi>=0.115", "uvicorn>=0.30", "httpx>=0.27"]
 [project.scripts]
 sssn = "sssn.cli:main"
 
+# Installing sssn adds `lllm network` to the lllm command.
+[project.entry-points."lllm.commands"]
+network = "sssn.cli"
+
 [project.urls]
 Homepage = "https://github.com/Productive-Superintelligence/sssn"
+Documentation = "https://sssn.one/"
 Source = "https://github.com/Productive-Superintelligence/sssn"
 Issues = "https://github.com/Productive-Superintelligence/sssn/issues"
 

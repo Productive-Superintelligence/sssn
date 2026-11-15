@@ -2,7 +2,7 @@ import importlib.util
 import re
 from pathlib import Path
 
-import pytest
+from lllm.hub import PackageManifest
 
 from sssn import LocalStore
 
@@ -75,10 +75,10 @@ def test_first_channel_example_creates_and_reads_event(tmp_path):
     assert store.query_events("events", after_cursor=0) == result["events"]
 
 
-def test_psihub_manifest_example_builds_channel_manifest():
+def test_hub_manifest_example_builds_channel_manifest():
     module = load_module(
-        ROOT / "examples" / "psihub_manifest" / "package_manifest.py",
-        "psihub_manifest",
+        ROOT / "examples" / "hub_manifest" / "package_manifest.py",
+        "hub_manifest",
     )
 
     manifest = module.build_manifest()
@@ -112,6 +112,11 @@ def test_psihub_manifest_example_builds_channel_manifest():
     assert manifest["runs"]["local"]["channels"] == ["raw", "analysis"]
     assert manifest["runs"]["local"]["snapshots"] == ["latest_analysis"]
 
+    # The LLLM hub accepts the manifest as written.
+    package = PackageManifest.model_validate(manifest)
+    assert package.channels["raw"].form == "log"
+    assert package.snapshots["latest_analysis"].channel == "analysis"
+
 
 def test_artifact_snapshot_example_writes_artifact_and_latest_state(tmp_path):
     module = load_module(
@@ -132,7 +137,6 @@ def test_artifact_snapshot_example_writes_artifact_and_latest_state(tmp_path):
 
 
 def test_lllm_tactic_processor_example_composes_tactic_and_channels(tmp_path):
-    pytest.importorskip("lllm")
     module = load_module(
         ROOT / "examples" / "lllm_tactic_processor" / "workflow.py",
         "lllm_tactic_processor_workflow",

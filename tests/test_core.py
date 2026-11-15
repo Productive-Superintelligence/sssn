@@ -9,13 +9,17 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 CORE_ROOT = ROOT / "sssn" / "core"
 FORBIDDEN_CORE_IMPORT_PREFIXES = (
+    "aaax",
     "fastapi",
     "httpx",
-    "lllm",
-    "psihub",
+    "lllm.hub",
+    "lllm.runtimes",
+    "lllm.services",
     "sssn.cli",
     "sssn.client",
-    "sssn.integrations",
+    "sssn.processing",
+    "sssn.resolver",
+    "sssn.resources",
     "sssn.server",
     "sssn.stores",
 )
@@ -23,8 +27,8 @@ ALLOWED_CORE_IMPORTS = {
     "__future__",
     "collections.abc",
     "copy",
+    "lllm.protocol.validation",
     "pydantic",
-    "sssn.core._copy",
     "sssn.core.errors",
     "sssn.core.models",
     "time",
