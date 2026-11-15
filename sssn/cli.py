@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import base64
 import binascii
+import importlib
 import json
 import sys
 from pathlib import Path
@@ -154,6 +155,10 @@ def main(argv: list[str] | None = None) -> int:
             serve_port = _serve_port(args.port)
         except ValueError as exc:
             parser.error(str(exc))
+        if not _server_installed():
+            parser.exit(
+                2, "Install sssn[server] to serve stores (pip install 'sssn[server]')\n"
+            )
     try:
         store = LocalStore(args.store)
     except ValueError as exc:
@@ -378,6 +383,19 @@ def _serve_port(value: int) -> int:
     ):
         raise ValueError("serve port must be an integer between 1 and 65535")
     return value
+
+
+def _server_installed() -> bool:
+    # `serve` needs FastAPI and Uvicorn, which come with the server extra. Only
+    # a missing package counts; an installed one that fails to import raises.
+    for name in ("fastapi", "uvicorn"):
+        try:
+            importlib.import_module(name)
+        except ModuleNotFoundError as exc:
+            if exc.name != name:
+                raise
+            return False
+    return True
 
 
 if __name__ == "__main__":

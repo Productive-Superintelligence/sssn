@@ -1,7 +1,11 @@
 import base64
 import json
+import sys
+import types
 
 import pytest
+
+import lllm.cli
 
 from sssn.cli import main
 
@@ -437,3 +441,42 @@ def test_cli_serve_rejects_malformed_bindings_before_store(tmp_path, capsys, arg
     assert output.out == ""
     assert "serve " in output.err
     assert not store.exists()
+
+
+@pytest.mark.parametrize("missing", [("fastapi",), ("uvicorn",), ("fastapi", "uvicorn")])
+@pytest.mark.parametrize("command", [["sssn"], ["lllm", "network"]])
+def test_cli_serve_without_the_server_extra_says_what_to_install(
+    tmp_path, monkeypatch, capsys, command, missing
+):
+    # A None entry in sys.modules makes importing that package fail as if it
+    # were not installed.
+    for name in missing:
+        monkeypatch.setitem(sys.modules, name, None)
+    run = main if command == ["sssn"] else lllm.cli.main
+    store = tmp_path / "store"
+
+    with pytest.raises(SystemExit) as exc_info:
+        run([*command[1:], "--store", str(store), "serve"])
+
+    assert exc_info.value.code == 2
+    output = capsys.readouterr()
+    assert output.out == ""
+    assert output.err == (
+        "Install sssn[server] to serve stores (pip install 'sssn[server]')\n"
+    )
+    assert not store.exists()
+
+
+def test_cli_serve_runs_the_store_app_with_uvicorn(tmp_path, monkeypatch):
+    # The dev extra brings FastAPI but not Uvicorn, so stand in for Uvicorn.
+    calls = []
+    uvicorn = types.ModuleType("uvicorn")
+    uvicorn.run = lambda app, **kwargs: calls.append((app, kwargs))
+    monkeypatch.setitem(sys.modules, "uvicorn", uvicorn)
+    store = tmp_path / "store"
+
+    assert main(["--store", str(store), "serve", "--port", "7701"]) == 0
+
+    [(app, kwargs)] = calls
+    assert kwargs == {"host": "127.0.0.1", "port": 7701, "log_level": "info"}
+    assert app.state.sssn_store.root == store.resolve()
