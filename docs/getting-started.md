@@ -49,8 +49,9 @@ sssn query-events events
 ```
 
 `--store DIR` picks the store folder and defaults to `.lllm/network`, so these
-commands share one store. With LLLM installed, `lllm network` is the same
-command: `lllm network query-events events` reads the same events.
+commands share one store. `lllm network` is always available too (`sssn`
+depends on `lllm-core`) and is the same command:
+`lllm network query-events events` reads the same events.
 
 The local store will create:
 

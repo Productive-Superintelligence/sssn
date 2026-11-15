@@ -822,6 +822,22 @@ def test_public_text_does_not_use_staging_name():
         assert "sssnv2" not in text, path
 
 
+def test_public_text_says_lllm_network_is_always_available():
+    # sssn depends on lllm-core, so `lllm network` exists wherever sssn does.
+    text_paths = [ROOT / "README.md", ROOT / "CONTRIBUTING.md"]
+    text_paths.extend((ROOT / "docs").rglob("*.md"))
+    conditional = re.compile(
+        r"\b(?:when|if|with)\s+(?:LLLM|lllm-core)\s+(?:is\s+)?installed", re.IGNORECASE
+    )
+
+    for path in text_paths:
+        match = conditional.search(path.read_text(encoding="utf-8"))
+        assert match is None, f"{path.relative_to(ROOT)} says {match.group(0)!r}"
+    for page in ("getting-started.md", "reference/cli.md"):
+        text = (ROOT / "docs" / page).read_text(encoding="utf-8")
+        assert "`lllm network` is always available" in text, page
+
+
 def test_tutorials_keep_step_by_step_shape():
     required = [
         "Goal:",

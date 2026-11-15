@@ -1,10 +1,10 @@
 # CLI
 
-SSSN's CLI runs as `sssn` and, when LLLM is installed, as `lllm network`; the
-two are the same command. `--store DIR` (default `.lllm/network`) goes before
-the subcommand, and the folder is created if it does not exist. Every command
-prints one JSON object per line; errors print a message and exit with status
-2.
+SSSN's CLI runs as `sssn` and as `lllm network`; the two are the same command,
+and `lllm network` is always available because `sssn` depends on `lllm-core`.
+`--store DIR` (default `.lllm/network`) goes before the subcommand, and the
+folder is created if it does not exist. Every command prints one JSON object
+per line; errors print a message and exit with status 2.
 
 Create and inspect channels:
 
