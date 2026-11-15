@@ -35,6 +35,9 @@ validation helpers, and package manifests, and plugs into the `lllm` command.
   equal to `sssn.ChannelForm`.
 - The old `lllm.network` import path is a deprecated alias in LLLM 0.4 that
   imports `sssn`; import `sssn` instead.
+- The store app (`create_app`) keeps its store at `app.state.sssn_store` and,
+  for code written against `lllm.network`, also at `app.state.network_store`
+  (the same object).
 
 **Stores and the HTTP API**
 

@@ -120,6 +120,9 @@ def create_app(
     local_store = store or LocalStore()
     app = FastAPI(title="SSSN Store", version=__version__)
     app.state.sssn_store = local_store
+    # LLLM 0.3's lllm.network kept the store here; code written against it
+    # still finds it.
+    app.state.network_store = local_store
 
     @app.exception_handler(RequestValidationError)
     async def validation_error(_request: Any, exc: RequestValidationError):

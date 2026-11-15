@@ -17,7 +17,7 @@ from lllm.hub import ChannelResource, PackageManifest
 from lllm.hub.models import CHANNEL_FORM_VALUES
 
 import sssn.cli
-from sssn import ChannelForm, LocalStore
+from sssn import ChannelForm, LocalStore, create_app
 
 
 def test_hub_channel_forms_match_sssn_channel_forms():
@@ -111,3 +111,13 @@ def test_the_deprecated_lllm_network_path_reaches_sssn():
     assert result.returncode == 0, result.stderr
     assert result.stdout.startswith("DeprecationWarning")
     assert "import sssn" in result.stdout
+
+
+def test_the_store_app_keeps_the_store_where_lllm_network_kept_it(tmp_path):
+    # Code written against LLLM 0.3's lllm.network reads the store from
+    # app.state.network_store; sssn's own name for it is app.state.sssn_store.
+    store = LocalStore(tmp_path / "store")
+    app = create_app(store)
+
+    assert app.state.sssn_store is store
+    assert app.state.network_store is store
