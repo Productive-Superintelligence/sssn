@@ -25,39 +25,59 @@ theme:
     - navigation.tracking
     - toc.follow
     - content.code.copy
+    - content.code.annotate
     - content.tabs.link
     - search.suggest
     - search.highlight
 
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [.]
+          options:
+            docstring_style: google
+            show_source: false
+            show_root_heading: true
+            show_root_full_path: false
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            members_order: source
+            merge_init_into_class: true
+            separate_signature: true
+            show_signature_annotations: true
+            signature_crossrefs: true
+            show_if_no_docstring: false
+            filters: ["!^_"]
+            heading_level: 3
+
+hooks:
+  - scripts/docs_hooks.py
+
+validation:
+  links:
+    anchors: warn  # a link to a missing #heading fails the strict build
+
 nav:
-  - Tutorials:
-      - Getting Started: getting-started.md
-      - Channel Level:
-          - First Channel: tutorials/first-channel.md
-          - Event Envelope: tutorials/event-envelope.md
-      - Backend:
-          - Local Store: tutorials/local-store.md
-          - HTTP Client: tutorials/http-client.md
-      - Composition:
-          - LLLM Tactic Processor: tutorials/lllm-tactic.md
-  - Channel:
-      - Channel: protocol/index.md
-      - Concepts:
-          - Channels: concepts/channels.md
-          - Events, Artifacts, Snapshots: concepts/events-artifacts-snapshots.md
-          - Data Plane: concepts/data-plane.md
-  - Backend:
-      - Backend: backends/index.md
-      - Store Backends:
-          - Local Store: guides/local-store.md
-      - Remote Access:
-          - HTTP Client: guides/http-client.md
-          - Refs and Packages: guides/packages.md
-  - Use with LLLM: guides/lllm.md
-  - Reference:
-      - Python API: reference/python-api.md
-      - HTTP API: reference/http-api.md
-      - CLI: reference/cli.md
+  - Get started:
+      - Introduction: index.md
+      - Installation: install.md
+      - How SSSN works: concepts.md
+  - Guide:
+      - Channels and events: channels.md
+      - Artifacts and snapshots: artifacts.md
+      - Subscriptions: subscriptions.md
+      - Stores: stores.md
+      - Over HTTP: http.md
+      - Processing with tactics: processing.md
+      - Packages and refs: packages.md
+  - Examples:
+      - examples/index.md
+  - API reference:
+      - api/index.md
+      - CLI: api/cli.md
+      - HTTP API: api/http-api.md
 
 extra:
   generator: false

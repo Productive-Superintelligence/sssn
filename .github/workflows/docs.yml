@@ -22,9 +22,9 @@ jobs:
         with:
           python-version: "3.12"
       - run: python -m pip install -U pip
-      # The docs build reads Markdown only, so it needs the docs tools, not the
-      # package (keep this list in sync with the docs extra in pyproject.toml).
-      - run: python -m pip install "mkdocs-material>=9.5"
+      # The API reference reads the package's docstrings, so the docs build
+      # installs the package with its docs extra.
+      - run: python -m pip install -e ".[docs]"
       - run: mkdocs build --strict --site-dir site
       # Firebase Hosting serves sssn.one: the "docs" target in firebase.json
       # is site sssn-one in project prosi-501105 (.firebaserc). Until the
