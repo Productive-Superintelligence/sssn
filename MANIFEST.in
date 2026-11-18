@@ -8,6 +8,8 @@ include mkdocs.yml
 include .firebaserc
 include firebase.json
 include scripts/deploy_firebase_hosting.py
+# mkdocs.yml runs this hook when the docs are built.
+include scripts/docs_hooks.py
 recursive-include assets *
 recursive-include docs *
 recursive-include examples *

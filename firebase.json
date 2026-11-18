@@ -2,7 +2,27 @@
   "hosting": [
     {
       "target": "docs",
-      "public": "site"
+      "public": "site",
+      "redirects": [
+        { "source": "/getting-started{,/**}", "destination": "/install/", "type": 301 },
+        { "source": "/tutorials/first-channel{,/**}", "destination": "/channels/", "type": 301 },
+        { "source": "/tutorials/event-envelope{,/**}", "destination": "/channels/", "type": 301 },
+        { "source": "/tutorials/local-store{,/**}", "destination": "/stores/", "type": 301 },
+        { "source": "/tutorials/http-client{,/**}", "destination": "/http/", "type": 301 },
+        { "source": "/tutorials/lllm-tactic{,/**}", "destination": "/processing/", "type": 301 },
+        { "source": "/protocol{,/}", "destination": "/concepts/", "type": 301 },
+        { "source": "/concepts/channels{,/**}", "destination": "/channels/", "type": 301 },
+        { "source": "/concepts/events-artifacts-snapshots{,/**}", "destination": "/artifacts/", "type": 301 },
+        { "source": "/concepts/data-plane{,/**}", "destination": "/concepts/", "type": 301 },
+        { "source": "/backends{,/}", "destination": "/stores/", "type": 301 },
+        { "source": "/guides/local-store{,/**}", "destination": "/stores/", "type": 301 },
+        { "source": "/guides/http-client{,/**}", "destination": "/http/", "type": 301 },
+        { "source": "/guides/packages{,/**}", "destination": "/packages/", "type": 301 },
+        { "source": "/guides/lllm{,/**}", "destination": "/processing/", "type": 301 },
+        { "source": "/reference/python-api{,/**}", "destination": "/api/", "type": 301 },
+        { "source": "/reference/http-api{,/**}", "destination": "/api/http-api/", "type": 301 },
+        { "source": "/reference/cli{,/**}", "destination": "/api/cli/", "type": 301 }
+      ]
     }
   ]
 }

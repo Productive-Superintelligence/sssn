@@ -25,8 +25,27 @@ def test_firebase_json_deploys_the_built_docs_to_sssn_one():
     # builds the site into site/, which the "docs" target publishes as is.
     assert rc["projects"] == {"default": "prosi-501105"}
     assert rc["targets"]["prosi-501105"]["hosting"] == {"docs": ["sssn-one"]}
-    assert hosting == [{"target": "docs", "public": "site"}]
-    assert script.serving_config(hosting[0]) == {}
+    assert [(entry["target"], entry["public"]) for entry in hosting] == [("docs", "site")]
+    config = script.serving_config(hosting[0])
+    assert set(config) == {"redirects"}  # pages of the old docs move to new ones
+    assert all(rule["statusCode"] == 301 for rule in config["redirects"])
+    assert all(rule["location"].startswith("/") for rule in config["redirects"])
+
+
+def _docs_page(url: str) -> Path:
+    """The docs source of a site page such as ``/channels/``."""
+
+    path = ROOT / "docs" / url.strip("/")
+    return path / "index.md" if path.is_dir() else path.with_name(f"{path.name}.md")
+
+
+def test_redirects_lead_from_a_page_that_is_gone_to_one_that_exists():
+    (hosting,) = json.loads((ROOT / "firebase.json").read_text())["hosting"]
+
+    for rule in hosting["redirects"]:
+        source = rule["source"].split("{", 1)[0]  # "/old{,/**}" is /old and below
+        assert not _docs_page(source).exists(), rule
+        assert _docs_page(rule["destination"]).is_file(), rule
 
 
 def test_serving_config_translates_rewrites_redirects_and_url_options():

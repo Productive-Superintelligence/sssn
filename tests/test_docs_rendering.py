@@ -10,7 +10,8 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 PAPER = "rgb(253, 253, 252)"
-NAV_SECTIONS = ["Tutorials", "Channel", "Backend", "Use with LLLM", "Reference"]
+NAV_SECTIONS = ["Get started", "Guide", "Examples", "API reference"]
+GUIDE_PAGES = ["channels", "artifacts", "subscriptions", "stores", "http", "processing", "packages"]
 DOCS_SWITCH = [
     ("https://lllm.one/", "LLLM"),
     ("https://sssn.one/", "SSSN"),
@@ -59,8 +60,8 @@ def test_docs_use_channel_protocol_framing():
     sources = {
         "README": ROOT / "README.md",
         "docs home": ROOT / "docs" / "index.md",
-        "channels guide": ROOT / "docs" / "concepts" / "channels.md",
-        "data-plane guide": ROOT / "docs" / "concepts" / "data-plane.md",
+        "channels guide": ROOT / "docs" / "channels.md",
+        "concepts": ROOT / "docs" / "concepts.md",
         "contributing": ROOT / "CONTRIBUTING.md",
         "package docstring": ROOT / "sssn" / "__init__.py",
         "package metadata": ROOT / "pyproject.toml",
@@ -194,6 +195,7 @@ def test_docs_render_mermaid_svgs_in_chromium(tmp_path):
                     svgHeight: svgRect.height,
                     svgText: svg.textContent.trim(),
                     svgWidth: svgRect.width,
+                    naturalWidth: svg.viewBox?.baseVal?.width || 0,
                   };
                 })
                 """
@@ -204,6 +206,10 @@ def test_docs_render_mermaid_svgs_in_chromium(tmp_path):
                 assert metric["diagramHeight"] > 80
                 assert metric["svgWidth"] > 120
                 assert metric["svgHeight"] > 80
+                # A diagram wider than the column is scaled down; below about
+                # three quarters of its natural size, its labels get too small.
+                assert metric["naturalWidth"] > 0
+                assert metric["svgWidth"] >= 0.75 * metric["naturalWidth"], metric["source"][:60]
                 assert metric["svgText"]
                 assert metric["shapeInk"] > 0
                 assert "rgb(5, 5, 5)" in {
@@ -308,7 +314,7 @@ def test_docs_chrome_matches_light_visual_contract(tmp_path):
             """
         )
         page.goto(
-            (site_dir / "tutorials" / "first-channel" / "index.html").as_uri(),
+            (site_dir / "channels" / "index.html").as_uri(),
             wait_until="domcontentloaded",
         )
         tutorial_sidebar = page.locator(
@@ -331,15 +337,16 @@ def test_docs_chrome_matches_light_visual_contract(tmp_path):
     assert metrics["drawerSections"]["display"] == "none"
     assert metrics["headerNav"]["display"] == "flex"
     assert metrics["headerNavLinks"] == NAV_SECTIONS
-    # index.md is outside the nav, so the home page sidebar shows every section.
-    for title in NAV_SECTIONS + ["Getting Started", "Concepts", "Python API"]:
+    # The home page is the Introduction, the first page of "Get started"; a
+    # page lists only its own section in the sidebar.
+    for title in ["Introduction", "Installation", "How SSSN works"]:
         assert title in metrics["sidebarText"]
     assert "Overview" not in metrics["sidebarText"]
     assert "Home" not in metrics["sidebarText"]
-    assert "Getting Started" in tutorial_sidebar
-    assert "Channel Level" in tutorial_sidebar
-    assert "Backend" in tutorial_sidebar
-    assert "Channels" not in tutorial_sidebar
+    assert "Channels and events" in tutorial_sidebar
+    assert "Subscriptions" in tutorial_sidebar
+    assert "Over HTTP" in tutorial_sidebar
+    assert "Installation" not in tutorial_sidebar
     assert "HTTP API" not in tutorial_sidebar
     assert metrics["source"]["component"] == "source"
     assert metrics["sourceRepository"].startswith("Productive-Superintelligence/sssn")
@@ -504,8 +511,9 @@ def test_docs_mobile_chrome_keeps_visual_contract(tmp_path):
     assert metrics["footerMark"]["height"] == pytest.approx(27, abs=2)
     assert "Newsreader" in metrics["bodyFont"]
     assert "Space Mono" in metrics["codeFont"]
+    # A diagram never widens the page; a wide one scrolls inside its box.
     assert metrics["mermaid"]["width"] <= metrics["viewportWidth"]
-    assert metrics["mermaidSvgs"][0]["width"] > metrics["viewportWidth"]
+    assert metrics["mermaidSvgs"][0]["width"] > 0
     assert drawer_metrics["title"]["backgroundColor"] == "rgb(255, 255, 255)"
     assert drawer_metrics["title"]["color"] == "rgb(5, 5, 5)"
     assert drawer_metrics["logo"]["src"] == "assets/logo.svg"
@@ -516,7 +524,7 @@ def test_docs_mobile_chrome_keeps_visual_contract(tmp_path):
         assert title in drawer_metrics["sectionsText"]
     assert "Overview" not in drawer_metrics["sectionsText"]
     assert "Psi" not in drawer_metrics["sectionsText"]
-    assert "Getting Started" not in drawer_metrics["sectionsText"]
+    assert "Installation" not in drawer_metrics["sectionsText"]
 
     visible_brands = [
         image for image in metrics["brandImages"] if image["display"] == "block"
@@ -658,7 +666,7 @@ def test_docs_keep_light_brand_styles(tmp_path):
     assert (site_dir / "CNAME").read_text(encoding="utf-8").strip() == "sssn.one"
 
 
-def test_docs_nav_keeps_foldable_tutorial_groups():
+def test_docs_nav_uses_sections_without_tabs_or_dark_mode():
     config = (ROOT / "mkdocs.yml").read_text(encoding="utf-8")
 
     assert "- navigation.sections" in config
@@ -668,24 +676,10 @@ def test_docs_nav_keeps_foldable_tutorial_groups():
     assert "- navigation.tabs.sticky" not in config
     assert "scheme: slate" not in config
     assert "material/weather-night" not in config
-    assert "  - Tutorials:\n      - Getting Started: getting-started.md\n      - Channel Level:" in config
-    assert "  - Channel:\n      - Channel: protocol/index.md" in config
-    assert "      - Concepts:" in config
-    assert "  - Backend:\n      - Backend: backends/index.md" in config
-    assert "      - Store Backends:" in config
-    assert "      - Remote Access:" in config
-    assert "          - Refs and Packages: guides/packages.md" in config
-    assert "      - Backend:" in config
-    assert "      - Composition:" in config
-    assert "  - Use with LLLM: guides/lllm.md" in config
-    assert "          - First Channel: tutorials/first-channel.md" in config
-    assert "          - Local Store: tutorials/local-store.md" in config
-    assert "          - HTTP Client: tutorials/http-client.md" in config
-    assert "          - LLLM Tactic Processor: tutorials/lllm-tactic.md" in config
 
 
 def test_http_api_reference_distinguishes_artifact_payload_and_metadata():
-    reference = (ROOT / "docs" / "reference" / "http-api.md").read_text(
+    reference = (ROOT / "docs" / "api" / "http-api.md").read_text(
         encoding="utf-8"
     )
 
@@ -696,12 +690,12 @@ def test_http_api_reference_distinguishes_artifact_payload_and_metadata():
     )
 
 
-def test_python_api_reference_documents_resource_name_segments():
-    reference = (ROOT / "docs" / "reference" / "python-api.md").read_text(
-        encoding="utf-8"
+def test_docs_document_resource_names_and_the_channel_resolver():
+    reference = "\n".join(
+        (ROOT / "docs" / page).read_text(encoding="utf-8")
+        for page in ("channels.md", "packages.md")
     )
 
-    assert "Resource names:" in reference
     assert "must be non-empty path segments" in reference
     assert "avoid percent escapes, `.`, `..`, `/`" in reference
     assert "`\\`, and `:`" in reference
@@ -713,7 +707,7 @@ def test_python_api_reference_documents_resource_name_segments():
 
 
 def test_http_api_reference_lists_portable_endpoints():
-    reference = (ROOT / "docs" / "reference" / "http-api.md").read_text(
+    reference = (ROOT / "docs" / "api" / "http-api.md").read_text(
         encoding="utf-8"
     )
     expected = {
@@ -743,7 +737,7 @@ def test_http_api_reference_lists_portable_endpoints():
 
 
 def test_cli_reference_lists_portable_resource_commands():
-    reference = (ROOT / "docs" / "reference" / "cli.md").read_text(
+    reference = (ROOT / "docs" / "api" / "cli.md").read_text(
         encoding="utf-8"
     )
     expected = [
@@ -768,15 +762,14 @@ def test_cli_reference_lists_portable_resource_commands():
 
 
 def test_packages_guide_documents_endpoint_metadata_and_refs():
-    guide = (ROOT / "docs" / "guides" / "packages.md").read_text(encoding="utf-8")
+    guide = "\n".join(
+        (ROOT / "docs" / page).read_text(encoding="utf-8")
+        for page in ("packages.md", "http.md")
+    )
 
     assert "custom_endpoints=[channel_tail]" in guide
     assert '"path": "/channels/{name}/tail"' in guide
     assert "create_app(..., custom_endpoints=...)" in guide
-    assert (
-        "python -m pytest tests/test_resources.py tests/test_resolver.py "
-        "tests/test_examples.py -q" in guide
-    )
     assert "ChannelResolver.from_config" in guide
     assert "ChannelResolver.from_text" in guide
     assert "lllm://demo/events/channels/raw" in guide
@@ -786,8 +779,10 @@ def test_packages_guide_documents_endpoint_metadata_and_refs():
     assert "malformed SSSN and non-SSSN refs fail validation" in guide
 
 
-def test_lllm_guide_covers_every_integration_point():
-    guide = (ROOT / "docs" / "guides" / "lllm.md").read_text(encoding="utf-8")
+def test_docs_cover_every_lllm_integration_point():
+    guide = "\n".join(
+        path.read_text(encoding="utf-8") for path in sorted((ROOT / "docs").glob("*.md"))
+    )
 
     for text in (
         "TacticProcessor",
@@ -833,25 +828,9 @@ def test_public_text_says_lllm_network_is_always_available():
     for path in text_paths:
         match = conditional.search(path.read_text(encoding="utf-8"))
         assert match is None, f"{path.relative_to(ROOT)} says {match.group(0)!r}"
-    for page in ("getting-started.md", "reference/cli.md"):
+    for page in ("install.md", "api/cli.md"):
         text = (ROOT / "docs" / page).read_text(encoding="utf-8")
         assert "`lllm network` is always available" in text, page
-
-
-def test_tutorials_keep_step_by_step_shape():
-    required = [
-        "Goal:",
-        "## Prerequisites",
-        "## Files Used",
-        "## Verify",
-        "Expected output:",
-        "Next,",
-    ]
-
-    for path in sorted((ROOT / "docs" / "tutorials").glob("*.md")):
-        text = path.read_text(encoding="utf-8")
-        for marker in required:
-            assert marker in text, f"{path.relative_to(ROOT)} missing {marker}"
 
 
 def test_readme_and_docs_local_links_resolve():
@@ -917,21 +896,20 @@ def test_docs_nav_sections_and_no_orphan_pages():
     config = (ROOT / "mkdocs.yml").read_text(encoding="utf-8")
     nav = config.split("\nnav:\n", 1)[1].split("\n\n", 1)[0]
 
-    # The header renders the top-level sections as tabs; the logo is the way
-    # home, so there is no Home section and index.md stays out of the nav.
+    # The header renders the top-level sections as tabs. The logo leads home,
+    # to the Introduction at the start of "Get started"; there is no Home tab.
     assert re.findall(r"^  - ([^:\n]+):", nav, re.M) == NAV_SECTIONS
     assert "homepage: https://sssn.one/" in config
     pages = nav_pages(config)
     docs = ROOT / "docs"
     assert [page for page in pages if not (docs / page).is_file()] == []
-    assert "index.md" not in pages
-    assert pages[0] == "getting-started.md"
+    assert pages[:3] == ["index.md", "install.md", "concepts.md"]
     all_pages = {
         path.relative_to(docs).as_posix()
         for path in docs.rglob("*.md")
         if "overrides" not in path.parts
     }
-    assert sorted(all_pages - set(pages)) == ["index.md"]
+    assert sorted(all_pages - set(pages)) == []
 
 
 def test_docs_header_has_section_tabs_and_switches_between_the_three_sites(tmp_path):
@@ -944,9 +922,8 @@ def test_docs_header_has_section_tabs_and_switches_between_the_three_sites(tmp_p
     ]
     for page in (
         "index.html",
-        "getting-started/index.html",
-        "guides/lllm/index.html",
-        "reference/cli/index.html",
+        "channels/index.html",
+        "api/cli/index.html",
     ):
         html = (site_dir / page).read_text(encoding="utf-8")
         header = html.split('class="psi-header-nav"', 1)[1].split("</div>", 1)[0]
@@ -977,18 +954,70 @@ def test_public_text_uses_lllm_names():
     text_paths.extend([ROOT / "mkdocs.yml", ROOT / "pyproject.toml"])
     # PsiHub, psi.toml, psi:// refs, and PsiCLI are gone: packages are LLLM
     # packages (lllm.toml, lllm:// refs) and the CLI family is lllm.
-    gone = re.compile(
-        r"psihub|psi\.toml|psi://|\.psi/|psicli|psisdk|prosi\.io/docs"
-        r"|SSSNClient|SSSNError|SSSNRef|SSSNResolver|\.sssn/|sssn\.sqlite",
+    gone = re.compile(r"psihub|psi\.toml|psicli|psisdk|prosi\.io/docs", re.IGNORECASE)
+    # SSSN 0.1's names and the deprecated lllm.network path are named only
+    # where the docs explain the upgrade, in install.md.
+    renamed = re.compile(
+        r"SSSNClient|SSSNError|SSSNRef|SSSNResolver|\.sssn/|sssn\.sqlite|psi://|\.psi/",
         re.IGNORECASE,
     )
-    # The deprecated lllm.network path is named only where the docs explain it.
     old_module = re.compile(r"(?<![\w./])lllm\.network\b")
 
     for path in text_paths:
         text = path.read_text(encoding="utf-8")
         match = gone.search(text)
         assert match is None, f"{path.relative_to(ROOT)} mentions {match.group(0)}"
-        if path != ROOT / "docs" / "guides" / "lllm.md":
-            match = old_module.search(text)
-            assert match is None, f"{path.relative_to(ROOT)} mentions {match.group(0)}"
+        if path != ROOT / "docs" / "install.md":
+            for pattern in (renamed, old_module):
+                match = pattern.search(text)
+                assert match is None, f"{path.relative_to(ROOT)} mentions {match.group(0)}"
+
+
+CODE_COLUMN = 76  # characters of the code font that fit the content column
+
+
+def test_docs_code_fits_the_code_column():
+    # Longer lines are cut off behind a horizontal scrollbar. Printed output
+    # (after `#>`, or in a `"""` block of its own) is exempt: it is what the
+    # program prints.
+    long_lines = []
+    for path in sorted((ROOT / "docs").rglob("*.md")):
+        text = path.read_text(encoding="utf-8")
+        for match in re.finditer(r"^([ \t]*)```([^\n]*)\n(.*?)^\1```", text, re.M | re.S):
+            if match.group(2).strip().startswith("mermaid"):
+                continue
+            quote = None
+            for line in match.group(3).splitlines():
+                stripped = line.strip()
+                if quote == "output":
+                    quote = None if stripped == '"""' else quote
+                    continue
+                if quote is None and stripped == '"""':
+                    quote = "output"
+                    continue
+                if quote == "doc" and stripped.endswith('"""'):
+                    quote = None
+                elif quote is None and stripped.startswith('"""') and not (
+                    len(stripped) >= 6 and stripped.endswith('"""')
+                ):
+                    quote = "doc"
+                if stripped.startswith("#>"):
+                    continue
+                if len(line) - len(match.group(1)) > CODE_COLUMN:
+                    long_lines.append(f"{path.relative_to(ROOT)}: {stripped[:70]}")
+    assert long_lines == []
+
+
+def test_guide_pages_show_a_runnable_example_with_its_output():
+    # The docs teach by example: every guide page has a Python example that
+    # tests/test_docs_examples.py runs, with the printed output it checks.
+    for page in ["index", "concepts", *GUIDE_PAGES]:
+        text = (ROOT / "docs" / f"{page}.md").read_text(encoding="utf-8")
+        checked = [
+            body
+            for info, body in re.findall(r"^```([^\n]*)\n(.*?)^```", text, re.M | re.S)
+            if info.startswith("python")
+            and 'test="skip"' not in info
+            and ("#>" in body or '\n"""' in body)
+        ]
+        assert checked, f"docs/{page}.md has no runnable example with checked output"
