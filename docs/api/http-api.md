@@ -1,7 +1,8 @@
 # HTTP API
 
 `create_app(store)` (and `sssn serve`) exposes a store over these portable
-endpoints:
+endpoints. [Over HTTP](../http.md) shows how to serve a store and call it
+from Python.
 
 | Endpoint | Use |
 | --- | --- |
@@ -41,7 +42,14 @@ at `/docs`. The server has no authentication.
 Errors come back in one envelope, with the error class name as `type`:
 
 ```json
-{"detail": {"error": {"type": "ChannelNotFoundError", "message": "Channel not found: missing"}}}
+{
+  "detail": {
+    "error": {
+      "type": "ChannelNotFoundError",
+      "message": "Channel not found: missing"
+    }
+  }
+}
 ```
 
 | Status | When |
@@ -51,6 +59,18 @@ Errors come back in one envelope, with the error class name as `type`:
 | 409 | `ChannelExistsError`, `EventExistsError` (an event id that is taken), `SubscriptionExistsError`. |
 | 500 | Anything else, with the exception's class name and message. |
 
-## Custom Endpoints
+## Custom endpoints
 
-Custom endpoints mounted with `create_app(..., custom_endpoints=...)` must use unique endpoint names and unique method/path pairs. They cannot shadow reserved SSSN service routes such as `/health`, `/channels/{name}`, `/events/{id}`, `/subscriptions/{id}/pull`, `/artifacts/{id}`, or `/snapshots/{name}`. Endpoint paths, names, and tags must avoid whitespace and percent escapes; paths must also avoid `//` network-path prefixes. See [Refs and Packages](../guides/packages.md#custom-endpoints) for how handler parameters are bound.
+Custom endpoints mounted with `create_app(..., custom_endpoints=...)` must use unique endpoint names and unique method/path pairs. They cannot shadow reserved SSSN service routes such as `/health`, `/channels/{name}`, `/events/{id}`, `/subscriptions/{id}/pull`, `/artifacts/{id}`, or `/snapshots/{name}`. Endpoint paths, names, and tags must avoid whitespace and percent escapes; paths must also avoid `//` network-path prefixes. Handler parameters are bound by name:
+
+| Parameter | Receives |
+| --- | --- |
+| `store` | The served store |
+| `body` | The parsed JSON body; `None` for `GET` and `DELETE`, or a body that is not JSON |
+| A path parameter's name | That path parameter |
+| `params` | The query parameters as a dict of strings; for a repeated key, the last value wins |
+| Anything else | Its default; a parameter without one fails every request with a 500 `TypeError` |
+
+The handler's return value is the response body, JSON-encoded. A
+`NetworkError` it raises maps to a status as on the portable routes. See
+[Custom endpoints](../http.md#custom-endpoints) for an example.

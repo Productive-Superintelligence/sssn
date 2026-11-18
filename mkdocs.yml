@@ -74,6 +74,8 @@ nav:
       - Packages and refs: packages.md
   - Examples:
       - examples/index.md
+      - An order pipeline: examples/order-pipeline.md
+      - Processes sharing a store: examples/shared-store.md
   - API reference:
       - api/index.md
       - CLI: api/cli.md

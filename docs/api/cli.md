@@ -9,7 +9,7 @@ per line; errors print a message and exit with status 2.
 Create and inspect channels:
 
 ```bash
-sssn --store .lllm/network create-channel events --schema demo.Event --metadata '{"owner":"demo"}'
+sssn create-channel events --schema demo.Event --metadata '{"owner":"demo"}'
 sssn --store .lllm/network channels
 sssn --store .lllm/network get-channel events
 ```
@@ -20,7 +20,9 @@ Append and query events:
 
 ```bash
 sssn append events '{"text":"hello"}' --kind message --source demo
-sssn append events '{"text":"child"}' --schema demo.Event --metadata '{"role":"child"}' --correlation-id corr-1 --parent-id <event-id>
+sssn append events '{"text":"child"}' --schema demo.Event \
+  --metadata '{"role":"child"}' \
+  --correlation-id corr-1 --parent-id <event-id>
 sssn query-events events --limit 10
 sssn get-event <event-id>
 ```
@@ -43,7 +45,8 @@ sssn put-snapshot latest '{"status":"ok"}' --source-event-id <event-id>
 sssn get-snapshot latest
 ```
 
-Serve (needs the `server` extra):
+Serve the store over HTTP (needs the `server` extra; see
+[Over HTTP](../http.md)):
 
 ```bash
 sssn serve --host 127.0.0.1 --port 7700
@@ -74,5 +77,7 @@ lllm network --store ../other/.lllm/network channels
 | `get-snapshot NAME` | |
 | `serve` | `--host` (default `127.0.0.1`), `--port` (default `7700`), `--log-level` |
 
-The other `lllm` commands, such as `lllm serve` for packages with channels,
-are documented at [lllm.one](https://lllm.one/reference/cli/).
+The other `lllm` commands are documented in
+[LLLM's CLI reference](https://lllm.one/api/cli/).
+`lllm serve PACKAGE --resource channels.NAME` serves the channels a
+package declares ([Packages and refs](../packages.md#serve-a-packages-channels)).
