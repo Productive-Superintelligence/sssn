@@ -235,12 +235,14 @@ def test_many_workers_pulling_one_subscription_get_each_event_once(tmp_path):
         except Exception as exc:  # pragma: no cover - reported below
             errors.append(exc)
 
-    threads = [threading.Thread(target=work) for _ in range(4)]
+    threads = [threading.Thread(target=work, daemon=True) for _ in range(4)]
     for thread in threads:
         thread.start()
+    deadline = time.monotonic() + 60
     for thread in threads:
-        thread.join()
+        thread.join(timeout=max(0.0, deadline - time.monotonic()))
 
+    assert not [thread for thread in threads if thread.is_alive()]
     assert errors == []
     assert sorted(seen) == list(range(40))
 
@@ -1904,12 +1906,15 @@ def test_workers_sharing_a_subscription_get_each_event_once_despite_failures(
         except Exception as exc:  # pragma: no cover - reported below
             errors.append(exc)
 
-    threads = [threading.Thread(target=work) for _ in range(8)]
+    # Daemon threads, joined against the deadline: a pull that spins fails
+    # the test instead of hanging the suite.
+    threads = [threading.Thread(target=work, daemon=True) for _ in range(8)]
     for thread in threads:
         thread.start()
     for thread in threads:
-        thread.join()
+        thread.join(timeout=max(0.0, deadline - time.monotonic()) + 5)
 
+    assert not [thread for thread in threads if thread.is_alive()]
     assert errors == []
     assert sorted(seen) == list(range(120))
 
