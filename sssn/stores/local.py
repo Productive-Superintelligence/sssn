@@ -242,27 +242,28 @@ class LocalStore:
         if limit is not None:
             limit = _positive_int("limit", limit)
         _require_segment("subscription.id", subscription_id)
-        # One write transaction reads the events and moves the cursor past
+        # One write transaction reads the rows and moves the cursor past
         # them, so two pulls of one subscription never get the same events.
+        # The events are built after it commits, to hold the lock briefly.
         with self._connect(write=True) as db:
             sub = _find_subscription(db, subscription_id)
             if sub is None:
                 raise SubscriptionNotFoundError(
                     f"Subscription not found: {subscription_id}"
                 )
-            events = _query_events(
+            rows = _query_rows(
                 db,
                 sub.channel,
                 after_cursor=sub.cursor,
                 limit=limit if limit is not None else sub.batch_size,
                 kind=_subscription_kind(sub.filters),
             )
-            if events:
+            if rows:
                 db.execute(
                     "update subscriptions set cursor = ? where id = ?",
-                    (events[-1].cursor, subscription_id),
+                    (rows[-1]["rowid"], subscription_id),
                 )
-        return events
+        return tuple(_event(row) for row in rows)
 
     def get_subscription(self, subscription_id: str) -> Subscription:
         _require_segment("subscription.id", subscription_id)
@@ -632,6 +633,18 @@ def _query_events(
     limit: int,
     kind: str | None,
 ) -> tuple[Event, ...]:
+    rows = _query_rows(db, channel, after_cursor=after_cursor, limit=limit, kind=kind)
+    return tuple(_event(row) for row in rows)
+
+
+def _query_rows(
+    db: sqlite3.Connection,
+    channel: str,
+    *,
+    after_cursor: int,
+    limit: int,
+    kind: str | None,
+) -> list[sqlite3.Row]:
     sql = """
         select rowid, id, channel, timestamp, source, kind, payload, schema_ref,
                metadata, correlation_id, parent_ids
@@ -644,7 +657,7 @@ def _query_events(
         args.append(kind)
     sql += " order by rowid limit ?"
     args.append(limit)
-    return tuple(_event(row) for row in db.execute(sql, tuple(args)).fetchall())
+    return db.execute(sql, tuple(args)).fetchall()
 
 
 def _find_subscription(

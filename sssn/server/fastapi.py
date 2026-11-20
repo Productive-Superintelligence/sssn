@@ -41,6 +41,8 @@ from .endpoints import (
 
 
 _CUSTOM_ROUTE_METHODS = {"GET", "POST", "PUT", "PATCH", "DELETE"}
+# The most events one request may ask for: a limit, or a batch_size.
+_MAX_LIMIT = 10_000
 # The name in a route parameter, as in {name} or {name:int}.
 _PATH_PARAMETER_RE = re.compile(r"\{([^{}:]+)")
 _NOT_FOUND_ERRORS = (
@@ -77,7 +79,7 @@ class SubscriptionRequest(BaseModel):
     id: StrictStr | None = None
     channel: StrictStr
     consumer: StrictStr | None = None
-    batch_size: int = 100
+    batch_size: int = Field(default=100, le=_MAX_LIMIT)
     # Left out, an existing subscription keeps its filter; a new one has none.
     filters: dict[str, Any] | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
@@ -129,7 +131,7 @@ def create_app(
     """Create a FastAPI app exposing a store's portable API."""
 
     try:
-        from fastapi import FastAPI
+        from fastapi import FastAPI, Query
         from fastapi.encoders import jsonable_encoder
         from fastapi.exceptions import RequestValidationError
         from fastapi.responses import JSONResponse, Response
@@ -198,7 +200,7 @@ def create_app(
     async def query_events(
         channel: str,
         after_cursor: int = 0,
-        limit: int = 100,
+        limit: int = Query(100, le=_MAX_LIMIT),
         kind: str | None = None,
     ) -> list[dict[str, Any]]:
         try:
@@ -249,7 +251,7 @@ def create_app(
     @app.post("/subscriptions/{subscription_id}/pull")
     async def pull_subscription(
         subscription_id: str,
-        limit: int | None = None,
+        limit: int | None = Query(None, le=_MAX_LIMIT),
     ) -> list[dict[str, Any]]:
         try:
             events = await _call(

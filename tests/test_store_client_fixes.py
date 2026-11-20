@@ -1286,3 +1286,61 @@ def test_mount_path_parameters_need_a_default(tmp_path):
 
     with pytest.raises(ValueError, match=r"'tenant'.*default.*mount"):
         create_app(LocalStore(tmp_path / "store"), custom_endpoints=[owner])
+
+
+# Review 9: a pull holds the write lock only to read rows and move the cursor
+
+
+def test_pull_builds_its_events_after_releasing_the_write_lock(
+    tmp_path, monkeypatch
+):
+    store = LocalStore(tmp_path / "store")
+    store.create_channel({"name": "jobs"})
+    store.append_event({"channel": "jobs", "payload": 1})
+    store.create_subscription("jobs", subscription_id="w")
+    built_under_lock = []
+    build_event = local_module._event
+
+    def probing_build(row):
+        # Another writer can take the lock at once unless the pull holds it.
+        probe = sqlite3.connect(store.db_path, timeout=0, isolation_level=None)
+        try:
+            probe.execute("begin immediate")
+            probe.execute("rollback")
+        except sqlite3.OperationalError:
+            built_under_lock.append(row["id"])
+        finally:
+            probe.close()
+        return build_event(row)
+
+    monkeypatch.setattr(local_module, "_event", probing_build)
+
+    assert [event.payload for event in store.pull_subscription("w")] == [1]
+    assert built_under_lock == []
+    assert store.get_subscription("w").cursor == 1
+
+
+def test_store_server_caps_limits_at_ten_thousand(tmp_path):
+    store = LocalStore(tmp_path / "store")
+    store.create_channel({"name": "jobs"})
+    store.create_subscription("jobs", subscription_id="w")
+    app = create_app(store)
+    events = {"channel": "jobs"}
+
+    allowed = [
+        request(app, "GET", "/events", params={**events, "limit": 10_000}),
+        request(app, "POST", "/subscriptions/w/pull", params={"limit": 10_000}),
+        request(app, "POST", "/subscriptions", json={**events, "batch_size": 10_000}),
+    ]
+    too_large = [
+        request(app, "GET", "/events", params={**events, "limit": 10_001}),
+        request(app, "POST", "/subscriptions/w/pull", params={"limit": 10_001}),
+        request(app, "POST", "/subscriptions", json={**events, "batch_size": 10_001}),
+    ]
+
+    assert [response.status_code for response in allowed] == [200, 200, 200]
+    for response in too_large:
+        assert response.status_code == 400
+        error = response.json()["detail"]["error"]
+        assert error["type"] == "InvalidPayloadError"
+        assert "10000" in error["message"]

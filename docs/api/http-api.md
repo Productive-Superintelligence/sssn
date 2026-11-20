@@ -28,9 +28,9 @@ Request bodies and query parameters:
 | --- | --- |
 | `POST /channels` | `name`, `schema`, `form`, `description`, `metadata` |
 | `POST /events` | `channel`, `payload`, `kind`, `source`, `schema`, `metadata`, `correlation_id`, `parent_ids`, optional `id` and `timestamp`; returns the event with its `cursor` |
-| `GET /events` | `?channel=...&after_cursor=0&limit=100&kind=...`; events oldest first |
-| `POST /subscriptions` | `channel`, `id`, `consumer`, `batch_size`, `filters`, `metadata`; returns the existing subscription if the id is taken, unless it reads another `channel` or `filters` names another kind (a 409); a body without `filters` keeps the subscription's filter |
-| `POST /subscriptions/{id}/pull` | `?limit=...`; moves the cursor past the returned events |
+| `GET /events` | `?channel=...&after_cursor=0&limit=100&kind=...`; events oldest first; `limit` is at most 10,000 |
+| `POST /subscriptions` | `channel`, `id`, `consumer`, `batch_size` (at most 10,000), `filters`, `metadata`; returns the existing subscription if the id is taken, unless it reads another `channel` or `filters` names another kind (a 409); a body without `filters` keeps the subscription's filter |
+| `POST /subscriptions/{id}/pull` | `?limit=...`, at most 10,000; moves the cursor past the returned events |
 | `POST /artifacts` | `data`, `encoding` (`text` or `base64`), `channel`, `media_type`, `metadata`, `event_ids` |
 | `PUT /snapshots/{name}` | `value`, `channel`, `timestamp`, `schema`, `source_event_id`, `metadata`; replaces any previous value |
 

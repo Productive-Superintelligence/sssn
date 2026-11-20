@@ -113,6 +113,9 @@ such as `Channel` and `Event`:
 | `PUT /snapshots/{name}`, `GET /snapshots/{name}` | `put_snapshot`, `get_snapshot` |
 | `GET /health` | Returns `{"ok": true}` |
 
+A request asks for at most 10,000 events: a larger `limit` on
+`GET /events` or on a pull, or a larger `batch_size` for a new
+subscription, is a 400, so one request cannot hold the store for long.
 FastAPI adds interactive docs at `/docs` and the OpenAPI document at
 `/openapi.json`. Any HTTP client can use the routes:
 
