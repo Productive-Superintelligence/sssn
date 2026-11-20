@@ -175,11 +175,19 @@ class ChannelResolver:
         *,
         timeout: float | None = 30.0,
         transport: Any = None,
+        headers: Mapping[str, str] | None = None,
+        auth: Any = None,
     ) -> RemoteStore:
         binding = self.resolve(ref)
         if binding.url is None:
             raise ChannelRefError(f"Channel ref is not bound to an HTTP URL: {binding.ref}")
-        return RemoteStore(binding.url, timeout=timeout, transport=transport)
+        return RemoteStore(
+            binding.url,
+            timeout=timeout,
+            transport=transport,
+            headers=headers,
+            auth=auth,
+        )
 
     def async_client(
         self,
@@ -187,11 +195,19 @@ class ChannelResolver:
         *,
         timeout: float | None = 30.0,
         transport: Any = None,
+        headers: Mapping[str, str] | None = None,
+        auth: Any = None,
     ) -> AsyncRemoteStore:
         binding = self.resolve(ref)
         if binding.url is None:
             raise ChannelRefError(f"Channel ref is not bound to an HTTP URL: {binding.ref}")
-        return AsyncRemoteStore(binding.url, timeout=timeout, transport=transport)
+        return AsyncRemoteStore(
+            binding.url,
+            timeout=timeout,
+            transport=transport,
+            headers=headers,
+            auth=auth,
+        )
 
     def store_path(self, ref: str | ChannelRef) -> Path:
         binding = self.resolve(ref)

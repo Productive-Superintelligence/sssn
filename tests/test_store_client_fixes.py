@@ -6,6 +6,7 @@ stores should behave alike.
 """
 
 import asyncio
+import base64
 import inspect
 import pickle
 import threading
@@ -13,6 +14,7 @@ from pathlib import Path
 
 import httpx
 import pytest
+from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 
 import sssn.stores.local as local_module
@@ -20,6 +22,7 @@ from sssn import (
     ArtifactNotFoundError,
     AsyncRemoteStore,
     ChannelExistsError,
+    ChannelResolver,
     ChannelNotFoundError,
     EventExistsError,
     EventNotFoundError,
@@ -412,3 +415,89 @@ def test_remote_stores_percent_encode_each_path_segment(client_cls):
         ("GET", "/base/snapshots/a%3Fb%23c"),
         ("PUT", "/base/snapshots/a%3Fb%23c"),
     ]
+
+
+# 3: remote stores send headers, such as a bearer token
+
+
+def answer_with_no_channels(seen):
+    def handler(outgoing: httpx.Request) -> httpx.Response:
+        seen.append(outgoing.headers)
+        return httpx.Response(200, json=[])
+
+    return httpx.MockTransport(handler)
+
+
+@pytest.mark.parametrize("client_cls", [RemoteStore, AsyncRemoteStore])
+def test_remote_stores_send_the_headers_they_are_given(client_cls):
+    seen = []
+    headers = {"Authorization": "Bearer s3cret", "X-Team": "ops"}
+    store = client_cls(
+        "http://testserver",
+        headers=headers,
+        transport=answer_with_no_channels(seen),
+    )
+    headers["X-Team"] = "changed"  # the store keeps its own copy
+
+    Blocking(store).list_channels()
+    Blocking(store).query_events("events")
+
+    assert store.headers == {"Authorization": "Bearer s3cret", "X-Team": "ops"}
+    assert [(sent["authorization"], sent["x-team"]) for sent in seen] == [
+        ("Bearer s3cret", "ops"),
+        ("Bearer s3cret", "ops"),
+    ]
+
+
+@pytest.mark.parametrize("client_cls", [RemoteStore, AsyncRemoteStore])
+def test_remote_stores_take_an_httpx_auth(client_cls):
+    seen = []
+    store = client_cls(
+        "http://testserver",
+        auth=httpx.BasicAuth("ada", "pw"),
+        transport=answer_with_no_channels(seen),
+    )
+
+    Blocking(store).list_channels()
+
+    assert seen[0]["authorization"] == "Basic " + base64.b64encode(b"ada:pw").decode()
+
+
+def test_remote_store_reaches_a_store_behind_a_token_check(tmp_path):
+    app = create_app(LocalStore(tmp_path / "store"))
+
+    @app.middleware("http")
+    async def require_token(request, call_next):
+        if request.headers.get("authorization") != "Bearer s3cret":
+            return JSONResponse({"detail": "Invalid token."}, status_code=401)
+        return await call_next(request)
+
+    transport = httpx.ASGITransport(app=app)
+    token = {"Authorization": "Bearer s3cret"}
+    allowed = Blocking(
+        AsyncRemoteStore("http://testserver", headers=token, transport=transport)
+    )
+    anonymous = Blocking(AsyncRemoteStore("http://testserver", transport=transport))
+
+    allowed.create_channel({"name": "events"})
+    with pytest.raises(RemoteStoreError) as exc_info:
+        anonymous.list_channels()
+
+    assert [channel.name for channel in allowed.list_channels()] == ["events"]
+    assert exc_info.value.status_code == 401
+    assert exc_info.value.message == "Invalid token."
+
+
+def test_channel_resolver_clients_take_headers_and_auth():
+    resolver = ChannelResolver()
+    ref = "lllm://demo/events/channels/raw"
+    resolver.bind(ref, url="http://store.internal:7700")
+    token = {"Authorization": "Bearer s3cret"}
+    auth = httpx.BasicAuth("ada", "pw")
+
+    client = resolver.client(ref, headers=token, auth=auth)
+    async_client = resolver.async_client(ref, headers=token, auth=auth)
+
+    for store in (client, async_client):
+        assert store.headers == token
+        assert store.auth is auth

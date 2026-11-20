@@ -173,6 +173,8 @@ subscription, so a worker resumes where it stopped.
 | `base_url` | required | The server's absolute `http` or `https` URL; a trailing `/` is dropped |
 | `timeout` | `30.0` | Seconds to wait for each request; `None` waits forever |
 | `transport` | `None` | An httpx transport, such as `httpx.ASGITransport` in tests |
+| `headers` | `None` | Headers sent with every request, such as `{"Authorization": "Bearer ..."}` ([Securing a store](#securing-a-store)) |
+| `auth` | `None` | An httpx authentication, such as `httpx.BasicAuth(user, password)` |
 
 ```python test="skip" reason="needs a running store server"
 from sssn import RemoteStore
@@ -304,32 +306,63 @@ only; serve custom endpoints from your own app module, as in
     Anyone who can reach the port can read and write every channel. Keep it
     on `127.0.0.1`, or put it behind a gateway that checks who is calling.
 
-`create_app` returns a plain FastAPI app, so you can also add middleware
-as you would to any FastAPI app; LLLM's
-[serving guide](https://lllm.one/serving/#authentication) shows a
-bearer-token check. `RemoteStore` has no option for headers, so a client of
-a secured store passes an httpx transport that adds them:
+`create_app` returns a plain FastAPI app, so you can add a middleware that
+checks every request, as you would in any FastAPI app. Clients send their
+credentials with `headers=` (or `auth=`):
 
-```python title="token_client.py"
+```python title="token_store.py"
+import asyncio
+
 import httpx
+from fastapi.responses import JSONResponse
 
-from sssn import RemoteStore
+from sssn import AsyncRemoteStore, LocalStore, RemoteStoreError, create_app
 
-
-class BearerToken(httpx.HTTPTransport):
-    """Send a bearer token with every request."""
-
-    def __init__(self, token: str):
-        super().__init__()
-        self.token = token
-
-    def handle_request(self, request: httpx.Request) -> httpx.Response:
-        request.headers["authorization"] = f"Bearer {self.token}"
-        return super().handle_request(request)
+TOKEN = "s3cret"  # in production, read it from the environment
+app = create_app(LocalStore(".lllm/network"))
 
 
-store = RemoteStore("https://store.internal", transport=BearerToken("..."))
+@app.middleware("http")
+async def require_token(request, call_next):  # (1)!
+    if request.headers.get("authorization") != f"Bearer {TOKEN}":
+        return JSONResponse({"detail": "Invalid token."}, status_code=401)
+    return await call_next(request)
+
+
+async def main():
+    transport = httpx.ASGITransport(app=app)  # (2)!
+    store = AsyncRemoteStore(
+        "https://store.internal",
+        headers={"Authorization": f"Bearer {TOKEN}"},  # (3)!
+        transport=transport,
+    )
+    await store.create_channel({"name": "orders"})
+    print([channel.name for channel in await store.list_channels()])
+    #> ['orders']
+
+    anonymous = AsyncRemoteStore(
+        "https://store.internal", transport=transport
+    )
+    try:
+        await anonymous.list_channels()
+    except RemoteStoreError as error:
+        print(error.status_code, error.message)
+        #> 401 Invalid token.
+
+
+asyncio.run(main())
 ```
 
-For `AsyncRemoteStore`, subclass `httpx.AsyncHTTPTransport` and override
-`handle_async_request` the same way.
+1. The middleware runs before every route, the standard ones and your own.
+   LLLM's [serving guide](https://lllm.one/serving/#authentication) shows
+   the same check for tactic services.
+2. Only for this example: requests go to the app in this process. Against
+   a running server, pass the URL alone.
+3. `headers` go with every request. `RemoteStore` takes the same
+   arguments, and `auth=` takes an httpx authentication instead, such as
+   `httpx.BasicAuth(user, password)`.
+
+A store behind a gateway that checks tokens works the same way. For TLS
+settings, such as a private certificate authority, pass a transport that
+carries them: `transport=httpx.HTTPTransport(verify=context)`, with an
+`ssl.SSLContext` as `context`.

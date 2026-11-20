@@ -270,7 +270,7 @@ and so does a ref to a section LLLM does not define.
 | `ChannelResolver(root=".")`, `bind(ref, *, url=None, store=None, path=None, metadata=None)` | An empty resolver, and bindings made in code, as in tests |
 | `resolve(ref)` | A `ResolvedChannelRef`: `ref`, `resource_kind`, `name`, `url`, `store`, `path`, `metadata` |
 | `local_store(ref)`, `store_path(ref)` | A `LocalStore`, or its folder, for a `store` or `path` binding |
-| `client(ref)`, `async_client(ref)` | A `RemoteStore` or `AsyncRemoteStore` for a `url` binding; both take `timeout=` and `transport=` |
+| `client(ref)`, `async_client(ref)` | A `RemoteStore` or `AsyncRemoteStore` for a `url` binding; both take the clients' `timeout=`, `transport=`, `headers=`, and `auth=` |
 | `refs()`, `stores()`, `store(name)` | The bound refs, sorted, and the `[stores.NAME]` tables |
 
 As with `LocalStore` roots, resolver config paths must be

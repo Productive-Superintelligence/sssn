@@ -103,7 +103,14 @@ def _remote_error(
 
 
 class RemoteStore:
-    """Synchronous HTTP client for the portable SSSN API."""
+    """Synchronous HTTP client for the portable SSSN API.
+
+    ``headers`` are sent with every request, such as
+    ``{"Authorization": "Bearer ..."}`` for a server behind a token check,
+    and ``auth`` takes an httpx authentication, such as ``httpx.BasicAuth``.
+    ``transport`` is an httpx transport, such as ``httpx.ASGITransport`` in
+    tests.
+    """
 
     def __init__(
         self,
@@ -111,10 +118,14 @@ class RemoteStore:
         *,
         timeout: float | None = 30.0,
         transport: Any = None,
+        headers: Mapping[str, str] | None = None,
+        auth: Any = None,
     ) -> None:
         self.base_url = _base_url(base_url)
         self.timeout = timeout
         self.transport = transport
+        self.headers = dict(headers or {})
+        self.auth = auth
 
     def create_channel(self, channel: Channel | dict[str, Any]) -> Channel:
         data = _dump_channel(channel)
@@ -353,6 +364,8 @@ class RemoteStore:
             base_url=self.base_url,
             timeout=self.timeout,
             transport=self.transport,
+            headers=self.headers,
+            auth=self.auth,
         ) as client:
             response = client.request(method, path, **kwargs)
         _raise_for_error(response)
@@ -360,7 +373,14 @@ class RemoteStore:
 
 
 class AsyncRemoteStore:
-    """Async HTTP client for the portable SSSN API."""
+    """Async HTTP client for the portable SSSN API.
+
+    ``headers`` are sent with every request, such as
+    ``{"Authorization": "Bearer ..."}`` for a server behind a token check,
+    and ``auth`` takes an httpx authentication, such as ``httpx.BasicAuth``.
+    ``transport`` is an httpx transport, such as ``httpx.ASGITransport`` in
+    tests.
+    """
 
     def __init__(
         self,
@@ -368,10 +388,14 @@ class AsyncRemoteStore:
         *,
         timeout: float | None = 30.0,
         transport: Any = None,
+        headers: Mapping[str, str] | None = None,
+        auth: Any = None,
     ) -> None:
         self.base_url = _base_url(base_url)
         self.timeout = timeout
         self.transport = transport
+        self.headers = dict(headers or {})
+        self.auth = auth
 
     async def create_channel(self, channel: Channel | dict[str, Any]) -> Channel:
         data = _dump_channel(channel)
@@ -617,6 +641,8 @@ class AsyncRemoteStore:
             base_url=self.base_url,
             timeout=self.timeout,
             transport=self.transport,
+            headers=self.headers,
+            auth=self.auth,
         ) as client:
             response = await client.request(method, path, **kwargs)
         _raise_for_error(response)
