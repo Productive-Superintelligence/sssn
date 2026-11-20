@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+import pydantic
 import pytest
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
@@ -1226,15 +1227,6 @@ class Message(BaseModel):
     extra: Any = None
 
 
-class StringsForNaN(BaseModel):
-    """A model that writes NaN and infinity as strings."""
-
-    model_config = ConfigDict(ser_json_inf_nan="strings")
-
-    score: float
-    data: dict[str, Any] = {}
-
-
 def test_nan_in_a_model_is_stored_as_the_model_writes_it_on_every_store(
     any_store,
 ):
@@ -1245,19 +1237,38 @@ def test_nan_in_a_model_is_stored_as_the_model_writes_it_on_every_store(
 
     event = any_store.append_event({"channel": "messages", "payload": message})
     snapshot = any_store.put_snapshot("latest", {"message": message})
-    strings = any_store.append_event(
-        {
-            "channel": "messages",
-            "payload": StringsForNaN(score=math.nan, data={"x": -math.inf}),
-        }
-    )
 
     # Typed and untyped fields alike, as Pydantic's JSON for the model.
     stored = {"text": "hi", "score": None, "data": {"score": None}, "extra": [None]}
     assert event.payload == stored
     assert snapshot.value == {"message": stored}
     assert any_store.get_event(event.id) == event
-    assert strings.payload == {"score": "NaN", "data": {"x": "-Infinity"}}
+
+
+PYDANTIC_VERSION = tuple(int(part) for part in pydantic.VERSION.split(".")[:2])
+
+
+@pytest.mark.skipif(
+    PYDANTIC_VERSION < (2, 8), reason='ser_json_inf_nan="strings" needs Pydantic 2.8'
+)
+def test_a_model_can_write_nan_as_strings_on_every_store(any_store):
+    # Defined here: Pydantic 2.7 refuses this config when the class is made.
+    class StringsForNaN(BaseModel):
+        model_config = ConfigDict(ser_json_inf_nan="strings")
+
+        score: float
+        data: dict[str, Any] = {}
+
+    any_store.create_channel({"name": "messages"})
+
+    event = any_store.append_event(
+        {
+            "channel": "messages",
+            "payload": StringsForNaN(score=math.nan, data={"x": -math.inf}),
+        }
+    )
+
+    assert event.payload == {"score": "NaN", "data": {"x": "-Infinity"}}
 
 
 def test_a_model_may_write_nan_as_null_on_every_store(any_store):

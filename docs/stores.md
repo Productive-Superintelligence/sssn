@@ -117,7 +117,8 @@ number in a plain value, at the top level or in a dict, list, tuple, or
 set, since JSON cannot represent it. Inside a Pydantic model, the model's
 own JSON serialization decides: Pydantic writes NaN and infinity as
 `null` by default, and a model can choose otherwise with
-`ser_json_inf_nan="strings"`, a validator, or a serializer. Remote stores
+`ser_json_inf_nan="strings"` (Pydantic 2.8+), a validator, or a
+serializer. Remote stores
 send values in the same JSON form and raise the same error before sending.
 Readers get plain JSON data, so validate it back into your model where you
 need one, as a [tactic](processing.md#what-the-tactic-sees) does with its

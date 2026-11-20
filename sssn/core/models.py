@@ -191,7 +191,8 @@ def json_value(value: Any) -> Any:
 
     A Pydantic model is written by its own JSON serialization, which writes
     NaN and infinity as null unless the model chooses otherwise, such as
-    ``ser_json_inf_nan="strings"``, a validator, or a serializer. Outside any
+    ``ser_json_inf_nan="strings"`` (Pydantic 2.8+), a validator, or a
+    serializer. Outside any
     model, tuples and sets become lists (deques and iterators too, on
     Pydantic versions that can serialize them), dates become strings, and a
     NaN or an infinity raises ``InvalidPayloadError``, since JSON cannot
