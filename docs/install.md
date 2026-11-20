@@ -33,7 +33,9 @@ pip install "sssn[server,client]"
 
 Without the `server` extra, `sssn serve` stops with
 `Install sssn[server] to serve stores (pip install 'sssn[server]')` and
-exits with status 2.
+exits with status 2. Without the `client` extra, creating a `RemoteStore`
+or an `AsyncRemoteStore` raises `ImportError` with
+`pip install "sssn[client]"` in its message.
 
 SSSN runs any LLLM tactic, and plain tactics such as the ones in these docs
 need nothing more. Tactics whose agents call models need LLLM's `native`

@@ -121,6 +121,7 @@ class RemoteStore:
         headers: Mapping[str, str] | None = None,
         auth: Any = None,
     ) -> None:
+        _httpx()
         self.base_url = _base_url(base_url)
         self.timeout = timeout
         self.transport = transport
@@ -358,8 +359,7 @@ class RemoteStore:
         )
 
     def _request(self, method: str, path: str, **kwargs: Any):
-        import httpx
-
+        httpx = _httpx()
         with httpx.Client(
             base_url=self.base_url,
             timeout=self.timeout,
@@ -391,6 +391,7 @@ class AsyncRemoteStore:
         headers: Mapping[str, str] | None = None,
         auth: Any = None,
     ) -> None:
+        _httpx()
         self.base_url = _base_url(base_url)
         self.timeout = timeout
         self.transport = transport
@@ -635,8 +636,7 @@ class AsyncRemoteStore:
         )
 
     async def _request(self, method: str, path: str, **kwargs: Any):
-        import httpx
-
+        httpx = _httpx()
         async with httpx.AsyncClient(
             base_url=self.base_url,
             timeout=self.timeout,
@@ -647,6 +647,20 @@ class AsyncRemoteStore:
             response = await client.request(method, path, **kwargs)
         _raise_for_error(response)
         return response
+
+
+def _httpx() -> Any:
+    """Import httpx, which the ``client`` extra installs."""
+
+    try:
+        import httpx
+    except ModuleNotFoundError as exc:
+        if exc.name != "httpx":
+            raise
+        raise ImportError(
+            'Remote stores need httpx: pip install "sssn[client]"', name="httpx"
+        ) from exc
+    return httpx
 
 
 def _dump_channel(channel: Channel | dict[str, Any]) -> dict[str, Any]:

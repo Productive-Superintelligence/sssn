@@ -9,6 +9,7 @@ import asyncio
 import base64
 import inspect
 import pickle
+import sys
 import threading
 from pathlib import Path
 
@@ -501,3 +502,27 @@ def test_channel_resolver_clients_take_headers_and_auth():
     for store in (client, async_client):
         assert store.headers == token
         assert store.auth is auth
+
+
+# 12: remote stores without httpx name the client extra
+
+CLIENT_EXTRA = r'pip install "sssn\[client\]"'
+
+
+@pytest.mark.parametrize("client_cls", [RemoteStore, AsyncRemoteStore])
+def test_remote_stores_without_httpx_name_the_client_extra(client_cls, monkeypatch):
+    monkeypatch.setitem(sys.modules, "httpx", None)
+
+    with pytest.raises(ImportError, match=CLIENT_EXTRA):
+        client_cls("http://testserver")
+
+
+@pytest.mark.parametrize("client_cls", [RemoteStore, AsyncRemoteStore])
+def test_remote_store_calls_without_httpx_name_the_client_extra(
+    client_cls, monkeypatch
+):
+    store = Blocking(client_cls("http://testserver"))
+    monkeypatch.setitem(sys.modules, "httpx", None)
+
+    with pytest.raises(ImportError, match=CLIENT_EXTRA):
+        store.list_channels()
