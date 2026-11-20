@@ -487,11 +487,16 @@ class LocalStore:
         except sqlite3.OperationalError as exc:
             if isinstance(exc, StoreBusyError) or not _is_locked(exc):
                 raise
-            raise _LocalStoreBusyError(
-                "Store is busy: another connection kept its database locked for "
-                f"more than {self._busy_timeout:g} seconds. Try again.",
+            busy = _LocalStoreBusyError(
+                "Store is busy (database is locked): another connection kept "
+                f"it locked for more than {self._busy_timeout:g} seconds. "
+                "Try again.",
                 self.db_path,
-            ) from exc
+            )
+            # What retry code written against sssn 0.2.0 may check.
+            busy.sqlite_errorcode = getattr(exc, "sqlite_errorcode", None)
+            busy.sqlite_errorname = getattr(exc, "sqlite_errorname", None)
+            raise busy from exc
         finally:
             db.close()
 

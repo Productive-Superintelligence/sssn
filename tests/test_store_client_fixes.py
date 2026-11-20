@@ -1713,3 +1713,21 @@ def test_create_app_takes_custom_endpoints_from_a_generator(tmp_path):
 
     assert request(app, "GET", "/one").json() == 1
     assert request(app, "GET", "/two").json() == 2
+
+
+# Round 2, item 7: a busy store's error keeps what 0.2.0 retry code checks
+
+
+def test_store_busy_errors_keep_sqlites_text_and_error_codes(tmp_path):
+    store = busy_store(tmp_path / "store")
+
+    with locked(store, "exclusive"):
+        with pytest.raises(sqlite3.OperationalError) as exc_info:
+            store.get_channel("events")
+
+    error, cause = exc_info.value, exc_info.value.__cause__
+    assert "database is locked" in str(error)
+    assert error.sqlite_errorcode == getattr(cause, "sqlite_errorcode", None)
+    assert error.sqlite_errorname == getattr(cause, "sqlite_errorname", None)
+    if sys.version_info >= (3, 11):
+        assert error.sqlite_errorname == "SQLITE_BUSY"
