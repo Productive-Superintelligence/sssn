@@ -269,7 +269,13 @@ def dumps_json(
         separators=(",", ":"),
         default=default,
     )
-    return text.translate(_SURROGATE_ESCAPES)
+    try:
+        # At C speed, and it fails only where a lone surrogate stands: the
+        # slower rewrite runs only then.
+        text.encode("utf-8")
+    except UnicodeEncodeError:
+        text = text.translate(_SURROGATE_ESCAPES)
+    return text
 
 
 def _record_data(content: Any) -> Any:

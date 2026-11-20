@@ -2317,3 +2317,27 @@ def test_non_ascii_text_and_lone_surrogates_round_trip_on_every_store(any_store)
 
     assert event.payload == payload
     assert any_store.get_event(event.id).payload == payload
+
+
+# Round 6, item 5: dumps_json rewrites only text holding a lone surrogate
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        {"text": "plain ascii"},
+        {"text": READABLE, "list": ["中文", "naïve"]},
+        {"file": LONE_SURROGATE, "text": READABLE},
+        {"pair": "😀", "high": "\udbff", "low": "\udc00"},
+        ["😀", math.nan],
+    ],
+)
+def test_dumps_json_output_is_unchanged(value):
+    from sssn.core.models import _SURROGATE_ESCAPES, dumps_json
+
+    reference = json.dumps(
+        value, ensure_ascii=False, allow_nan=True, separators=(",", ":")
+    ).translate(_SURROGATE_ESCAPES)
+
+    assert dumps_json(value, allow_nan=True) == reference
+    assert json.loads(dumps_json(value, allow_nan=True)) == json.loads(reference)
