@@ -2717,3 +2717,20 @@ def test_cli_read_artifact_text_stops_cleanly_on_a_stdout_that_cannot_show_it(
 
     assert exc_info.value.code == 2
     assert "--encoding base64" in capsys.readouterr().err
+
+
+# Round 7, item 5: the model fallback writes the model in JSON mode
+
+
+class DatedNote(BaseModel):
+    name: str
+    day: date
+
+
+def test_a_model_output_taking_the_surrogate_fallback_stays_json(tmp_path):
+    output = DatedNote(name=LONE_SURROGATE, day=date(2026, 11, 20))
+    _, processor = processed(tmp_path, output)
+
+    [event] = processor.process()
+
+    assert event.payload == {"name": LONE_SURROGATE, "day": "2026-11-20"}
