@@ -170,37 +170,40 @@ class Subscription(BaseModel):
         return self
 
 
-_VALUES = TypeAdapter(Any)
+# "constants" keeps NaN and infinity in JSON-mode output as floats, where the
+# default would write null, so json_value can find and refuse them.
+_VALUES = TypeAdapter(Any, config=ConfigDict(ser_json_inf_nan="constants"))
 
 
 def json_value(value: Any) -> Any:
     """Return ``value`` as JSON data, the form that stores keep and send.
 
-    Pydantic models become dicts, tuples and sets become lists, and dates
-    become strings. A value with no JSON form, or holding NaN or an infinity
-    (which JSON cannot represent), raises ``InvalidPayloadError``.
+    Pydantic models become dicts (with their JSON serializers), tuples, sets,
+    and other iterables become lists, and dates become strings. A value with
+    no JSON form, or whose JSON form holds NaN or an infinity (which JSON
+    cannot represent), raises ``InvalidPayloadError``.
     """
 
     try:
-        # Pydantic's JSON mode turns NaN into null, so look for it first.
-        if not _finite(_VALUES.dump_python(value)):
-            raise InvalidPayloadError(
-                "Value holds NaN or infinity, which JSON cannot represent."
-            )
-        return _VALUES.dump_python(value, mode="json")
+        data = _VALUES.dump_python(value, mode="json")
     except (TypeError, ValueError) as exc:
         raise InvalidPayloadError(f"Value is not JSON serializable: {exc}") from exc
+    if not _finite(data):
+        raise InvalidPayloadError(
+            "Value holds NaN or infinity, which JSON cannot represent."
+        )
+    return data
 
 
-def _finite(value: Any) -> bool:
-    """Whether ``value`` holds no NaN or infinite number, at any depth."""
+def _finite(data: Any) -> bool:
+    """Whether JSON data holds no NaN or infinite number, at any depth."""
 
-    if isinstance(value, float):
-        return value == value and abs(value) != float("inf")
-    if isinstance(value, dict):
-        return all(_finite(item) for item in value.values())
-    if isinstance(value, (list, tuple, set, frozenset)):
-        return all(_finite(item) for item in value)
+    if isinstance(data, float):
+        return data == data and abs(data) != float("inf")
+    if isinstance(data, dict):
+        return all(_finite(item) for item in data.values())
+    if isinstance(data, list):
+        return all(_finite(item) for item in data)
     return True
 
 

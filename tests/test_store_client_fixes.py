@@ -15,6 +15,7 @@ import pickle
 import sqlite3
 import sys
 import threading
+from collections import deque
 from contextlib import contextmanager
 from datetime import date
 from pathlib import Path
@@ -23,7 +24,7 @@ import httpx
 import pytest
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, ValidationError, field_serializer
 
 import sssn
 import sssn.core as sssn_core
@@ -1057,3 +1058,49 @@ def test_write_artifact_replaces_a_damaged_file_in_one_step(tmp_path):
     assert sorted(path.name for path in store.artifacts_dir.iterdir()) == [
         payload_file.name
     ]
+
+
+# Review 3: json_value checks the JSON form, whatever holds the NaN
+
+
+class NullWhenNaN(BaseModel):
+    """A model whose JSON form writes NaN as null, on purpose."""
+
+    reading: float
+
+    @field_serializer("reading", when_used="json")
+    def _null_for_nan(self, value):
+        return None if math.isnan(value) else value
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [(1.0, math.nan), {math.nan}, deque([math.nan]), iter([1.0, math.nan])],
+    ids=["tuple", "set", "deque", "iterator"],
+)
+def test_nan_in_any_container_raises_on_every_store(any_store, payload):
+    any_store.create_channel({"name": "readings"})
+
+    with pytest.raises(InvalidPayloadError, match="NaN"):
+        any_store.append_event({"channel": "readings", "payload": payload})
+
+    assert any_store.query_events("readings") == ()
+
+
+def test_a_model_may_write_nan_as_null_on_every_store(any_store):
+    any_store.create_channel({"name": "readings"})
+
+    event = any_store.append_event(
+        {"channel": "readings", "payload": NullWhenNaN(reading=math.nan)}
+    )
+
+    assert event.payload == {"reading": None}
+    assert any_store.get_event(event.id).payload == {"reading": None}
+
+
+def test_iterator_payloads_are_stored_whole_on_every_store(any_store):
+    any_store.create_channel({"name": "readings"})
+
+    event = any_store.append_event({"channel": "readings", "payload": iter([1, 2])})
+
+    assert event.payload == [1, 2]
