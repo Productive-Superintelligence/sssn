@@ -23,7 +23,6 @@ from ..core import (
     EventNotFoundError,
     InvalidPayloadError,
     NetworkError,
-    Snapshot,
     SnapshotNotFoundError,
     StoreBusyError,
     SubscriptionExistsError,
