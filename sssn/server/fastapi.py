@@ -351,7 +351,9 @@ def create_app(
 
 def _records_response(records: Any) -> Any:
     """Answer with records a store returned, as strict JSON that cannot fail
-    on what the store holds (see ``record_json``)."""
+    on what LocalStore or a remote store holds, NaN, infinity, and lone
+    surrogates included; a record subclass is written by its own JSON dump,
+    which raises on a value it cannot write (see ``record_json``)."""
 
     from fastapi.encoders import jsonable_encoder
     from fastapi.responses import Response

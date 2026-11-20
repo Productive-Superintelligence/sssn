@@ -257,18 +257,23 @@ def record_json(
     ensure_ascii: bool = False,
 ) -> str:
     """Write what a store returned, a record or a list or tuple of them, or
-    JSON data, as strict JSON that cannot fail on what a store holds.
+    JSON data, as strict JSON that cannot fail on what LocalStore or a
+    remote store holds, NaN, infinity, and lone surrogates included.
 
-    Those records are written by ``record_data``, so a non-finite timestamp
-    goes out as "inf", "-inf", or "nan", which a float field reads back.
-    Records deeper in the content are not looked for: a custom endpoint's
-    result reaches this already encoded by jsonable_encoder, whose record
-    encoder applies ``record_data``. Any other NaN or infinity, which only a
-    row written before sssn 0.2.1 or a value built in memory can hold, goes
-    out as null, as 0.2.0 wrote it, and a lone surrogate as a JSON escape.
-    ``default`` writes anything else, as for ``json.dumps``, and a NaN in
-    what it returns is null too. ``ensure_ascii`` writes all non-ASCII text
-    as escapes, for an output that cannot encode it.
+    Those records are written by ``record_data``: a non-finite timestamp
+    kept as a float goes out as "inf", "-inf", or "nan", which a float field
+    reads back. A record subclass is written by its own JSON dump, which
+    raises on a value it cannot write, and the output of its
+    model_serializer goes out as Pydantic's JSON mode writes it (see
+    ``record_data``). Records deeper in the content are not looked for: a
+    custom endpoint's result reaches this already encoded by
+    jsonable_encoder, whose record encoder applies ``record_data``. Any
+    other NaN or infinity, which only a row written before sssn 0.2.1 or a
+    value built in memory can hold, goes out as null, as 0.2.0 wrote it, and
+    a lone surrogate as a JSON escape. ``default`` writes anything else, as
+    for ``json.dumps``, and a NaN in what it returns is null too.
+    ``ensure_ascii`` writes all non-ASCII text as escapes, for an output that
+    cannot encode it.
     """
 
     data = _records(content)
@@ -341,10 +346,13 @@ def record_data(record: Any) -> Any:
     is left to the writer's ``default``.
 
     An instance of a subclass, such as a custom store's record, is written
-    by its own JSON dump, which skips its excluded fields, adds its computed
-    ones, and may be any JSON data its serializer returns; a timestamp in a
-    dict it returns takes the same rule. That dump has no fallback to
-    ``default``: a value it cannot write raises.
+    by its own JSON dump, which skips its excluded fields and adds its
+    computed ones. The "inf" rule applies to a timestamp that dump keeps as
+    a float, as a dump without a model_serializer does. A model_serializer's
+    output, which may be any JSON data, goes out as Pydantic's JSON mode
+    writes it, in which a non-finite number Pydantic infers is already None.
+    That dump has no fallback to ``default``: a value it cannot write
+    raises.
     """
 
     fields = type(record).model_fields

@@ -43,7 +43,11 @@ sssn 0.2.0 can also hold numbers JSON cannot carry: a non-finite timestamp
 is sent as `"inf"`, `"-inf"`, or `"nan"`, which SSSN's clients read back as
 the float, and any other NaN or infinite number as `null`, as 0.2.0 sent
 it. A record of a subclass, such as a custom store's own event class, is
-written by that class's JSON dump, by alias, under the same rules.
+written by that class's JSON dump, by alias: a non-finite timestamp that
+dump keeps as a float, as a dump without a `model_serializer` does, is sent
+as `"inf"`, `"-inf"`, or `"nan"`, and a `model_serializer`'s output as
+Pydantic's JSON mode writes it, in which a non-finite number Pydantic
+infers is already `null`.
 
 FastAPI also serves the OpenAPI schema at `/openapi.json` and interactive docs
 at `/docs`. The server has no authentication.
@@ -88,6 +92,6 @@ Custom endpoints mounted with `create_app(..., custom_endpoints=...)` must be fu
 | `params` | The query parameters as a dict of strings; for a repeated key, the last value wins |
 | Anything else | Its default; a parameter without one makes `create_app` raise `ValueError` |
 
-The handler's return value is the response body, JSON-encoded by FastAPI's `jsonable_encoder`. SSSN's records returned directly or inside lists, tuples, dicts, or dataclasses come out as the portable routes return them, a non-finite timestamp as `"inf"`, `"-inf"`, or `"nan"`. Anything else is converted as `jsonable_encoder` converts it: a Pydantic model, a record inside one included, by `model_dump(mode="json", by_alias=True)`, which writes a NaN that Pydantic infers as `null`. Any NaN or infinity left is then written as `null` (0.2.0 answered with a 500), and a lone surrogate as an escape. A
+The handler's return value is the response body, JSON-encoded by FastAPI's `jsonable_encoder`. SSSN's records returned directly or inside lists, tuples, dicts, or dataclasses come out as the portable routes return them: a non-finite timestamp kept as a float as `"inf"`, `"-inf"`, or `"nan"`, and the output of a record subclass's `model_serializer` as Pydantic's JSON mode writes it. Anything else is converted as `jsonable_encoder` converts it: a Pydantic model, a record inside one included, by `model_dump(mode="json", by_alias=True)`, which writes a NaN that Pydantic infers as `null`. Any NaN or infinity left is then written as `null` (0.2.0 answered with a 500), and a lone surrogate as an escape. A
 `NetworkError` it raises maps to a status as on the portable routes. See
 [Custom endpoints](../http.md#custom-endpoints) for an example.

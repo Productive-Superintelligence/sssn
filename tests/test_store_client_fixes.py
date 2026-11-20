@@ -3177,7 +3177,8 @@ def test_a_record_subclass_written_as_no_dict_is_written_as_it_is(
     from_endpoint = request(app, "GET", "/keyed")
     from_route = request(app, "GET", "/events/keyed")
 
-    # The serializer's output, as 0.2.0 wrote it.
+    # The serializer's output on both paths; 0.2.0 answered the standard
+    # route with a 500, because its response model wanted a dict.
     expected = make_output(keyed_event())
     assert from_endpoint.status_code == from_route.status_code == 200
     assert strict_json(from_endpoint.content) == expected
