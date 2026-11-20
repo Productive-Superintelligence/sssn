@@ -201,9 +201,11 @@ def json_value(value: Any) -> Any:
 
     try:
         text = _VALUES.dump_json(value)
+        # Parsing can fail too, as for an int too long for Python's json.
+        # Refusing NaN raises InvalidPayloadError, which passes through.
+        return json.loads(text, parse_constant=_refuse_non_finite)
     except (TypeError, ValueError) as exc:
         raise InvalidPayloadError(f"Value is not JSON serializable: {exc}") from exc
-    return json.loads(text, parse_constant=_refuse_non_finite)
 
 
 def _refuse_non_finite(constant: str) -> Any:

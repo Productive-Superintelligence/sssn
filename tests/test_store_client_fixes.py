@@ -1776,3 +1776,17 @@ def test_store_server_refuses_non_finite_timestamps_before_the_store(tmp_path):
         assert error["type"] == "InvalidPayloadError"
 
     assert store.calls == []
+
+
+# Round 4, item 5: an int too long for Python's json raises InvalidPayloadError
+
+
+def test_ints_too_long_to_parse_raise_invalid_payload_error_on_every_store(
+    any_store,
+):
+    any_store.create_channel({"name": "numbers"})
+
+    with pytest.raises(InvalidPayloadError, match="not JSON serializable"):
+        any_store.append_event({"channel": "numbers", "payload": 10**5000})
+
+    assert any_store.query_events("numbers") == ()
