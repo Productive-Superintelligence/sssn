@@ -43,6 +43,7 @@ from pydantic import (
     RootModel,
     computed_field,
     field_serializer,
+    model_serializer,
 )
 from pydantic.alias_generators import to_camel
 from pydantic_core import core_schema
@@ -3134,3 +3135,47 @@ def test_records_holding_plain_objects_are_written_by_jsonable_encoder(tmp_path)
         "at": {"x": 1.5, "y": None},
         "day": "2026-11-20",
     }
+
+
+# Round 9, item 1: a record subclass whose JSON serializer writes no dict
+
+
+@pytest.mark.parametrize(
+    "make_output",
+    [
+        lambda event: None,
+        lambda event: 7,
+        lambda event: f"{event.channel}/{event.id}",
+        lambda event: ["timestamp", event.id],
+    ],
+    ids=["none", "number", "text-holding-timestamp", "list-holding-timestamp"],
+)
+def test_a_record_subclass_written_as_no_dict_is_written_as_it_is(
+    tmp_path, make_output
+):
+    class KeyedEvent(Event):
+        @model_serializer(when_used="json")
+        def _as_key(self):
+            return make_output(self)
+
+    def keyed_event():
+        return KeyedEvent(id="keyed", channel="timestamp-feed", timestamp=1.0)
+
+    class KeyedStore(LocalStore):
+        def get_event(self, event_id):
+            return keyed_event()
+
+    @endpoint.get("/keyed")
+    def keyed(store):
+        return keyed_event()
+
+    app = create_app(KeyedStore(tmp_path / "store"), custom_endpoints=[keyed])
+
+    from_endpoint = request(app, "GET", "/keyed")
+    from_route = request(app, "GET", "/events/keyed")
+
+    # The serializer's output, as 0.2.0 wrote it.
+    expected = make_output(keyed_event())
+    assert from_endpoint.status_code == from_route.status_code == 200
+    assert strict_json(from_endpoint.content) == expected
+    assert strict_json(from_route.content) == expected

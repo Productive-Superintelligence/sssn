@@ -323,7 +323,7 @@ def dumps_json(
     return text
 
 
-def record_data(record: Any) -> dict[str, Any]:
+def record_data(record: Any) -> Any:
     """Return one of SSSN's records as data ``record_json`` writes.
 
     A non-finite timestamp becomes "inf", "-inf", or "nan". Text stays as it
@@ -344,7 +344,8 @@ def record_data(record: Any) -> dict[str, Any]:
         field = fields.get("timestamp")
         if field is not None:
             key = _field_key("timestamp", field)
-            if key in data:
+            # A model_serializer can return anything, such as a string.
+            if isinstance(data, dict) and key in data:
                 data[key] = _timestamp(data[key])
         return data
     data = {}
