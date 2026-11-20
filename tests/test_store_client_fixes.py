@@ -1927,3 +1927,47 @@ def test_served_stores_return_every_legacy_row(tmp_path, kind):
     assert remote.get_event(infinite.id).timestamp == math.inf
     assert math.isnan(remote.get_event(not_a_number.id).payload["score"])
     assert store.get_subscription("reader").cursor == not_a_number.cursor
+
+
+# Round 4, item 2: lone surrogates round-trip, as in sssn 0.2.0
+
+LONE_SURROGATE = "caf\ud800"  # as from a file name decoded with surrogateescape
+
+
+def test_lone_surrogates_round_trip_on_every_store(any_store):
+    any_store.create_channel({"name": "files"})
+
+    event = any_store.append_event(
+        {
+            "channel": "files",
+            "payload": {"text": LONE_SURROGATE},
+            "metadata": {"name": LONE_SURROGATE},
+        }
+    )
+    snapshot = any_store.put_snapshot("latest", {"text": LONE_SURROGATE})
+
+    assert event.payload == {"text": LONE_SURROGATE}
+    assert event.metadata == {"name": LONE_SURROGATE}
+    assert any_store.get_event(event.id) == event
+    assert snapshot.value == {"text": LONE_SURROGATE}
+    assert any_store.get_snapshot("latest") == snapshot
+
+
+def test_a_recording_processor_records_errors_holding_lone_surrogates(tmp_path):
+    store = LocalStore(tmp_path / "store")
+    store.create_channel({"name": "inbox"})
+    store.create_channel({"name": "outputs"})
+    source = store.append_event({"channel": "inbox", "payload": {"text": "hi"}})
+
+    def read(payload: dict) -> Any:
+        raise ValueError(f"cannot read {LONE_SURROGATE}")
+
+    processor = TacticProcessor(
+        as_tactic(read), store, source="inbox", sink="outputs", errors="record"
+    )
+    [error] = processor.process()
+
+    assert error.kind == "error"
+    assert error.payload["error"] == f"cannot read {LONE_SURROGATE}"
+    assert error.parent_ids == (source.id,)
+    assert processor.process() == []

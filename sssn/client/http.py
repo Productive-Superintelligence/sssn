@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import json
 import math
 from collections.abc import Iterable, Mapping
 from typing import Any
@@ -357,8 +358,7 @@ class RemoteStore:
 
     def _request(self, method: str, path: str, **kwargs: Any):
         httpx = _httpx()
-        if "json" in kwargs:
-            kwargs["json"] = json_value(kwargs["json"])
+        _encode_body(kwargs)
         with httpx.Client(
             base_url=self.base_url,
             timeout=self.timeout,
@@ -626,8 +626,7 @@ class AsyncRemoteStore:
 
     async def _request(self, method: str, path: str, **kwargs: Any):
         httpx = _httpx()
-        if "json" in kwargs:
-            kwargs["json"] = json_value(kwargs["json"])
+        _encode_body(kwargs)
         async with httpx.AsyncClient(
             base_url=self.base_url,
             timeout=self.timeout,
@@ -638,6 +637,22 @@ class AsyncRemoteStore:
             response = await client.request(method, path, **kwargs)
         _raise_for_error(response)
         return response
+
+
+def _encode_body(kwargs: dict[str, Any]) -> None:
+    """Turn a ``json=`` body into content encoded here, as LocalStore stores it.
+
+    httpx writes JSON with ensure_ascii=False, which fails on a lone
+    surrogate; with JSON escapes every string arrives intact.
+    """
+
+    if "json" not in kwargs:
+        return
+    body = json_value(kwargs.pop("json"))
+    kwargs["content"] = json.dumps(
+        body, ensure_ascii=True, allow_nan=False, separators=(",", ":")
+    )
+    kwargs["headers"] = {"content-type": "application/json"}
 
 
 def _httpx() -> Any:

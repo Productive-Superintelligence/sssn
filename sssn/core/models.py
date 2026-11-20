@@ -188,11 +188,32 @@ def json_value(value: Any) -> Any:
     Pydantic versions that can serialize them), dates become strings, and a
     NaN or an infinity raises ``InvalidPayloadError``, since JSON cannot
     represent it. A value Pydantic cannot serialize raises
-    ``InvalidPayloadError`` from Pydantic's error.
+    ``InvalidPayloadError`` from Pydantic's error. A string with a lone
+    surrogate is kept, as a JSON escape, as sssn 0.2.0 kept it.
+    """
+
+    return json_data(_VALUES, value)
+
+
+def json_data(adapter: TypeAdapter[Any], value: Any) -> Any:
+    """Return the JSON ``adapter`` writes for ``value``, parsed back.
+
+    The rule of ``json_value``, for any adapter: NaN and Infinity in the
+    JSON raise ``InvalidPayloadError``, as does a value the adapter cannot
+    serialize.
     """
 
     try:
-        text = _VALUES.dump_json(value)
+        try:
+            text = adapter.dump_json(value)
+        except ValueError as exc:
+            if "UnicodeEncodeError" not in str(exc):
+                raise
+            # A lone surrogate, which UTF-8 cannot hold, as in a file name
+            # decoded with surrogateescape. Write the value as sssn 0.2.0
+            # did: Python's json escapes it. In this rare path a NaN inside
+            # a model is refused rather than written as null.
+            text = json.dumps(adapter.dump_python(value, mode="json"))
         # Parsing can fail too, as for an int too long for Python's json.
         # Refusing NaN raises InvalidPayloadError, which passes through.
         return json.loads(text, parse_constant=_refuse_non_finite)
