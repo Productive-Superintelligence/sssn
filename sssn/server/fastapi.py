@@ -5,7 +5,6 @@ from __future__ import annotations
 import base64
 import binascii
 import inspect
-import json
 import math
 import re
 from collections.abc import Callable, Sequence
@@ -31,6 +30,7 @@ from ..core import (
     SubscriptionNotFoundError,
 )
 from ..client.http import RemoteStoreError
+from ..core.models import record_json
 from ..stores import LocalStore
 from .endpoints import (
     StoreEndpointSpec,
@@ -350,42 +350,15 @@ def create_app(
 
 
 def _records_response(records: Any) -> Any:
-    """Answer with the records a store returned, as JSON that cannot fail.
-
-    A store also holds what earlier versions wrote. A non-finite timestamp
-    goes out as "inf", "-inf", or "nan", which the clients' float fields
-    read back; a lone surrogate as a JSON escape; and any other non-finite
-    number, which only a row written before sssn 0.2.1 can hold, as the NaN
-    or Infinity that Python's json writes and SSSN's clients read.
-    """
+    """Answer with records a store returned, or a handler's result, as JSON
+    that cannot fail on what the store holds (see ``record_json``)."""
 
     from fastapi.encoders import jsonable_encoder
     from fastapi.responses import Response
 
-    if isinstance(records, (list, tuple)):
-        content: Any = [_record_data(record) for record in records]
-    else:
-        content = _record_data(records)
-    text = json.dumps(
-        content,
-        ensure_ascii=True,
-        allow_nan=True,
-        separators=(",", ":"),
-        default=jsonable_encoder,  # anything a custom store's records hold
-    )
+    # jsonable_encoder writes anything else, such as a custom store's dates.
+    text = record_json(records, default=jsonable_encoder)
     return Response(content=text, media_type="application/json")
-
-
-def _record_data(record: Any) -> Any:
-    if not isinstance(record, BaseModel):
-        return record
-    data = record.model_dump(by_alias=True)
-    timestamp = data.get("timestamp")
-    if isinstance(timestamp, float) and not math.isfinite(timestamp):
-        data["timestamp"] = (
-            "nan" if timestamp != timestamp else "inf" if timestamp > 0 else "-inf"
-        )
-    return data
 
 
 async def _call(function: Callable[..., Any], /, *args: Any, **kwargs: Any) -> Any:
@@ -414,7 +387,6 @@ def _mount_custom_endpoint(
     fn: Callable[..., Any],
 ) -> None:
     from fastapi import Request
-    from fastapi.encoders import jsonable_encoder
 
     parameters = _custom_parameters(fn, spec)
 
@@ -437,7 +409,7 @@ def _mount_custom_endpoint(
                     kwargs[name] = request.path_params[name]
                 elif name == "params":
                     kwargs[name] = dict(request.query_params)
-            return jsonable_encoder(await _call(fn, **kwargs))
+            return _records_response(await _call(fn, **kwargs))
         except Exception as exc:
             raise _http_error(exc) from exc
 

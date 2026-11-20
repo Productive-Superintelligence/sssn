@@ -10,6 +10,7 @@ import base64
 import dataclasses
 import hashlib
 import inspect
+import json
 import math
 import os
 import pickle
@@ -37,6 +38,7 @@ import sssn
 import sssn.core as sssn_core
 import sssn.server.fastapi as fastapi_module
 import sssn.stores.local as local_module
+from sssn.cli import main as cli_main
 from sssn import (
     ArtifactNotFoundError,
     AsyncRemoteStore,
@@ -2175,3 +2177,40 @@ def test_processor_infers_outputs_their_schema_cannot_write(
     [event] = processor.process()
 
     assert event.payload == stored
+
+
+# Round 5, item 3: the CLI and custom endpoints write records as the server
+
+
+def test_cli_prints_rows_only_older_versions_could_write(tmp_path, capsys):
+    store, (surrogate, infinite, not_a_number) = legacy_rows_store(tmp_path / "s")
+    root = str(store.root)
+
+    assert cli_main(["--store", root, "pull-subscription", "reader"]) == 0
+    pulled = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert cli_main(["--store", root, "get-event", surrogate.id]) == 0
+    surrogate_event = json.loads(capsys.readouterr().out)
+    assert cli_main(["--store", root, "get-event", infinite.id]) == 0
+    infinite_event = json.loads(capsys.readouterr().out)
+
+    assert [event["id"] for event in pulled] == [
+        surrogate.id,
+        infinite.id,
+        not_a_number.id,
+    ]
+    assert pulled[1]["timestamp"] == "inf"
+    assert surrogate_event["payload"] == {"text": LONE_SURROGATE}
+    assert infinite_event["timestamp"] == "inf"
+
+
+def test_custom_endpoints_return_lone_surrogates(tmp_path):
+    @endpoint.get("/file")
+    def file_name(store):
+        return {"name": LONE_SURROGATE}
+
+    app = create_app(LocalStore(tmp_path / "store"), custom_endpoints=[file_name])
+
+    response = request(app, "GET", "/file")
+
+    assert response.status_code == 200
+    assert response.json() == {"name": LONE_SURROGATE}

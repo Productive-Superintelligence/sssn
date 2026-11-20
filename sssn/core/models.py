@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import time
 import uuid
+from collections.abc import Callable
 from typing import Any, Literal
 
 from pydantic import (
@@ -225,6 +226,44 @@ def parse_json(text: str | bytes) -> Any:
         return json.loads(text, parse_constant=_refuse_non_finite)
     except ValueError as exc:  # such as an int too long for Python's json
         raise InvalidPayloadError(f"Value is not JSON serializable: {exc}") from exc
+
+
+def record_json(content: Any, *, default: Callable[[Any], Any] | None = None) -> str:
+    """Write records a store returned, or values, as JSON that cannot fail.
+
+    A store also holds what earlier versions wrote. A non-finite timestamp
+    goes out as "inf", "-inf", or "nan", which a float field reads back; a
+    lone surrogate as a JSON escape; and any other non-finite number, which
+    only a row written before sssn 0.2.1 can hold, as the NaN or Infinity
+    that Python's json writes and SSSN's clients read. ``default`` writes
+    anything else, as for ``json.dumps``.
+    """
+
+    return json.dumps(
+        _record_data(content),
+        ensure_ascii=True,
+        allow_nan=True,
+        separators=(",", ":"),
+        default=default,
+    )
+
+
+def _record_data(content: Any) -> Any:
+    if isinstance(content, BaseModel):
+        data = content.model_dump(by_alias=True)
+        timestamp = data.get("timestamp")
+        if isinstance(timestamp, float) and (
+            timestamp != timestamp or abs(timestamp) == float("inf")
+        ):
+            data["timestamp"] = (
+                "nan" if timestamp != timestamp else "inf" if timestamp > 0 else "-inf"
+            )
+        return data
+    if isinstance(content, (list, tuple)):
+        return [_record_data(item) for item in content]
+    if isinstance(content, dict):
+        return {key: _record_data(item) for key, item in content.items()}
+    return content
 
 
 def _refuse_non_finite(constant: str) -> Any:

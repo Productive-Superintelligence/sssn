@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 
 from . import LocalStore, NetworkError
+from .core.models import record_json
 
 
 def _json_object(raw: str) -> dict[str, object]:
@@ -166,7 +167,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "channels":
         for channel in store.list_channels():
-            print(channel.model_dump_json(by_alias=True))
+            print(record_json(channel))
         return 0
 
     if args.command == "create-channel":
@@ -182,7 +183,7 @@ def main(argv: list[str] | None = None) -> int:
             )
         except NetworkError as exc:
             parser.error(str(exc))
-        print(channel.model_dump_json(by_alias=True))
+        print(record_json(channel))
         return 0
 
     if args.command == "get-channel":
@@ -190,7 +191,7 @@ def main(argv: list[str] | None = None) -> int:
             channel = store.get_channel(args.name)
         except NetworkError as exc:
             parser.error(str(exc))
-        print(channel.model_dump_json(by_alias=True))
+        print(record_json(channel))
         return 0
 
     if args.command == "append":
@@ -214,7 +215,7 @@ def main(argv: list[str] | None = None) -> int:
             event = store.append_event(event_data)
         except NetworkError as exc:
             parser.error(str(exc))
-        print(event.model_dump_json(by_alias=True))
+        print(record_json(event))
         return 0
 
     if args.command == "query-events":
@@ -228,7 +229,7 @@ def main(argv: list[str] | None = None) -> int:
         except NetworkError as exc:
             parser.error(str(exc))
         for event in events:
-            print(event.model_dump_json(by_alias=True))
+            print(record_json(event))
         return 0
 
     if args.command == "get-event":
@@ -236,7 +237,7 @@ def main(argv: list[str] | None = None) -> int:
             event = store.get_event(args.id)
         except NetworkError as exc:
             parser.error(str(exc))
-        print(event.model_dump_json(by_alias=True))
+        print(record_json(event))
         return 0
 
     if args.command == "create-subscription":
@@ -251,7 +252,7 @@ def main(argv: list[str] | None = None) -> int:
             )
         except NetworkError as exc:
             parser.error(str(exc))
-        print(subscription.model_dump_json(by_alias=True))
+        print(record_json(subscription))
         return 0
 
     if args.command == "get-subscription":
@@ -259,7 +260,7 @@ def main(argv: list[str] | None = None) -> int:
             subscription = store.get_subscription(args.id)
         except NetworkError as exc:
             parser.error(str(exc))
-        print(subscription.model_dump_json(by_alias=True))
+        print(record_json(subscription))
         return 0
 
     if args.command == "pull-subscription":
@@ -268,7 +269,7 @@ def main(argv: list[str] | None = None) -> int:
         except NetworkError as exc:
             parser.error(str(exc))
         for event in events:
-            print(event.model_dump_json(by_alias=True))
+            print(record_json(event))
         return 0
 
     if args.command == "write-artifact":
@@ -286,7 +287,7 @@ def main(argv: list[str] | None = None) -> int:
             )
         except NetworkError as exc:
             parser.error(str(exc))
-        print(artifact.model_dump_json(by_alias=True))
+        print(record_json(artifact))
         return 0
 
     if args.command == "get-artifact":
@@ -294,7 +295,7 @@ def main(argv: list[str] | None = None) -> int:
             artifact = store.get_artifact(args.id)
         except NetworkError as exc:
             parser.error(str(exc))
-        print(artifact.model_dump_json(by_alias=True))
+        print(record_json(artifact))
         return 0
 
     if args.command == "read-artifact":
@@ -330,7 +331,7 @@ def main(argv: list[str] | None = None) -> int:
             )
         except NetworkError as exc:
             parser.error(str(exc))
-        print(snapshot.model_dump_json(by_alias=True))
+        print(record_json(snapshot))
         return 0
 
     if args.command == "get-snapshot":
@@ -338,7 +339,7 @@ def main(argv: list[str] | None = None) -> int:
             snapshot = store.get_snapshot(args.name)
         except NetworkError as exc:
             parser.error(str(exc))
-        print(snapshot.model_dump_json(by_alias=True))
+        print(record_json(snapshot))
         return 0
 
     if args.command == "serve":
