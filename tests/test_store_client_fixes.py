@@ -17,6 +17,7 @@ import pickle
 import sqlite3
 import sys
 import threading
+import time
 from collections import deque
 from contextlib import contextmanager
 from datetime import date, timedelta
@@ -1134,6 +1135,7 @@ def test_every_write_returns_the_record_as_stored(any_store):
 # Review 1: artifact bytes are written atomically, and only once
 
 
+@pytest.mark.skipif(os.name != "posix", reason="replaces a file readers have open")
 def test_rewriting_stored_bytes_never_truncates_a_read(tmp_path):
     store = LocalStore(tmp_path / "store")
     payload = os.urandom(4 * 1024 * 1024)
@@ -1833,12 +1835,13 @@ def test_store_server_refuses_non_finite_timestamps_before_the_store(tmp_path):
 
 
 def test_ints_too_long_to_parse_raise_invalid_payload_error_on_every_store(
-    any_store,
+    any_store, int_digit_limit
 ):
     any_store.create_channel({"name": "numbers"})
+    too_long = 10 ** (int_digit_limit + 700)
 
     with pytest.raises(InvalidPayloadError, match="not JSON serializable"):
-        any_store.append_event({"channel": "numbers", "payload": 10**5000})
+        any_store.append_event({"channel": "numbers", "payload": too_long})
 
     assert any_store.query_events("numbers") == ()
 
@@ -1858,25 +1861,32 @@ def test_workers_sharing_a_subscription_get_each_event_once_despite_failures(
     build_event = local_module._event
     failed_once, lock = set(), threading.Lock()
 
+    class FlakyBuild(Exception):
+        """Raised by this test's builds, and only by them."""
+
     def flaky_build(row):
         # Each event fails to build the first time any worker builds it.
         with lock:
             first_time = row["id"] not in failed_once
             failed_once.add(row["id"])
         if first_time:
-            raise ValueError("flaky build")
+            raise FlakyBuild(row["id"])
         return build_event(row)
 
     monkeypatch.setattr(local_module, "_event", flaky_build)
     seen, errors = [], []
+    deadline = time.monotonic() + 60
 
     def work():
-        store, empty_pulls = LocalStore(root), 0
+        store, empty_pulls, attempts = LocalStore(root), 0, 0
         try:
             while empty_pulls < 3:
+                attempts += 1
+                if attempts > 1000 or time.monotonic() > deadline:
+                    raise AssertionError("the workers stopped making progress")
                 try:
                     batch = store.pull_subscription("workers", limit=5)
-                except (ValueError, StoreBusyError):
+                except (FlakyBuild, StoreBusyError):
                     continue  # the pull changed nothing; pull again
                 empty_pulls = 0 if batch else empty_pulls + 1
                 with lock:
@@ -2214,3 +2224,28 @@ def test_custom_endpoints_return_lone_surrogates(tmp_path):
 
     assert response.status_code == 200
     assert response.json() == {"name": LONE_SURROGATE}
+
+
+# Round 5, item 5: the raw JSON holds "inf", not a bare Infinity
+
+
+def strict_json(content):
+    """Parse JSON as a strict parser would, refusing NaN and Infinity."""
+
+    def refuse(constant):
+        raise AssertionError(f"not strict JSON: {constant}")
+
+    return json.loads(content, parse_constant=refuse)
+
+
+def test_served_infinite_timestamps_are_strings_in_the_raw_json(tmp_path):
+    store, first = legacy_store(tmp_path / "store")
+    app = create_app(store)
+
+    event = strict_json(request(app, "GET", f"/events/{first.id}").content)
+    pulled = strict_json(request(app, "POST", "/subscriptions/reader/pull").content)
+    snapshot = strict_json(request(app, "GET", "/snapshots/latest").content)
+
+    assert event["timestamp"] == "inf"
+    assert [item["timestamp"] == "inf" for item in pulled] == [True, False]
+    assert snapshot["timestamp"] == "-inf"
