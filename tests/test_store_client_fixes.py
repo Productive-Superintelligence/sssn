@@ -24,6 +24,7 @@ import uuid
 from collections import deque
 from contextlib import contextmanager
 from datetime import date, timedelta
+from decimal import Decimal
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Any
 
@@ -2526,3 +2527,83 @@ def test_a_surrogate_pair_comes_back_as_its_character_on_every_store(any_store):
     event = any_store.append_event({"channel": "notes", "payload": SURROGATE_PAIR})
 
     assert any_store.get_event(event.id).payload == chr(0x1F600)
+
+
+# Round 7, item 1: records in custom endpoint results follow the record rules
+
+
+def test_custom_endpoints_return_legacy_rows_by_the_record_rules(tmp_path):
+    store, (surrogate, infinite, not_a_number) = legacy_rows_store(tmp_path / "s")
+
+    @endpoint.get("/rows")
+    def rows(store):
+        return {"rows": store.query_events("legacy")}
+
+    app = create_app(store, custom_endpoints=[rows])
+
+    response = request(app, "GET", "/rows")
+
+    assert response.status_code == 200
+    assert '"timestamp":"inf"' in response.text
+    assert "\\ud800" in response.text  # the escape
+    assert "NaN" in response.text  # strict parsers reject it; 0.2.0 was a 500
+    found = response.json()["rows"]
+    assert found[0]["payload"] == {"text": LONE_SURROGATE}
+    assert math.isnan(found[2]["payload"]["score"])
+
+
+def record_holding_python_values():
+    return Event(
+        id="built",
+        channel="notes",
+        timestamp=1.0,
+        payload={
+            "day": date(2026, 11, 20),
+            "amount": Decimal("1.5"),
+            "tags": {"a"},
+            "account": Account(user="ada", token="s3cret"),
+            "by_status": {TicketStatus.OPEN: 2},
+        },
+    )
+
+
+def test_records_holding_python_values_are_written_as_0_2_0_did(tmp_path):
+    class BuildingStore(LocalStore):
+        def get_event(self, event_id):
+            return record_holding_python_values()
+
+    @endpoint.get("/record")
+    def record(store):
+        return [record_holding_python_values()]
+
+    app = create_app(BuildingStore(tmp_path / "store"), custom_endpoints=[record])
+    expected = jsonable_encoder(record_holding_python_values())  # as 0.2.0
+
+    from_endpoint = request(app, "GET", "/record")
+    from_route = request(app, "GET", "/events/built")
+
+    assert from_endpoint.status_code == 200
+    assert from_endpoint.json() == [expected]
+    assert from_route.status_code == 200
+    assert from_route.json() == expected
+    assert expected["payload"]["account"]["token"] == "***"
+
+
+class EventBox(BaseModel):
+    event: Event
+
+
+def test_a_record_inside_a_users_model_is_written_by_that_models_json(tmp_path):
+    store, first = legacy_store(tmp_path / "store")
+
+    @endpoint.get("/box")
+    def box(store):
+        return EventBox(event=store.get_event(first.id))
+
+    app = create_app(store, custom_endpoints=[box])
+
+    response = request(app, "GET", "/box")
+
+    # Pydantic's JSON dump of the model, which writes the timestamp itself.
+    assert response.status_code == 200
+    assert response.json()["event"]["timestamp"] == math.inf

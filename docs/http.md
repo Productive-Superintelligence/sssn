@@ -290,7 +290,12 @@ print(json.dumps(resource["endpoints"][0], indent=2))
    parameter, and `params` the query string as a dict of strings.
 2. The return value is the response body, encoded as JSON by FastAPI's
    `jsonable_encoder`, with no envelope. SSSN's records, such as events,
-   come out as the standard routes return them.
+   returned directly or inside lists, tuples, dicts, or dataclasses, come
+   out as the standard routes return them; a record inside your own
+   Pydantic model is written by that model's JSON dump. A NaN or infinity
+   in the result is written as `NaN` or `Infinity`, which strict JSON
+   parsers reject (0.2.0 answered with a 500), and a lone surrogate as an
+   escape.
 3. Store errors map to statuses as they do on the standard routes:
    `query_events` raised `ChannelNotFoundError`, so the response is a 404.
    Raise `InvalidPayloadError` from a handler for a 400.

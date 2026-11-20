@@ -297,20 +297,28 @@ def dumps_json(
 
 
 def record_data(record: Any) -> dict[str, Any]:
-    """Return one of SSSN's records as data ``dumps_json`` writes as stored.
+    """Return one of SSSN's records as data ``dumps_json`` writes.
 
-    Its values are as the store holds them; a non-finite timestamp becomes
-    "inf", "-inf", or "nan".
+    Strings and numbers stay as they are, so the writer escapes a lone
+    surrogate and writes a legacy NaN as NaN, and a non-finite timestamp
+    becomes "inf", "-inf", or "nan". Other values, such as the payload, are
+    written in Pydantic's JSON mode, as a store stores them: dates and sets
+    become strings and lists, keys strings, and a model takes its JSON
+    serializers.
     """
 
-    data = record.model_dump(by_alias=True)
-    timestamp = data.get("timestamp")
-    if isinstance(timestamp, float) and (
-        timestamp != timestamp or abs(timestamp) == float("inf")
-    ):
-        data["timestamp"] = (
-            "nan" if timestamp != timestamp else "inf" if timestamp > 0 else "-inf"
-        )
+    data: dict[str, Any] = {}
+    for name, field in type(record).model_fields.items():
+        value = getattr(record, name)
+        if name == "timestamp" and isinstance(value, float):
+            if value != value or abs(value) == float("inf"):
+                value = "nan" if value != value else "inf" if value > 0 else "-inf"
+        elif not isinstance(value, (str, int, float, bool, type(None))):
+            try:
+                value = _VALUES.dump_python(value, mode="json")
+            except (TypeError, ValueError):
+                pass  # left to the writer's default, such as jsonable_encoder
+        data[field.alias or name] = value
     return data
 
 

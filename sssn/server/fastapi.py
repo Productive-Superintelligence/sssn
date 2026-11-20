@@ -417,7 +417,7 @@ def _mount_custom_endpoint(
             # follow the record rules. jsonable_encoder leaves text alone, so
             # the writer still escapes a lone surrogate.
             data = jsonable_encoder(result, custom_encoder=records)
-            text = dumps_json(data, allow_nan=True)
+            text = dumps_json(data, allow_nan=True, default=jsonable_encoder)
             return Response(content=text, media_type="application/json")
         except Exception as exc:
             raise _http_error(exc) from exc
