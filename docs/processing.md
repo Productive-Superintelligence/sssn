@@ -400,9 +400,9 @@ print(shouter.consumer, shouter.process())
   beginning.
 - **A consumer keeps its channel and filter.** Reusing a consumer name with
   another source or `kind` makes `process()` raise `ValueError`.
-- **Names must fit in a URL.** If the default name would contain
-  whitespace, `?`, or `#`, the constructor raises `ValueError`; pass
-  `consumer=`.
+- **Names cannot hold whitespace.** A tactic's name may contain spaces,
+  but a subscription id cannot, so if the default name would contain
+  whitespace, the constructor raises `ValueError`; pass `consumer=`.
 
 ## Run a worker
 

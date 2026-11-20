@@ -30,7 +30,7 @@ class TacticProcessor:
     subscription and defaults to ``"<tactic name>-<source>-processor"``, or
     ``"<tactic name>-<source>-<kind>-processor"`` with a ``kind`` filter, so
     one tactic can process several channels. If those names contain
-    whitespace, ``?``, or ``#``, pass ``consumer`` explicitly.
+    whitespace, pass ``consumer`` explicitly.
 
     Events are processed one at a time and at least once: the tactic runs on
     an event and its output is appended to ``sink`` before the event is
@@ -266,17 +266,15 @@ class TacticProcessor:
 
 def _default_consumer(tactic: Tactic[Any, Any], source: str, kind: str | None) -> str:
     # One subscription per tactic, source, and kind filter, so the same tactic
-    # can process several channels. The names may hold characters a
-    # subscription id cannot: whitespace is not a valid id (tactic names allow
-    # it), and "?" or "#" would cut a RemoteStore URL short.
+    # can process several channels. A tactic name may hold whitespace, which
+    # a subscription id cannot.
     parts = (tactic.tactic_name, source, kind, "processor")
     consumer = "-".join(part for part in parts if part)
-    if any(ch.isspace() or ch in "?#" for ch in consumer):
+    if any(ch.isspace() for ch in consumer):
         raise ValueError(
             f"Cannot use the default consumer {consumer!r} (tactic name, source, "
-            "and kind): a consumer name cannot contain whitespace, and '?' or "
-            "'#' would break RemoteStore URLs. Pass consumer= to name this "
-            "processor's subscription."
+            "and kind): a consumer name cannot contain whitespace. Pass "
+            "consumer= to name this processor's subscription."
         )
     return consumer
 

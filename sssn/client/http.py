@@ -5,7 +5,7 @@ from __future__ import annotations
 import base64
 from collections.abc import Iterable, Mapping
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 
 from lllm.protocol.validation import copy_boundary_value
 
@@ -137,7 +137,7 @@ class RemoteStore:
     def get_channel(self, name: str) -> Channel:
         _require_segment("channel.name", name)
         return _model_response(
-            self._request("GET", f"/channels/{name}"),
+            self._request("GET", f"/channels/{_segment(name)}"),
             Channel,
             "GET /channels/{name}",
         )
@@ -184,7 +184,7 @@ class RemoteStore:
     def get_event(self, event_id: str) -> Event:
         _require_segment("event.id", event_id)
         return _model_response(
-            self._request("GET", f"/events/{event_id}"),
+            self._request("GET", f"/events/{_segment(event_id)}"),
             Event,
             "GET /events/{id}",
         )
@@ -230,7 +230,7 @@ class RemoteStore:
         return _model_tuple_response(
             self._request(
                 "POST",
-                f"/subscriptions/{subscription_id}/pull",
+                f"/subscriptions/{_segment(subscription_id)}/pull",
                 params=params,
             ),
             Event,
@@ -240,7 +240,7 @@ class RemoteStore:
     def get_subscription(self, subscription_id: str) -> Subscription:
         _require_segment("subscription.id", subscription_id)
         return _model_response(
-            self._request("GET", f"/subscriptions/{subscription_id}"),
+            self._request("GET", f"/subscriptions/{_segment(subscription_id)}"),
             Subscription,
             "GET /subscriptions/{id}",
         )
@@ -276,12 +276,12 @@ class RemoteStore:
 
     def read_artifact(self, artifact_id: str) -> bytes:
         _require_segment("artifact.id", artifact_id)
-        return self._request("GET", f"/artifacts/{artifact_id}").content
+        return self._request("GET", f"/artifacts/{_segment(artifact_id)}").content
 
     def get_artifact(self, artifact_id: str) -> Artifact:
         _require_segment("artifact.id", artifact_id)
         return _model_response(
-            self._request("GET", f"/artifacts/{artifact_id}/metadata"),
+            self._request("GET", f"/artifacts/{_segment(artifact_id)}/metadata"),
             Artifact,
             "GET /artifacts/{id}/metadata",
         )
@@ -331,7 +331,7 @@ class RemoteStore:
         return _model_response(
             self._request(
                 "PUT",
-                f"/snapshots/{name}",
+                f"/snapshots/{_segment(name)}",
                 json=payload,
             ),
             Snapshot,
@@ -341,7 +341,7 @@ class RemoteStore:
     def get_snapshot(self, name: str) -> Snapshot:
         _require_segment("snapshot.name", name)
         return _model_response(
-            self._request("GET", f"/snapshots/{name}"),
+            self._request("GET", f"/snapshots/{_segment(name)}"),
             Snapshot,
             "GET /snapshots/{name}",
         )
@@ -394,7 +394,7 @@ class AsyncRemoteStore:
     async def get_channel(self, name: str) -> Channel:
         _require_segment("channel.name", name)
         return _model_response(
-            await self._request("GET", f"/channels/{name}"),
+            await self._request("GET", f"/channels/{_segment(name)}"),
             Channel,
             "GET /channels/{name}",
         )
@@ -441,7 +441,7 @@ class AsyncRemoteStore:
     async def get_event(self, event_id: str) -> Event:
         _require_segment("event.id", event_id)
         return _model_response(
-            await self._request("GET", f"/events/{event_id}"),
+            await self._request("GET", f"/events/{_segment(event_id)}"),
             Event,
             "GET /events/{id}",
         )
@@ -489,7 +489,7 @@ class AsyncRemoteStore:
         return _model_tuple_response(
             await self._request(
                 "POST",
-                f"/subscriptions/{subscription_id}/pull",
+                f"/subscriptions/{_segment(subscription_id)}/pull",
                 params=params,
             ),
             Event,
@@ -499,7 +499,7 @@ class AsyncRemoteStore:
     async def get_subscription(self, subscription_id: str) -> Subscription:
         _require_segment("subscription.id", subscription_id)
         return _model_response(
-            await self._request("GET", f"/subscriptions/{subscription_id}"),
+            await self._request("GET", f"/subscriptions/{_segment(subscription_id)}"),
             Subscription,
             "GET /subscriptions/{id}",
         )
@@ -537,12 +537,13 @@ class AsyncRemoteStore:
 
     async def read_artifact(self, artifact_id: str) -> bytes:
         _require_segment("artifact.id", artifact_id)
-        return (await self._request("GET", f"/artifacts/{artifact_id}")).content
+        path = f"/artifacts/{_segment(artifact_id)}"
+        return (await self._request("GET", path)).content
 
     async def get_artifact(self, artifact_id: str) -> Artifact:
         _require_segment("artifact.id", artifact_id)
         return _model_response(
-            await self._request("GET", f"/artifacts/{artifact_id}/metadata"),
+            await self._request("GET", f"/artifacts/{_segment(artifact_id)}/metadata"),
             Artifact,
             "GET /artifacts/{id}/metadata",
         )
@@ -593,7 +594,7 @@ class AsyncRemoteStore:
             (
                 await self._request(
                     "PUT",
-                    f"/snapshots/{name}",
+                    f"/snapshots/{_segment(name)}",
                     json=payload,
                 )
             ),
@@ -604,7 +605,7 @@ class AsyncRemoteStore:
     async def get_snapshot(self, name: str) -> Snapshot:
         _require_segment("snapshot.name", name)
         return _model_response(
-            await self._request("GET", f"/snapshots/{name}"),
+            await self._request("GET", f"/snapshots/{_segment(name)}"),
             Snapshot,
             "GET /snapshots/{name}",
         )
@@ -643,6 +644,12 @@ def _artifact_payload(data: bytes | str) -> dict[str, str]:
     if not isinstance(data, str):
         raise InvalidPayloadError("artifact data must be bytes or text.")
     return {"data": data, "encoding": "text"}
+
+
+def _segment(value: str) -> str:
+    """Escape ``value`` for one URL path segment, so ``?`` and ``#`` stay in it."""
+
+    return quote(value, safe="")
 
 
 def _base_url(base_url: str) -> str:

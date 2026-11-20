@@ -478,7 +478,7 @@ def test_processor_retries_outputs_that_cannot_become_sink_events(tmp_path, mode
     assert [event.kind for event in recording.process()] == ["error", "result"]
 
 
-@pytest.mark.parametrize("name", ["shout loud", "tab\tname", "ask?", "a#b"])
+@pytest.mark.parametrize("name", ["shout loud", "tab\tname"])
 def test_processor_needs_a_consumer_for_tactic_names_that_cannot_name_one(
     tmp_path, name
 ):
@@ -488,8 +488,7 @@ def test_processor_needs_a_consumer_for_tactic_names_that_cannot_name_one(
     def shout(payload: dict) -> dict:
         return {"text": payload["text"].upper()}
 
-    # Valid tactic names, but whitespace is not valid in a subscription id and
-    # "?" or "#" would cut a RemoteStore URL short.
+    # Valid tactic names, but whitespace is not valid in a subscription id.
     for tactic in (as_tactic(shout, name=name), Summarize(name=name)):
         with pytest.raises(ValueError, match=r"default consumer .*Pass consumer="):
             TacticProcessor(tactic, store, source="raw")
@@ -596,14 +595,46 @@ def test_processor_default_consumer_is_per_source_and_kind(tmp_path):
     assert messages.process() == [Summary(summary="RAW", length=3)]
 
 
-@pytest.mark.parametrize("fields", [{"source": "in?box"}, {"kind": "a#b"}])
-def test_processor_needs_a_consumer_for_sources_and_kinds_that_cannot_name_one(
-    tmp_path, fields
-):
-    store = make_store(tmp_path)
-    fields = {"source": "raw", **fields}
+def _sync_transport(app) -> httpx.MockTransport:
+    """Send a RemoteStore's requests, paths as escaped, to ``app``."""
 
-    with pytest.raises(ValueError, match=r"default consumer .*Pass consumer="):
-        TacticProcessor(Summarize(), store, **fields)
-    named = TacticProcessor(Summarize(), store, consumer="digest", **fields)
-    assert named.subscription_id == "digest"
+    app_client = TestClient(app)
+
+    def forward(request):
+        response = app_client.request(
+            request.method,
+            request.url.raw_path.decode("ascii"),
+            content=request.content,
+            headers={"content-type": request.headers.get("content-type", "")},
+        )
+        return httpx.Response(response.status_code, content=response.content)
+
+    return httpx.MockTransport(forward)
+
+
+@pytest.mark.parametrize("mode", ["sync", "async"])
+def test_processor_default_consumer_may_hold_url_characters(tmp_path, mode):
+    # RemoteStore escapes "?" and "#" in URLs, so a default consumer with
+    # them names a subscription on a served store too.
+    store = LocalStore(tmp_path / "store")
+    store.create_channel({"name": "in?box", "form": "log"})
+    store.create_channel({"name": "summaries", "form": "log"})
+    store.append_event(
+        Event(channel="in?box", kind="a#b", payload={"text": "hi"})
+    )
+    app = create_app(store)
+    if mode == "sync":
+        remote = RemoteStore("http://testserver", transport=_sync_transport(app))
+    else:
+        remote = AsyncRemoteStore(
+            "http://testserver", transport=httpx.ASGITransport(app=app)
+        )
+    processor = TacticProcessor(
+        Summarize(name="ask?"), remote, source="in?box", kind="a#b",
+        sink="summaries",
+    )
+
+    assert processor.consumer == "ask?-in?box-a#b-processor"
+    outputs = runner(processor, mode)()
+    assert [event.payload for event in outputs] == [{"summary": "HI", "length": 2}]
+    assert store.get_subscription(processor.consumer).cursor == 1

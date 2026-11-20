@@ -356,3 +356,59 @@ def test_remote_store_error_reads_a_plain_detail_it_is_given():
     error = RemoteStoreError(403, detail={"detail": "Not allowed."})
 
     assert error.message == "Not allowed."
+
+
+# 2: remote stores percent-encode the names in URL paths
+
+
+@pytest.mark.parametrize("name", ["what?", "a#b", "café", "q&a=1+[x]"])
+def test_remote_stores_reach_resources_named_with_url_characters(
+    remote_store, name
+):
+    channel = remote_store.create_channel({"name": name})
+    event = remote_store.append_event({"id": f"{name}-1", "channel": name})
+    remote_store.create_subscription(name, subscription_id=f"{name}-sub")
+    snapshot = remote_store.put_snapshot(f"{name}-snap", {"n": 1}, channel=name)
+
+    assert remote_store.get_channel(name) == channel
+    assert remote_store.get_event(f"{name}-1") == event
+    assert remote_store.query_events(name) == (event,)
+    assert remote_store.get_subscription(f"{name}-sub").channel == name
+    assert remote_store.pull_subscription(f"{name}-sub") == (event,)
+    assert remote_store.get_snapshot(f"{name}-snap") == snapshot
+
+
+@pytest.mark.parametrize("client_cls", [RemoteStore, AsyncRemoteStore])
+def test_remote_stores_percent_encode_each_path_segment(client_cls):
+    paths = []
+
+    def handler(outgoing: httpx.Request) -> httpx.Response:
+        paths.append((outgoing.method, outgoing.url.raw_path.decode("ascii")))
+        return httpx.Response(404, json={"detail": "Not Found"})
+
+    transport = httpx.MockTransport(handler)
+    store = Blocking(client_cls("http://testserver/base", transport=transport))
+    name = "a?b#c"
+    for method, arguments in [
+        (store.get_channel, (name,)),
+        (store.get_event, (name,)),
+        (store.get_subscription, (name,)),
+        (store.pull_subscription, (name,)),
+        (store.get_artifact, (name,)),
+        (store.read_artifact, (name,)),
+        (store.get_snapshot, (name,)),
+        (store.put_snapshot, (name, 1)),
+    ]:
+        with pytest.raises(RemoteStoreError):
+            method(*arguments)
+
+    assert paths == [
+        ("GET", "/base/channels/a%3Fb%23c"),
+        ("GET", "/base/events/a%3Fb%23c"),
+        ("GET", "/base/subscriptions/a%3Fb%23c"),
+        ("POST", "/base/subscriptions/a%3Fb%23c/pull"),
+        ("GET", "/base/artifacts/a%3Fb%23c/metadata"),
+        ("GET", "/base/artifacts/a%3Fb%23c"),
+        ("GET", "/base/snapshots/a%3Fb%23c"),
+        ("PUT", "/base/snapshots/a%3Fb%23c"),
+    ]

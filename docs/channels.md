@@ -289,9 +289,10 @@ for name in ["orders.v2", "eu/orders", "two words", "100%", "..", "a:b"]:
         #> rejected: a:b
 ```
 
-Letters, digits, `-`, `_`, and `.` are the safe choice. Other characters,
-such as `?` and `#`, pass validation but can break a URL, so a name that
-works with `LocalStore` may not work over HTTP.
+Other characters, such as `?`, `#`, and `é`, are allowed, and remote
+stores escape them in URLs, so a name that works with `LocalStore` works
+over HTTP too. Letters, digits, `-`, `_`, and `.` are still the easiest to
+type in a URL or a shell.
 
 ## Errors
 
