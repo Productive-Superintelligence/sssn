@@ -35,6 +35,7 @@ from .endpoints import (
     StoreEndpointSpec,
     endpoint_path_key,
     endpoint_route_key,
+    endpoint_spec,
     endpoint_specs,
 )
 
@@ -310,6 +311,14 @@ def create_app(
         except Exception as exc:
             raise _http_error(exc) from exc
 
+    for fn in custom_endpoints:
+        # Manifest metadata skips an undecorated function; serving cannot.
+        if endpoint_spec(fn) is None:
+            name = getattr(fn, "__qualname__", None) or repr(fn)
+            raise ValueError(
+                f"custom endpoint {name} has no route: decorate it with "
+                "@endpoint.get(path), or post, put, patch, or delete"
+            )
     reserved_routes = _reserved_routes(app)
     seen_custom_routes: dict[tuple[str, str], StoreEndpointSpec] = {}
     for fn, spec in endpoint_specs(custom_endpoints):

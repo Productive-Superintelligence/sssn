@@ -58,6 +58,7 @@ from sssn import (
     channel_resource,
     create_app,
     endpoint,
+    snapshot_resource,
 )
 
 STORE_ERRORS = (
@@ -640,8 +641,26 @@ def test_create_app_rejects_a_function_without_an_endpoint_decorator(tmp_path):
 
     with pytest.raises(ValueError, match=r"channel_tail.*@endpoint\.get"):
         create_app(LocalStore(tmp_path / "store"), custom_endpoints=[channel_tail])
-    with pytest.raises(ValueError, match=r"channel_tail.*@endpoint\.get"):
-        channel_resource(Channel(name="events"), custom_endpoints=[channel_tail])
+
+
+def test_resource_metadata_skips_functions_without_an_endpoint_decorator():
+    # Manifest metadata lists the routes it can; only create_app is strict.
+    def helper(store):
+        return []
+
+    @endpoint.get("/channels/{name}/tail", scope="channel")
+    def channel_tail(store, name: str):
+        return []
+
+    resource = channel_resource(
+        Channel(name="events"), custom_endpoints=[helper, channel_tail]
+    )
+    snapshot = snapshot_resource(
+        Snapshot(name="latest"), custom_endpoints=[helper, channel_tail]
+    )
+
+    assert [spec["name"] for spec in resource["endpoints"]] == ["channel_tail"]
+    assert [spec["name"] for spec in snapshot["endpoints"]] == ["channel_tail"]
 
 
 def test_create_app_rejects_handler_parameters_it_cannot_bind(tmp_path):
