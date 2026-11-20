@@ -15,11 +15,12 @@ from __future__ import annotations
 import inspect
 from typing import Any, Literal
 
-from pydantic import BaseModel, TypeAdapter
+from pydantic import BaseModel
 
 from lllm.protocol import CallContext, Tactic
 
 from .core import Event, Subscription, SubscriptionNotFoundError
+from .core.models import json_value
 
 
 class TacticProcessor:
@@ -282,10 +283,10 @@ def _default_consumer(tactic: Tactic[Any, Any], source: str, kind: str | None) -
 def _payload(value: Any) -> Any:
     if isinstance(value, BaseModel):
         return value.model_dump(mode="json")
-    try:
-        return TypeAdapter(type(value)).dump_python(value, mode="json")
-    except Exception:
-        return value
+    # The JSON form the store keeps. Output it cannot hold, such as NaN or an
+    # arbitrary object, raises InvalidPayloadError here, a failure of this
+    # event that errors="raise" or "record" handles.
+    return json_value(value)
 
 
 async def _maybe_await(value: Any) -> Any:

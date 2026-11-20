@@ -338,8 +338,8 @@ print([event.parent_ids[0] for event in errors])
 An error event's payload is
 `{"error": str(exc), "type": type(exc).__name__}`, with the same `source`,
 `parent_ids`, and `correlation_id` as an output. A failure to write the
-output, such as a result that cannot become JSON, is recorded the same
-way. `"record"` needs a sink; without one it acts like `"raise"`. If the
+output, such as a result that cannot become JSON (an arbitrary object, or
+a number that is NaN or infinite), is recorded the same way. `"record"` needs a sink; without one it acts like `"raise"`. If the
 error event cannot be written either, `process()` raises and the event
 stays pending.
 

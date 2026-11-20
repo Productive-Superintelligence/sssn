@@ -19,12 +19,15 @@ from collections import deque
 from contextlib import contextmanager
 from datetime import date, timedelta
 from pathlib import Path
+from typing import Any
 
 import httpx
 import pytest
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 from pydantic import BaseModel, ConfigDict, ValidationError, field_serializer
+
+from lllm import as_tactic
 
 import sssn
 import sssn.core as sssn_core
@@ -49,6 +52,7 @@ from sssn import (
     StoreBusyError,
     SubscriptionExistsError,
     SubscriptionNotFoundError,
+    TacticProcessor,
     channel_resource,
     create_app,
     endpoint,
@@ -1146,3 +1150,33 @@ def test_payload_models_are_stored_in_their_json_form_on_every_store(any_store):
     assert from_dict.payload == stored
     assert (snapshot.value, snapshot.metadata) == (stored, {"m": stored})
     assert named.value == stored
+
+
+# Review 4: a processor output holding NaN fails like other unstorable output
+
+
+@pytest.mark.parametrize(
+    "output", [{"score": math.nan}, [1.0, math.nan]], ids=["dict", "list"]
+)
+def test_processor_outputs_holding_nan_are_failures(tmp_path, output):
+    store = LocalStore(tmp_path / "store")
+    store.create_channel({"name": "inbox"})
+    store.create_channel({"name": "scores"})
+    store.append_event({"channel": "inbox", "payload": {"text": "hi"}})
+
+    def score(payload: dict) -> Any:
+        return output
+
+    raising = TacticProcessor(as_tactic(score), store, source="inbox", sink="scores")
+    with pytest.raises(InvalidPayloadError, match="NaN"):
+        raising.process()
+    # Not acknowledged, and nothing written as null.
+    assert store.get_subscription(raising.consumer).cursor == 0
+    assert store.query_events("scores") == ()
+
+    recording = TacticProcessor(
+        as_tactic(score), store, source="inbox", sink="scores", errors="record"
+    )
+    [error] = recording.process()
+    assert (error.kind, error.payload["type"]) == ("error", "InvalidPayloadError")
+    assert store.query_events("scores") == (error,)
