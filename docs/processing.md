@@ -341,9 +341,11 @@ An error event's payload is
 output, such as a result that cannot become JSON, is recorded the same
 way: an arbitrary object, or a NaN or infinite number in a plain result.
 Inside a Pydantic model, NaN follows the model's JSON, `null` by default,
-as a store stores it ([Stores](stores.md#how-values-are-stored)), except
-in a model held by a dataclass, NamedTuple, or TypedDict result: the outer
-type's schema writes it, and a NaN or infinity there is refused.
+as a store stores it ([Stores](stores.md#how-values-are-stored)). In a
+model held by a dataclass or NamedTuple result, that holds for its typed
+float fields, but a NaN or infinity that Pydantic infers (in an `Any`,
+`dict`, or `list` field) may be refused instead, depending on the Pydantic
+version, since the result's own schema writes it.
 `"record"` needs a sink; without one it acts like `"raise"`. If the error
 event cannot be written either, `process()` raises and the event stays
 pending.

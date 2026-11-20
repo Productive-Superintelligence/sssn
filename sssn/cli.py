@@ -317,7 +317,14 @@ def main(argv: list[str] | None = None) -> int:
                 text = data.decode("utf-8")
             except UnicodeDecodeError:
                 parser.error("artifact payload is not valid UTF-8; use --encoding base64")
-            print(text)
+            try:
+                print(text)
+            except UnicodeEncodeError:
+                # A stdout that is not UTF, such as a Windows code page.
+                parser.error(
+                    "this output cannot show the artifact's text; "
+                    "use --encoding base64"
+                )
         return 0
 
     if args.command == "put-snapshot":

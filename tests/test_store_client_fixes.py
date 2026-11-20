@@ -2636,3 +2636,84 @@ def test_a_lone_surrogate_elsewhere_leaves_a_models_nan_null_on_every_store(
     assert (event.payload, event.metadata) == (stored, note)
     assert (snapshot.value, snapshot.metadata) == (stored, note)
     assert (named.value, named.metadata) == (stored, note)
+
+
+# Round 7, item 4: the documented edges, tested
+
+
+@dataclasses.dataclass
+class HeldMessage:
+    message: Message
+
+
+def test_a_model_held_by_a_dataclass_output_writes_typed_nan_as_null(tmp_path):
+    _, processor = processed(tmp_path, HeldMessage(Message(text="a", score=math.nan)))
+
+    [event] = processor.process()
+
+    assert event.payload["message"]["score"] is None
+
+
+@pytest.mark.skipif(
+    PYDANTIC_VERSION < (2, 14),
+    reason="checked against Pydantic 2.14; other versions may write null",
+)
+def test_a_model_held_by_a_dataclass_output_may_refuse_an_inferred_nan(tmp_path):
+    output = HeldMessage(Message(text="a", score=1.0, extra=math.nan))
+    store, processor = processed(tmp_path, output)
+
+    with pytest.raises(InvalidPayloadError, match="NaN"):
+        processor.process()
+
+    assert store.query_events("outputs") == ()
+
+
+class TypedKeys(BaseModel):
+    labels: dict[str, int]
+
+
+@pytest.mark.parametrize(
+    ("make_payload", "stored"),
+    [
+        pytest.param(lambda: {LONE_SURROGATE: 1}, None, id="dict-key-refused"),
+        pytest.param(
+            lambda: TypedKeys(labels={LONE_SURROGATE: 1}),
+            {"labels": {"caf���": 1}},
+            id="typed-key-replaced",
+        ),
+        pytest.param(
+            lambda: Message(text=LONE_SURROGATE, score=math.nan),
+            None,
+            id="typed-nan-in-the-fallback-refused",
+        ),
+        pytest.param(
+            lambda: Message(text=LONE_SURROGATE, score=1.0, extra=math.nan),
+            {"text": LONE_SURROGATE, "score": 1.0, "data": {}, "extra": None},
+            id="inferred-nan-in-the-fallback-null",
+        ),
+    ],
+)
+def test_the_lone_surrogate_exceptions_on_every_store(any_store, make_payload, stored):
+    any_store.create_channel({"name": "notes"})
+    event = {"channel": "notes", "payload": make_payload()}
+
+    if stored is None:
+        with pytest.raises(InvalidPayloadError):
+            any_store.append_event(event)
+    else:
+        assert any_store.append_event(event).payload == stored
+
+
+def test_cli_read_artifact_text_stops_cleanly_on_a_stdout_that_cannot_show_it(
+    tmp_path, monkeypatch, capsys
+):
+    store = LocalStore(tmp_path / "store")
+    artifact = store.write_artifact(READABLE)
+    raw = io.BytesIO()
+    monkeypatch.setattr(sys, "stdout", io.TextIOWrapper(raw, encoding="cp1252"))
+
+    with pytest.raises(SystemExit) as exc_info:
+        cli_main(["--store", str(store.root), "read-artifact", artifact.id])
+
+    assert exc_info.value.code == 2
+    assert "--encoding base64" in capsys.readouterr().err

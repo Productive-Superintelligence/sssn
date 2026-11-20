@@ -198,8 +198,9 @@ def json_value(value: Any) -> Any:
     replaces each one in a model's typed dict key with three U+FFFD, one per
     UTF-8 byte; a high surrogate directly followed by a low one comes back
     as the character the pair encodes (U+D83D U+DE00 becomes U+1F600), as in
-    0.2.0; and in a value holding one, a NaN or infinity inside a model is
-    refused instead of written as null.
+    0.2.0; and in a value holding one, a NaN or infinity in a model's typed
+    float field is refused, while one in an Any or dict field is written as
+    null.
     """
 
     try:
