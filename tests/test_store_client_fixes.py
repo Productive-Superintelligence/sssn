@@ -10,6 +10,7 @@ import base64
 import hashlib
 import inspect
 import math
+import os
 import pickle
 import sqlite3
 import sys
@@ -1002,3 +1003,57 @@ def test_every_write_returns_the_record_as_stored(any_store):
         assert record.metadata == stored
         assert list(record.metadata) == ["a", "z"]
     assert snapshot.value == {"z": {"id": "A-1", "total": 9.5}}
+
+
+# Review 1: artifact bytes are written atomically, and only once
+
+
+def test_rewriting_stored_bytes_never_truncates_a_read(tmp_path):
+    store = LocalStore(tmp_path / "store")
+    payload = os.urandom(4 * 1024 * 1024)
+    artifact = store.write_artifact(payload)
+    stop = threading.Event()
+    short_reads, errors = [], []
+
+    def write():
+        try:
+            while not stop.is_set():
+                store.write_artifact(payload)
+        except Exception as exc:  # pragma: no cover - reported below
+            errors.append(exc)
+
+    def read():
+        try:
+            for _ in range(30):
+                data = store.read_artifact(artifact.id)
+                if data != payload:
+                    short_reads.append(len(data))
+        except Exception as exc:  # pragma: no cover - reported below
+            errors.append(exc)
+
+    writers = [threading.Thread(target=write) for _ in range(2)]
+    readers = [threading.Thread(target=read) for _ in range(2)]
+    for thread in writers + readers:
+        thread.start()
+    for thread in readers:
+        thread.join()
+    stop.set()
+    for thread in writers:
+        thread.join()
+
+    assert errors == []
+    assert short_reads == []
+
+
+def test_write_artifact_replaces_a_damaged_file_in_one_step(tmp_path):
+    store = LocalStore(tmp_path / "store")
+    artifact = store.write_artifact(b"complete payload")
+    payload_file = store.root / artifact.path
+    payload_file.write_bytes(b"compl")  # a file cut short by an old crash
+
+    store.write_artifact(b"complete payload")
+
+    assert store.read_artifact(artifact.id) == b"complete payload"
+    assert sorted(path.name for path in store.artifacts_dir.iterdir()) == [
+        payload_file.name
+    ]

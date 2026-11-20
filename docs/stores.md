@@ -219,7 +219,9 @@ one `LocalStore` object can also be shared between threads.
   process that wrote it.
 - **An artifact record always has its bytes.** `write_artifact` writes the
   file first and then commits the record, so a process that stops midway can
-  leave a file without a record, never a record without its file.
+  leave a file without a record, never a record without its file. A file
+  appears whole, in one step, and bytes the store already holds are not
+  written again, so a reader never gets part of a file.
 - **Nothing is deleted.** A store has no delete methods. `put_snapshot`
   replaces a snapshot, but events, artifacts, channels, and subscriptions
   stay until you delete the folder.

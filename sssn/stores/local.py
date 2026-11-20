@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import sqlite3
+import uuid
 from collections.abc import Iterable, Iterator, Mapping
 from contextlib import contextmanager
 from pathlib import Path
@@ -292,8 +293,7 @@ class LocalStore:
         # Encode the metadata before writing the file, so metadata that
         # cannot be stored leaves no file behind.
         metadata_json = _json(artifact.metadata)
-        path = self._artifact_payload_path(artifact.path)
-        path.write_bytes(payload)
+        self._write_payload(self._artifact_payload_path(artifact.path), payload)
         with self._connect() as db:
             db.execute(
                 """
@@ -453,6 +453,28 @@ class LocalStore:
             ) from exc
         finally:
             db.close()
+
+    def _write_payload(self, path: Path, payload: bytes) -> None:
+        """Put an artifact's bytes in ``path``, the file named by their SHA-256.
+
+        Equal bytes share one file, so a file that exists with the right size
+        already holds them and is left alone. Otherwise the bytes go to a
+        temporary file that replaces ``path`` in one step, so a reader never
+        sees a file that is half written.
+        """
+        try:
+            if path.stat().st_size == len(payload):
+                return
+        except FileNotFoundError:
+            pass
+        temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+        try:
+            with open(temporary, "xb") as file:
+                file.write(payload)
+            os.replace(temporary, path)
+        except BaseException:
+            temporary.unlink(missing_ok=True)
+            raise
 
     def _artifact_payload_path(self, path: str) -> Path:
         target = (self.root / path).resolve()
