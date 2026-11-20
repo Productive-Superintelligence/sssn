@@ -180,6 +180,45 @@ def remote_store(request, tmp_path):
 # 1: pull_subscription reads and moves the cursor in one transaction
 
 
+class Stopped(Exception):
+    """Raised in a worker that is still running when its test stops waiting."""
+
+
+def stoppable(hook, stop):
+    """Wrap a module hook so that a worker still running after its test's
+    deadline stops at its next call, rather than spinning on into the hooks
+    that later tests patch."""
+
+    def call(*args, **kwargs):
+        if stop.is_set():
+            raise Stopped
+        return hook(*args, **kwargs)
+
+    return call
+
+
+def run_workers(threads, stop, *, seconds=60):
+    """Run daemon worker threads until they finish or ``seconds`` pass.
+
+    Workers still running then are told to stop, by setting ``stop``, which
+    their ``stoppable`` hooks check, and are joined briefly: a worker that
+    spins fails its test instead of hanging the session.
+    """
+
+    try:
+        for thread in threads:
+            thread.start()
+        deadline = time.monotonic() + seconds
+        for thread in threads:
+            thread.join(timeout=max(0.0, deadline - time.monotonic()))
+        late = [thread for thread in threads if thread.is_alive()]
+    finally:
+        stop.set()
+    for thread in late:
+        thread.join(timeout=10)
+    assert not late, f"workers still running at the deadline: {len(late)}"
+
+
 def test_concurrent_pulls_of_one_subscription_get_different_events(
     tmp_path, monkeypatch
 ):
@@ -204,36 +243,43 @@ def test_concurrent_pulls_of_one_subscription_get_different_events(
             pass
         return query_rows(*args, **kwargs)
 
-    monkeypatch.setattr(local_module, "_query_rows", overlapping_read)
+    stop = threading.Event()
+    monkeypatch.setattr(
+        local_module, "_query_rows", stoppable(overlapping_read, stop)
+    )
     pulled = {}
 
     def pull(store):
-        pulled[store] = store.pull_subscription("workers", limit=3)
+        try:
+            pulled[store] = store.pull_subscription("workers", limit=3)
+        except Stopped:
+            pass
 
-    # Daemon threads, joined against a deadline: a pull that spins fails the
-    # test instead of hanging the suite.
-    threads = [
-        threading.Thread(target=pull, args=(store,), daemon=True)
-        for store in (first, second)
-    ]
-    for thread in threads:
-        thread.start()
-    deadline = time.monotonic() + 60
-    for thread in threads:
-        thread.join(timeout=max(0.0, deadline - time.monotonic()))
+    run_workers(
+        [
+            threading.Thread(target=pull, args=(store,), daemon=True)
+            for store in (first, second)
+        ],
+        stop,
+    )
 
-    assert not [thread for thread in threads if thread.is_alive()]
     payloads = [event.payload for batch in pulled.values() for event in batch]
     assert sorted(payloads) == [0, 1, 2, 3, 4, 5]
     assert second.get_subscription("workers").cursor == 6
 
 
-def test_many_workers_pulling_one_subscription_get_each_event_once(tmp_path):
+def test_many_workers_pulling_one_subscription_get_each_event_once(
+    tmp_path, monkeypatch
+):
     root = tmp_path / "store"
     LocalStore(root).create_channel({"name": "jobs"})
     for n in range(40):
         LocalStore(root).append_event({"channel": "jobs", "payload": n})
     LocalStore(root).create_subscription("jobs", subscription_id="workers")
+    stop = threading.Event()
+    monkeypatch.setattr(
+        local_module, "_query_rows", stoppable(local_module._query_rows, stop)
+    )
     seen, errors = [], []
 
     def work():
@@ -244,14 +290,8 @@ def test_many_workers_pulling_one_subscription_get_each_event_once(tmp_path):
         except Exception as exc:  # pragma: no cover - reported below
             errors.append(exc)
 
-    threads = [threading.Thread(target=work, daemon=True) for _ in range(4)]
-    for thread in threads:
-        thread.start()
-    deadline = time.monotonic() + 60
-    for thread in threads:
-        thread.join(timeout=max(0.0, deadline - time.monotonic()))
+    run_workers([threading.Thread(target=work, daemon=True) for _ in range(4)], stop)
 
-    assert not [thread for thread in threads if thread.is_alive()]
     assert errors == []
     assert sorted(seen) == list(range(40))
 
@@ -1055,7 +1095,10 @@ def test_concurrent_creates_of_one_subscription_both_get_it(tmp_path, monkeypatc
             pass
         return find(db, subscription_id)
 
-    monkeypatch.setattr(local_module, "_find_subscription", overlapping_find)
+    stop = threading.Event()
+    monkeypatch.setattr(
+        local_module, "_find_subscription", stoppable(overlapping_find, stop)
+    )
     created, errors = [], []
 
     def create(store):
@@ -1064,13 +1107,13 @@ def test_concurrent_creates_of_one_subscription_both_get_it(tmp_path, monkeypatc
         except Exception as exc:
             errors.append(exc)
 
-    threads = [
-        threading.Thread(target=create, args=(store,)) for store in (first, second)
-    ]
-    for thread in threads:
-        thread.start()
-    for thread in threads:
-        thread.join()
+    run_workers(
+        [
+            threading.Thread(target=create, args=(store,), daemon=True)
+            for store in (first, second)
+        ],
+        stop,
+    )
 
     assert errors == []
     assert len(created) == 2 and created[0] == created[1]
@@ -1172,11 +1215,13 @@ def test_rewriting_stored_bytes_never_truncates_a_read(tmp_path):
     # Seen as missing, the file is written again on every call, as when a
     # damaged file is replaced, while readers read it.
     target = LooksMissing(payload_file)
-    short_reads, errors = [], []
+    short_reads, errors, stop = [], [], threading.Event()
 
     def write():
         try:
             for _ in range(20):
+                if stop.is_set():
+                    return
                 store._write_payload(target, payload)
         except Exception as exc:  # pragma: no cover - reported below
             errors.append(exc)
@@ -1184,18 +1229,19 @@ def test_rewriting_stored_bytes_never_truncates_a_read(tmp_path):
     def read():
         try:
             for _ in range(30):
+                if stop.is_set():
+                    return
                 data = store.read_artifact(artifact.id)
                 if data != payload:
                     short_reads.append(len(data))
         except Exception as exc:  # pragma: no cover - reported below
             errors.append(exc)
 
-    writers = [threading.Thread(target=write) for _ in range(2)]
-    readers = [threading.Thread(target=read) for _ in range(2)]
-    for thread in writers + readers:
-        thread.start()
-    for thread in writers + readers:
-        thread.join()
+    run_workers(
+        [threading.Thread(target=write, daemon=True) for _ in range(2)]
+        + [threading.Thread(target=read, daemon=True) for _ in range(2)],
+        stop,
+    )
 
     assert errors == []
     assert short_reads == []
@@ -1894,7 +1940,11 @@ def test_workers_sharing_a_subscription_get_each_event_once_despite_failures(
             raise FlakyBuild(row["id"])
         return build_event(row)
 
+    stop = threading.Event()
     monkeypatch.setattr(local_module, "_event", flaky_build)
+    monkeypatch.setattr(
+        local_module, "_query_rows", stoppable(local_module._query_rows, stop)
+    )
     seen, errors = [], []
     deadline = time.monotonic() + 60
 
@@ -1915,15 +1965,14 @@ def test_workers_sharing_a_subscription_get_each_event_once_despite_failures(
         except Exception as exc:  # pragma: no cover - reported below
             errors.append(exc)
 
-    # Daemon threads, joined against the deadline: a pull that spins fails
-    # the test instead of hanging the suite.
-    threads = [threading.Thread(target=work, daemon=True) for _ in range(8)]
-    for thread in threads:
-        thread.start()
-    for thread in threads:
-        thread.join(timeout=max(0.0, deadline - time.monotonic()) + 5)
+    # A worker looping between pulls stops at its own deadline; one stuck
+    # inside a pull is stopped a little later, at its next read of the rows.
+    run_workers(
+        [threading.Thread(target=work, daemon=True) for _ in range(8)],
+        stop,
+        seconds=65,
+    )
 
-    assert not [thread for thread in threads if thread.is_alive()]
     assert errors == []
     assert sorted(seen) == list(range(120))
 
