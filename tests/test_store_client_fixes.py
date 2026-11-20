@@ -176,7 +176,9 @@ def test_concurrent_pulls_of_one_subscription_get_different_events(
     def pull(store):
         pulled[store] = store.pull_subscription("workers", limit=3)
 
-    threads = [threading.Thread(target=pull, args=(store,)) for store in (first, second)]
+    threads = [
+        threading.Thread(target=pull, args=(store,)) for store in (first, second)
+    ]
     for thread in threads:
         thread.start()
     for thread in threads:
@@ -481,24 +483,59 @@ def test_store_server_passes_on_the_errors_of_a_remote_store_it_serves(tmp_path)
     }
 
 
+def test_store_server_passes_on_a_remote_client_error_status():
+    # New: sssn 0.2.0 answered any RemoteStoreError with a 500.
+    def unauthorized(outgoing: httpx.Request) -> httpx.Response:
+        return httpx.Response(401, json={"detail": "Invalid token."})
+
+    transport = httpx.MockTransport(unauthorized)
+    proxy = create_app(RemoteStore("http://backend", transport=transport))
+
+    answer = request(proxy, "GET", "/channels/events")
+
+    assert answer.status_code == 401
+    assert answer.json()["detail"]["error"] == {
+        "type": "RemoteStoreError",
+        "message": "SSSN server returned HTTP 401: Invalid token.",
+    }
+
+
 @pytest.mark.parametrize(
-    ("response", "status_code"),
-    [
-        (httpx.Response(401, json={"detail": "Invalid token."}), 401),
-        (httpx.Response(503, text="unavailable"), 500),
-        (httpx.Response(200, text="not json"), 500),
-    ],
+    "response",
+    [httpx.Response(503, text="unavailable"), httpx.Response(200, text="not json")],
+    ids=["server-error", "invalid-response"],
 )
-def test_store_server_reports_other_remote_store_failures_as_before(
-    response, status_code
-):
+def test_store_server_still_answers_other_remote_store_failures_with_500(response):
     transport = httpx.MockTransport(lambda outgoing: response)
     proxy = create_app(RemoteStore("http://backend", transport=transport))
 
     answer = request(proxy, "GET", "/channels/events")
 
-    assert answer.status_code == status_code
+    assert answer.status_code == 500
     assert answer.json()["detail"]["error"]["type"] == "RemoteStoreError"
+
+
+def test_store_server_passes_on_invalid_payload_and_busy_errors_of_a_remote_store(
+    tmp_path,
+):
+    backend_store = LocalStore(tmp_path / "backend")
+    backend_store.create_channel({"name": "events"})
+    backend_store._busy_timeout = 0.05
+    backend = create_app(backend_store)
+    remote = RemoteStore("http://backend", transport=sync_transport(backend))
+    proxy = create_app(remote)
+
+    invalid = request(proxy, "GET", "/events", params={"channel": "events", "limit": 0})
+    with locked(backend_store, "exclusive"):
+        busy = request(proxy, "GET", "/channels/events")
+
+    assert invalid.status_code == 400
+    assert invalid.json()["detail"]["error"] == {
+        "type": "InvalidPayloadError",
+        "message": "limit must be greater than 0.",
+    }
+    assert busy.status_code == 503
+    assert busy.json()["detail"]["error"]["type"] == "StoreBusyError"
 
 
 # 5: RemoteStoreError.message comes from a plain FastAPI detail
@@ -615,19 +652,32 @@ def test_store_server_serves_an_async_store(tmp_path):
     )
     app = create_app(async_store)
 
-    created = request(app, "POST", "/channels", json={"name": "events"})
-    request(app, "POST", "/events", json={"channel": "events", "payload": 1})
-    request(app, "POST", "/subscriptions", json={"channel": "events", "id": "w"})
-    pulled = request(app, "POST", "/subscriptions/w/pull")
-    artifact = request(app, "POST", "/artifacts", json={"data": "hi"}).json()
-    data = request(app, "GET", f"/artifacts/{artifact['id']}")
-    snapshot = request(app, "PUT", "/snapshots/latest", json={"value": 2})
+    def call(method, path, **kwargs):
+        response = request(app, method, path, **kwargs)
+        assert response.status_code == 200, (method, path, response.text)
+        return response
+
+    created = call("POST", "/channels", json={"name": "events"}).json()
+    listed = call("GET", "/channels").json()
+    loaded_channel = call("GET", "/channels/events").json()
+    event = call("POST", "/events", json={"channel": "events", "payload": 1}).json()
+    queried = call("GET", "/events", params={"channel": "events"}).json()
+    loaded_event = call("GET", f"/events/{event['id']}").json()
+    call("POST", "/subscriptions", json={"channel": "events", "id": "w"})
+    pulled = call("POST", "/subscriptions/w/pull").json()
+    subscription = call("GET", "/subscriptions/w").json()
+    artifact = call("POST", "/artifacts", json={"data": "hi"}).json()
+    data = call("GET", f"/artifacts/{artifact['id']}").content
+    metadata = call("GET", f"/artifacts/{artifact['id']}/metadata").json()
+    snapshot = call("PUT", "/snapshots/latest", json={"value": 2}).json()
+    loaded_snapshot = call("GET", "/snapshots/latest").json()
     missing = request(app, "GET", "/channels/missing")
 
-    assert created.json()["name"] == "events"
-    assert [event["payload"] for event in pulled.json()] == [1]
-    assert data.content == b"hi"
-    assert snapshot.json()["value"] == 2
+    assert created == loaded_channel and [c["name"] for c in listed] == ["events"]
+    assert queried == [event] and loaded_event == event
+    assert pulled == [event] and subscription["cursor"] == event["cursor"]
+    assert data == b"hi" and metadata == artifact
+    assert snapshot == loaded_snapshot and snapshot["value"] == 2
     assert missing.status_code == 404
     assert [channel.name for channel in backend.list_channels()] == ["events"]
 
@@ -782,6 +832,8 @@ def test_store_server_rejects_non_finite_numbers_in_bodies(
     assert response.status_code == 400
     assert response.json()["detail"]["error"]["type"] == "InvalidPayloadError"
     assert store.query_events("readings") == ()
+    with pytest.raises(SnapshotNotFoundError):
+        store.get_snapshot("latest")
 
 
 # 10: a SQLite lock timeout raises StoreBusyError, a NetworkError
@@ -972,7 +1024,9 @@ def test_concurrent_creates_of_one_subscription_both_get_it(tmp_path, monkeypatc
         except Exception as exc:
             errors.append(exc)
 
-    threads = [threading.Thread(target=create, args=(store,)) for store in (first, second)]
+    threads = [
+        threading.Thread(target=create, args=(store,)) for store in (first, second)
+    ]
     for thread in threads:
         thread.start()
     for thread in threads:
@@ -1377,3 +1431,45 @@ def test_store_busy_errors_from_local_stores_are_sqlite_operational_errors(
 
     assert isinstance(exc_info.value, StoreBusyError)
     assert pickle.loads(pickle.dumps(exc_info.value)).db_path == store.db_path
+
+
+# Review 11: tests the review found missing
+
+
+def test_async_custom_endpoints_run_on_the_event_loop(tmp_path):
+    loop_threads, handler_threads = [], []
+
+    @endpoint.get("/waits")
+    async def waits(store, params=None):
+        handler_threads.append(threading.get_ident())
+        await asyncio.sleep(0)  # awaited, not called in a thread
+        return {"waited": True}
+
+    @endpoint.get("/blocks")
+    def blocks(store):
+        handler_threads.append(threading.get_ident())
+        return {"blocked": True}
+
+    app = create_app(LocalStore(tmp_path / "store"), custom_endpoints=[waits, blocks])
+
+    async def run():
+        loop_threads.append(threading.get_ident())
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://testserver"
+        ) as client:
+            return [(await client.get(path)).json() for path in ("/waits", "/blocks")]
+
+    assert asyncio.run(run()) == [{"waited": True}, {"blocked": True}]
+    # The async handler ran on the event loop; the plain one in a worker thread.
+    assert handler_threads[0] == loop_threads[0]
+    assert handler_threads[1] != loop_threads[0]
+
+
+def test_a_rejected_write_artifact_leaves_no_file(tmp_path):
+    store = LocalStore(tmp_path / "store")
+
+    for metadata in ({"n": math.nan}, {"object": object()}):
+        with pytest.raises(InvalidPayloadError):
+            store.write_artifact(b"payload", metadata=metadata)
+
+    assert list(store.artifacts_dir.iterdir()) == []
