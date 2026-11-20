@@ -720,9 +720,13 @@ def test_artifact_write_read_and_missing(tmp_path):
 def test_artifact_write_rejects_non_byte_payloads(tmp_path):
     store = LocalStore(tmp_path / "store")
 
-    for value in ("hello", 123, None):
+    for value in (123, None):
         with pytest.raises(InvalidPayloadError, match="artifact data"):
             store.write_artifact(value)  # type: ignore[arg-type]
+
+    # Text is stored as its UTF-8 bytes, as the remote stores send it.
+    text_artifact = store.write_artifact("héllo")
+    assert store.read_artifact(text_artifact.id) == "héllo".encode("utf-8")
 
     payload = bytearray(b"hello")
     artifact = store.write_artifact(payload)  # type: ignore[arg-type]

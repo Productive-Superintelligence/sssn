@@ -137,13 +137,9 @@ store server is built the same way: `create_app` turns each method into a
 route, and `RemoteStore` turns each route back into the method
 ([Over HTTP](http.md)).
 
-One thing differs between local and remote stores. Artifact data:
-`LocalStore` takes `bytes`, `bytearray`, or `memoryview`, and `RemoteStore`
-takes `bytes` or `str`, sent as UTF-8 text.
-
-Errors are the same on every store. A remote store raises the error the
-server reported, so `except ChannelExistsError` catches a taken name from a
-`LocalStore` and from a served store alike:
+Errors are the same on every store too. A remote store raises the error
+the server reported, so `except ChannelExistsError` catches a taken name
+from a `LocalStore` and from a served store alike:
 
 ```python title="any_store.py"
 import asyncio

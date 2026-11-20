@@ -261,7 +261,7 @@ class LocalStore:
 
     def write_artifact(
         self,
-        data: bytes | bytearray | memoryview,
+        data: bytes | bytearray | memoryview | str,
         *,
         channel: str | None = None,
         media_type: str = "application/octet-stream",
@@ -667,13 +667,19 @@ def _path_value(value: Any, label: str) -> str:
 
 
 def _artifact_bytes(value: Any) -> bytes:
-    if isinstance(value, bytes):
-        return value
-    if isinstance(value, bytearray):
+    # Text is stored as its UTF-8 bytes, as the remote stores send it.
+    if isinstance(value, str):
+        try:
+            return value.encode("utf-8")
+        except UnicodeEncodeError as exc:
+            raise InvalidPayloadError(
+                "artifact data text cannot be encoded as UTF-8."
+            ) from exc
+    if isinstance(value, (bytes, bytearray, memoryview)):
         return bytes(value)
-    if isinstance(value, memoryview):
-        return value.tobytes()
-    raise InvalidPayloadError("artifact data must be bytes.")
+    raise InvalidPayloadError(
+        "artifact data must be bytes, bytearray, memoryview, or str."
+    )
 
 
 def _non_negative_int(name: str, value: int) -> int:

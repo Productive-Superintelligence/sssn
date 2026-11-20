@@ -7,6 +7,7 @@ stores should behave alike.
 
 import asyncio
 import base64
+import hashlib
 import inspect
 import pickle
 import sys
@@ -526,3 +527,36 @@ def test_remote_store_calls_without_httpx_name_the_client_extra(
 
     with pytest.raises(ImportError, match=CLIENT_EXTRA):
         store.list_channels()
+
+
+# 6: every store takes the same artifact data; text is stored as UTF-8
+
+
+@pytest.mark.parametrize(
+    ("data", "stored"),
+    [
+        (b"\xff\x00raw", b"\xff\x00raw"),
+        (bytearray(b"\xff\x00raw"), b"\xff\x00raw"),
+        (memoryview(b"\xff\x00raw"), b"\xff\x00raw"),
+        ("caf\u00e9\n", "caf\u00e9\n".encode("utf-8")),
+    ],
+)
+def test_write_artifact_takes_the_same_data_on_every_store(any_store, data, stored):
+    artifact = any_store.write_artifact(data, media_type="text/plain")
+
+    assert artifact.size == len(stored)
+    assert artifact.sha256 == hashlib.sha256(stored).hexdigest()
+    assert any_store.read_artifact(artifact.id) == stored
+
+
+@pytest.mark.parametrize("data", [None, 123, ["x"], {"data": "x"}, "\ud800"])
+def test_write_artifact_rejects_other_data_on_every_store(any_store, data):
+    with pytest.raises(InvalidPayloadError, match="artifact data"):
+        any_store.write_artifact(data)
+
+
+def test_write_artifact_has_the_same_signature_on_every_store():
+    signature = inspect.signature(LocalStore.write_artifact)
+
+    assert inspect.signature(RemoteStore.write_artifact) == signature
+    assert inspect.signature(AsyncRemoteStore.write_artifact) == signature

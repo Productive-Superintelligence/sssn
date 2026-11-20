@@ -199,8 +199,9 @@ as it does from a `LocalStore`
 ([The store interface](stores.md#the-store-interface)). A store served by
 `create_app` can itself be a `RemoteStore`; the app then reports the store
 errors of the server behind it as that server did.
-Artifact data may be `bytes`, sent base64-encoded, or `str`, sent as UTF-8
-text.
+Artifact data may be `bytes`, `bytearray`, or `memoryview`, sent
+base64-encoded, or `str`, sent as text and stored as its UTF-8 bytes, as
+`LocalStore` stores it.
 
 ## Custom endpoints
 

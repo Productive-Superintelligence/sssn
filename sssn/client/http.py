@@ -259,7 +259,7 @@ class RemoteStore:
 
     def write_artifact(
         self,
-        data: bytes | str,
+        data: bytes | bytearray | memoryview | str,
         *,
         channel: str | None = None,
         media_type: str = "application/octet-stream",
@@ -531,7 +531,7 @@ class AsyncRemoteStore:
 
     async def write_artifact(
         self,
-        data: bytes | str,
+        data: bytes | bytearray | memoryview | str,
         *,
         channel: str | None = None,
         media_type: str = "application/octet-stream",
@@ -675,15 +675,25 @@ def _dump_event(event: Event | dict[str, Any]) -> dict[str, Any]:
     return _mapping_payload("event", event)
 
 
-def _artifact_payload(data: bytes | str) -> dict[str, str]:
-    if isinstance(data, bytes):
+def _artifact_payload(data: Any) -> dict[str, str]:
+    # The same data LocalStore takes: bytes travel base64-encoded, and text
+    # as text, which the server stores as its UTF-8 bytes.
+    if isinstance(data, str):
+        try:
+            data.encode("utf-8")
+        except UnicodeEncodeError as exc:
+            raise InvalidPayloadError(
+                "artifact data text cannot be encoded as UTF-8."
+            ) from exc
+        return {"data": data, "encoding": "text"}
+    if isinstance(data, (bytes, bytearray, memoryview)):
         return {
-            "data": base64.b64encode(data).decode("ascii"),
+            "data": base64.b64encode(bytes(data)).decode("ascii"),
             "encoding": "base64",
         }
-    if not isinstance(data, str):
-        raise InvalidPayloadError("artifact data must be bytes or text.")
-    return {"data": data, "encoding": "text"}
+    raise InvalidPayloadError(
+        "artifact data must be bytes, bytearray, memoryview, or str."
+    )
 
 
 def _segment(value: str) -> str:

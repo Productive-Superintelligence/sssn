@@ -198,9 +198,10 @@ same_event = await client.get_event(event.id)
 `LocalStore` methods. Subscription creation accepts an optional
 `subscription_id`; if that id already exists, the existing subscription is
 returned so processors can keep a stable cursor across restarts. Reusing an id
-for a different channel returns a stable conflict error. When
-`write_artifact()` receives `bytes`, HTTP clients send base64 so binary
-payloads round-trip through the portable API. Artifact writes also accept
+for a different channel returns a stable conflict error. Every store's
+`write_artifact()` takes `bytes`, `bytearray`, `memoryview`, or `str` (stored
+as UTF-8); HTTP clients send bytes as base64 so binary payloads round-trip
+through the portable API. Artifact writes also accept
 `metadata` and `event_ids` so larger payloads can stay linked to the events
 that introduced them; local stores reject links to missing events. Artifact
 downloads use the stored `media_type`; use `get_artifact()` to inspect artifact

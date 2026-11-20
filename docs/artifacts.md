@@ -58,7 +58,7 @@ event_ids=())` stores the bytes and returns an `Artifact`:
 
 | Argument | Default | Meaning |
 | --- | --- | --- |
-| `data` | required | The bytes: `bytes`, `bytearray`, or `memoryview` |
+| `data` | required | The content: `bytes`, `bytearray`, `memoryview`, or `str` |
 | `channel` | `None` | The channel the artifact belongs to; it must exist |
 | `media_type` | `"application/octet-stream"` | The content type, sent back when the artifact is downloaded over HTTP |
 | `metadata` | `{}` | A JSON object that readers can see without the bytes |
@@ -69,10 +69,12 @@ bytes, the `sha256` of the content, and the `path` of the file inside the
 store folder. Artifacts never change: to replace one, write a new one and
 point readers at it.
 
-`LocalStore` does not take text, so encode it first:
-`store.write_artifact(report.encode(), media_type="text/markdown")`.
-`RemoteStore` sends bytes as base64, so binary data arrives intact, and it
-also takes a `str`, sent as UTF-8 text ([Over HTTP](http.md)).
+Text is stored as its UTF-8 bytes, so
+`store.write_artifact(report, media_type="text/markdown")` stores a
+Markdown report as it is. `read_artifact()` always returns bytes; decode
+text with `.decode()`. Every store takes the same data: `RemoteStore` sends
+bytes base64-encoded, so binary data arrives intact, and text as text
+([Over HTTP](http.md)).
 
 The store names each file by the SHA-256 of its content. The same bytes
 written twice make two artifact records, each with its own id and metadata,
