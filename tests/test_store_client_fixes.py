@@ -11,6 +11,7 @@ import dataclasses
 import enum
 import hashlib
 import inspect
+import io
 import json
 import math
 import os
@@ -2413,3 +2414,25 @@ def test_custom_endpoints_return_records_by_the_record_rules(tmp_path):
 
     assert body["event"]["timestamp"] == "inf"
     assert [event["timestamp"] == "inf" for event in body["all"]] == [True, False]
+
+
+# Round 6, item 4: the CLI writes escapes to a stdout that is not UTF
+
+
+def test_cli_writes_escapes_to_a_stdout_that_cannot_encode_text(
+    tmp_path, monkeypatch
+):
+    store = LocalStore(tmp_path / "store")
+    store.create_channel({"name": "notes"})
+    payload = {"text": READABLE, "file": LONE_SURROGATE}
+    event = store.append_event({"channel": "notes", "payload": payload})
+    raw = io.BytesIO()
+    stdout = io.TextIOWrapper(raw, encoding="cp1252")  # a Windows pipe
+    monkeypatch.setattr(sys, "stdout", stdout)
+
+    assert cli_main(["--store", str(store.root), "get-event", event.id]) == 0
+    stdout.flush()
+    printed = raw.getvalue().decode("cp1252")
+
+    assert "\\u4e2d" in printed  # 中, escaped
+    assert json.loads(printed)["payload"] == payload

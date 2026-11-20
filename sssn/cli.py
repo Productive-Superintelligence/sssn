@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import base64
 import binascii
+import codecs
 import importlib
 import json
 import sys
@@ -164,10 +165,16 @@ def main(argv: list[str] | None = None) -> int:
         store = LocalStore(args.store)
     except ValueError as exc:
         parser.error(str(exc))
+    # Records print as UTF-8 text, or as ASCII escapes on a stdout that
+    # cannot encode it (a Windows code page when piped, a legacy locale).
+    ascii_only = not _stdout_writes_utf()
+
+    def show(record: object) -> None:
+        print(record_json(record, ensure_ascii=ascii_only))
 
     if args.command == "channels":
         for channel in store.list_channels():
-            print(record_json(channel))
+            show(channel)
         return 0
 
     if args.command == "create-channel":
@@ -183,7 +190,7 @@ def main(argv: list[str] | None = None) -> int:
             )
         except NetworkError as exc:
             parser.error(str(exc))
-        print(record_json(channel))
+        show(channel)
         return 0
 
     if args.command == "get-channel":
@@ -191,7 +198,7 @@ def main(argv: list[str] | None = None) -> int:
             channel = store.get_channel(args.name)
         except NetworkError as exc:
             parser.error(str(exc))
-        print(record_json(channel))
+        show(channel)
         return 0
 
     if args.command == "append":
@@ -215,7 +222,7 @@ def main(argv: list[str] | None = None) -> int:
             event = store.append_event(event_data)
         except NetworkError as exc:
             parser.error(str(exc))
-        print(record_json(event))
+        show(event)
         return 0
 
     if args.command == "query-events":
@@ -229,7 +236,7 @@ def main(argv: list[str] | None = None) -> int:
         except NetworkError as exc:
             parser.error(str(exc))
         for event in events:
-            print(record_json(event))
+            show(event)
         return 0
 
     if args.command == "get-event":
@@ -237,7 +244,7 @@ def main(argv: list[str] | None = None) -> int:
             event = store.get_event(args.id)
         except NetworkError as exc:
             parser.error(str(exc))
-        print(record_json(event))
+        show(event)
         return 0
 
     if args.command == "create-subscription":
@@ -252,7 +259,7 @@ def main(argv: list[str] | None = None) -> int:
             )
         except NetworkError as exc:
             parser.error(str(exc))
-        print(record_json(subscription))
+        show(subscription)
         return 0
 
     if args.command == "get-subscription":
@@ -260,7 +267,7 @@ def main(argv: list[str] | None = None) -> int:
             subscription = store.get_subscription(args.id)
         except NetworkError as exc:
             parser.error(str(exc))
-        print(record_json(subscription))
+        show(subscription)
         return 0
 
     if args.command == "pull-subscription":
@@ -269,7 +276,7 @@ def main(argv: list[str] | None = None) -> int:
         except NetworkError as exc:
             parser.error(str(exc))
         for event in events:
-            print(record_json(event))
+            show(event)
         return 0
 
     if args.command == "write-artifact":
@@ -287,7 +294,7 @@ def main(argv: list[str] | None = None) -> int:
             )
         except NetworkError as exc:
             parser.error(str(exc))
-        print(record_json(artifact))
+        show(artifact)
         return 0
 
     if args.command == "get-artifact":
@@ -295,7 +302,7 @@ def main(argv: list[str] | None = None) -> int:
             artifact = store.get_artifact(args.id)
         except NetworkError as exc:
             parser.error(str(exc))
-        print(record_json(artifact))
+        show(artifact)
         return 0
 
     if args.command == "read-artifact":
@@ -331,7 +338,7 @@ def main(argv: list[str] | None = None) -> int:
             )
         except NetworkError as exc:
             parser.error(str(exc))
-        print(record_json(snapshot))
+        show(snapshot)
         return 0
 
     if args.command == "get-snapshot":
@@ -339,7 +346,7 @@ def main(argv: list[str] | None = None) -> int:
             snapshot = store.get_snapshot(args.name)
         except NetworkError as exc:
             parser.error(str(exc))
-        print(record_json(snapshot))
+        show(snapshot)
         return 0
 
     if args.command == "serve":
@@ -384,6 +391,14 @@ def _serve_port(value: int) -> int:
     ):
         raise ValueError("serve port must be an integer between 1 and 65535")
     return value
+
+
+def _stdout_writes_utf() -> bool:
+    encoding = getattr(sys.stdout, "encoding", None) or "ascii"
+    try:
+        return codecs.lookup(encoding).name.startswith("utf")
+    except LookupError:
+        return False
 
 
 def _server_installed() -> bool:

@@ -234,7 +234,12 @@ def parse_json(text: str | bytes) -> Any:
         raise InvalidPayloadError(f"Value is not JSON serializable: {exc}") from exc
 
 
-def record_json(content: Any, *, default: Callable[[Any], Any] | None = None) -> str:
+def record_json(
+    content: Any,
+    *,
+    default: Callable[[Any], Any] | None = None,
+    ensure_ascii: bool = False,
+) -> str:
     """Write records a store returned (one, or a list) as JSON that cannot fail.
 
     A store also holds what earlier versions wrote. A non-finite timestamp
@@ -242,10 +247,13 @@ def record_json(content: Any, *, default: Callable[[Any], Any] | None = None) ->
     lone surrogate as a JSON escape; and any other non-finite number, which
     only a row written before sssn 0.2.1 can hold, as the NaN or Infinity
     that Python's json writes and SSSN's clients read. ``default`` writes
-    anything else, as for ``json.dumps``.
+    anything else, as for ``json.dumps``, and ``ensure_ascii`` writes all
+    non-ASCII text as escapes, for an output that cannot encode it.
     """
 
-    return dumps_json(_records(content), allow_nan=True, default=default)
+    return dumps_json(
+        _records(content), allow_nan=True, default=default, ensure_ascii=ensure_ascii
+    )
 
 
 # The \uXXXX escapes of the lone surrogates, U+D800 to U+DFFF.
@@ -257,21 +265,25 @@ def dumps_json(
     *,
     allow_nan: bool,
     default: Callable[[Any], Any] | None = None,
+    ensure_ascii: bool = False,
 ) -> str:
     """Write ``value`` as compact JSON text that encodes to UTF-8.
 
     Text stays readable: only a lone surrogate, which UTF-8 cannot encode,
     is written as its ``\\uXXXX`` escape. A raw surrogate can only stand in
-    a string literal, so the escaped text is the same JSON.
+    a string literal, so the escaped text is the same JSON. With
+    ``ensure_ascii``, all non-ASCII text is escaped, as ``json.dumps`` does.
     """
 
     text = json.dumps(
         value,
-        ensure_ascii=False,
+        ensure_ascii=ensure_ascii,
         allow_nan=allow_nan,
         separators=(",", ":"),
         default=default,
     )
+    if ensure_ascii:
+        return text
     try:
         # At C speed, and it fails only where a lone surrogate stands: the
         # slower rewrite runs only then.

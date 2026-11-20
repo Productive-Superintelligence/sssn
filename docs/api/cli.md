@@ -6,6 +6,14 @@ and `lllm network` is always available because `sssn` depends on `lllm-core`.
 folder is created if it does not exist. Every command prints one JSON object
 per line; errors print a message and exit with status 2.
 
+Text prints as UTF-8, or as `\u` escapes when the output cannot encode it,
+such as a Windows code page in a pipe. A store written by sssn 0.2.0 can
+hold values JSON cannot carry, and the CLI prints them as the HTTP API sends
+them: an infinite timestamp as `"inf"` or `"-inf"`, other NaN or infinite
+numbers as `NaN` or `Infinity`, and a lone surrogate as an escape.
+`pull-subscription` moves the cursor before it prints, so output that is
+lost on the way, as to a closed pipe, is not pulled again.
+
 Create and inspect channels:
 
 ```bash
