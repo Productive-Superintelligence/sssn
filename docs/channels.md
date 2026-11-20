@@ -86,10 +86,11 @@ print([channel.name for channel in store.list_channels()])
 #> ['orders']
 ```
 
-A served store reports a taken name as a `RemoteStoreError`;
-[Stores](stores.md) has a version of this helper for any store. In an LLLM
-package, declare channels in `lllm.toml` instead, and they are created when
-the package's store is opened ([Packages and refs](packages.md)).
+The helper works on any store: a served store reports a taken name with
+the same `ChannelExistsError` ([Stores](stores.md#the-store-interface)). In
+an LLLM package, declare channels in `lllm.toml` instead, and they are
+created when the package's store is opened
+([Packages and refs](packages.md)).
 
 ## Forms
 
@@ -306,5 +307,6 @@ All of them subclass `NetworkError`. Building a model yourself, as in
 `Channel(name="two words")`, raises Pydantic's `ValidationError` instead;
 a dict passed to the store is reported as `InvalidPayloadError`. A served
 store answers 404 for the not-found errors, 409 for the exists errors, and
-400 for the rest, and `RemoteStore` raises `RemoteStoreError` with the
-`status_code` and the `error_type` ([Over HTTP](http.md)).
+400 for the rest, and `RemoteStore` raises the same classes. Its errors are
+also `RemoteStoreError`s, with the `status_code` and the `error_type`
+([Over HTTP](http.md)).

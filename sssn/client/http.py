@@ -9,11 +9,33 @@ from urllib.parse import urlsplit
 
 from lllm.protocol.validation import copy_boundary_value
 
-from ..core import Artifact, Channel, Event, InvalidPayloadError, Snapshot, Subscription
+from ..core import (
+    Artifact,
+    ArtifactNotFoundError,
+    Channel,
+    ChannelExistsError,
+    ChannelNotFoundError,
+    Event,
+    EventExistsError,
+    EventNotFoundError,
+    InvalidPayloadError,
+    NetworkError,
+    Snapshot,
+    SnapshotNotFoundError,
+    Subscription,
+    SubscriptionExistsError,
+    SubscriptionNotFoundError,
+)
 
 
-class RemoteStoreError(RuntimeError):
-    """Raised when an SSSN HTTP server returns an error."""
+class RemoteStoreError(NetworkError):
+    """Raised when an SSSN HTTP server returns an error.
+
+    When the server reports one of the store errors, such as
+    ``ChannelNotFoundError``, the error is also an instance of that class, so
+    ``except ChannelNotFoundError`` catches it from a remote store as it does
+    from a ``LocalStore``.
+    """
 
     def __init__(
         self,
@@ -33,6 +55,51 @@ class RemoteStoreError(RuntimeError):
         if self.message:
             text += f": {self.message}"
         super().__init__(text)
+
+    def __reduce__(self) -> tuple[Any, ...]:
+        return (
+            _remote_error,
+            (self.status_code, self.error_type, self.message, self.detail),
+        )
+
+
+# The store errors a server reports by name. Each gets a RemoteStoreError
+# subclass that is also that error, still named RemoteStoreError.
+_REMOTE_ERRORS: dict[str, type[RemoteStoreError]] = {
+    error.__name__: type(
+        "RemoteStoreError",
+        (RemoteStoreError, error),
+        {
+            "__module__": __name__,
+            "__doc__": f"A {error.__name__} reported by an SSSN server.",
+        },
+    )
+    for error in (
+        ArtifactNotFoundError,
+        ChannelExistsError,
+        ChannelNotFoundError,
+        EventExistsError,
+        EventNotFoundError,
+        InvalidPayloadError,
+        SnapshotNotFoundError,
+        SubscriptionExistsError,
+        SubscriptionNotFoundError,
+    )
+}
+
+
+def _remote_error(
+    status_code: int,
+    error_type: str | None = None,
+    message: str | None = None,
+    detail: Any = None,
+) -> RemoteStoreError:
+    """A RemoteStoreError, also an instance of the store error it reports."""
+
+    error_class = _REMOTE_ERRORS.get(error_type or "", RemoteStoreError)
+    return error_class(
+        status_code, error_type=error_type, message=message, detail=detail
+    )
 
 
 class RemoteStore:
@@ -760,7 +827,7 @@ def _raise_for_error(response: Any) -> None:
     except Exception:
         data = response.text
     error = _error_detail(data)
-    raise RemoteStoreError(
+    raise _remote_error(
         response.status_code,
         error_type=_error_token_field(error, "type"),
         message=_error_text_field(error, "message"),

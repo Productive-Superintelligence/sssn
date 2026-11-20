@@ -96,7 +96,9 @@ events. Subscription filters support only `{"kind": "..."}`; unsupported
 filter keys are rejected instead of being ignored.
 
 HTTP clients raise `RemoteStoreError` with `status_code`, `error_type`,
-`message`, and raw `detail` fields copied from the server error envelope.
+`message`, and raw `detail` fields copied from the server error envelope. It is
+a `NetworkError`, and for a store error it is also an instance of that error's
+class, so `except ChannelNotFoundError` works on local and remote stores.
 
 ## LLLM Packages And Refs
 

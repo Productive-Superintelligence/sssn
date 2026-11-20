@@ -137,41 +137,60 @@ store server is built the same way: `create_app` turns each method into a
 route, and `RemoteStore` turns each route back into the method
 ([Over HTTP](http.md)).
 
-Two things differ between local and remote stores. Artifact data:
+One thing differs between local and remote stores. Artifact data:
 `LocalStore` takes `bytes`, `bytearray`, or `memoryview`, and `RemoteStore`
-takes `bytes` or `str`, sent as UTF-8 text. And errors have different
-classes: `LocalStore` raises `NetworkError` subclasses such as
-`ChannelExistsError`, while a remote store raises `RemoteStoreError`, whose
-`error_type` holds the server's class name. Code that should run on both
-can compare names:
+takes `bytes` or `str`, sent as UTF-8 text.
+
+Errors are the same on every store. A remote store raises the error the
+server reported, so `except ChannelExistsError` catches a taken name from a
+`LocalStore` and from a served store alike:
 
 ```python title="any_store.py"
-from sssn import LocalStore, NetworkError, RemoteStoreError
+import asyncio
 
+import httpx
 
-def error_type(error: Exception) -> str:
-    return getattr(error, "error_type", None) or type(error).__name__
-
-
-def ensure_channel(store, name: str) -> None:
-    """Create a channel unless it exists, on any store."""
-    try:
-        store.create_channel({"name": name})
-    except (NetworkError, RemoteStoreError) as error:
-        if error_type(error) != "ChannelExistsError":
-            raise
-
+from sssn import (
+    AsyncRemoteStore,
+    ChannelExistsError,
+    LocalStore,
+    RemoteStoreError,
+    create_app,
+)
 
 store = LocalStore(".lllm/network")
-ensure_channel(store, "readings")
-ensure_channel(store, "readings")  # (1)!
-print([channel.name for channel in store.list_channels()])
-#> ['readings']
+store.create_channel({"name": "readings"})
+remote = AsyncRemoteStore(
+    "http://store.internal:7700",
+    transport=httpx.ASGITransport(app=create_app(store)),  # (1)!
+)
+
+try:
+    store.create_channel({"name": "readings"})
+except ChannelExistsError as error:
+    print("local:", error)
+    #> local: Channel already exists: readings
+
+
+async def main():
+    try:
+        await remote.create_channel({"name": "readings"})
+    except ChannelExistsError as error:  # (2)!
+        print("remote:", error.status_code, error.message)
+        #> remote: 409 Channel already exists: readings
+        print(isinstance(error, RemoteStoreError))
+        #> True
+
+
+asyncio.run(main())
 ```
 
-1. The second call finds the channel and does nothing. On a `RemoteStore`
-   the same call gets a 409 response, which arrives as a `RemoteStoreError`
-   with `error_type` `"ChannelExistsError"`.
+1. Only for this example: requests go to an app in this process that
+   serves `store`. Against a running server, pass the URL alone
+   ([Over HTTP](http.md)).
+2. The server answers 409 with the error's name, and the remote store
+   raises it as a `ChannelExistsError`. It is also a `RemoteStoreError`,
+   with the HTTP `status_code` and the server's `message`.
 
 ## Concurrency
 

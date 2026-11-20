@@ -28,6 +28,7 @@ from ..core import (
     SubscriptionExistsError,
     SubscriptionNotFoundError,
 )
+from ..client.http import RemoteStoreError
 from ..stores import LocalStore
 from .endpoints import (
     StoreEndpointSpec,
@@ -38,6 +39,15 @@ from .endpoints import (
 
 
 _CUSTOM_ROUTE_METHODS = {"GET", "POST", "PUT", "PATCH", "DELETE"}
+_NOT_FOUND_ERRORS = (
+    ChannelNotFoundError,
+    EventNotFoundError,
+    ArtifactNotFoundError,
+    SnapshotNotFoundError,
+    SubscriptionNotFoundError,
+)
+_CONFLICT_ERRORS = (ChannelExistsError, EventExistsError, SubscriptionExistsError)
+_STORE_ERRORS = (*_NOT_FOUND_ERRORS, *_CONFLICT_ERRORS, InvalidPayloadError)
 
 
 class ErrorDetail(BaseModel):
@@ -404,28 +414,26 @@ def _http_error(exc: Exception):
     except ImportError as import_exc:  # pragma: no cover
         raise RuntimeError("Install sssn[server] to use the FastAPI server.") from import_exc
 
+    error_type, message = type(exc).__name__, str(exc)
     status_code = 500
-    if isinstance(
-        exc,
-        (
-            ChannelNotFoundError,
-            EventNotFoundError,
-            ArtifactNotFoundError,
-            SnapshotNotFoundError,
-            SubscriptionNotFoundError,
-        ),
-    ):
+    if isinstance(exc, _NOT_FOUND_ERRORS):
         status_code = 404
-    elif isinstance(
-        exc,
-        (ChannelExistsError, EventExistsError, SubscriptionExistsError),
-    ):
+    elif isinstance(exc, _CONFLICT_ERRORS):
         status_code = 409
+    elif isinstance(exc, RemoteStoreError):
+        # The server behind a RemoteStore chose the status: pass on a client
+        # error as it is; anything else is this server's failure.
+        status_code = exc.status_code if 400 <= exc.status_code < 500 else 500
     elif isinstance(exc, NetworkError):
         status_code = 400
+    if isinstance(exc, RemoteStoreError) and isinstance(exc, _STORE_ERRORS):
+        # A store error from the server behind a RemoteStore: report it the
+        # way that server did, so clients of this one see the same error.
+        error_type = exc.error_type or error_type
+        message = exc.message or message
     return HTTPException(
         status_code=status_code,
-        detail=_error_payload(type(exc).__name__, str(exc)),
+        detail=_error_payload(error_type, message),
     )
 
 

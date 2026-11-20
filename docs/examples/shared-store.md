@@ -24,14 +24,16 @@ its own process, as shown after the code.
 import socket
 import threading
 import time
+from contextlib import suppress
 
 import uvicorn
 
 from lllm import as_tactic
 from sssn import (
+    ChannelExistsError,
+    EventExistsError,
     LocalStore,
     RemoteStore,
-    RemoteStoreError,
     TacticProcessor,
     create_app,
 )
@@ -50,15 +52,6 @@ def serve_in_background(app):  # (1)!
     return server, thread, f"http://127.0.0.1:{port}"
 
 
-def tolerate(error_type, call, *args):
-    """Call, treating one kind of server error as success."""
-    try:
-        call(*args)
-    except RemoteStoreError as error:
-        if error.error_type != error_type:
-            raise
-
-
 # The store server: what `sssn --store data/store serve` runs.
 server, thread, url = serve_in_background(
     create_app(LocalStore("data/store"))
@@ -67,13 +60,15 @@ server, thread, url = serve_in_background(
 # Process 1: the gateway publishes readings.
 gateway = RemoteStore(url)
 for name in ("readings", "assessments"):
-    tolerate("ChannelExistsError", gateway.create_channel, {"name": name})
+    with suppress(ChannelExistsError):
+        gateway.create_channel({"name": name})
 
 
 def publish(reading_id, sensor, celsius):
     reading = {"sensor": sensor, "celsius": celsius}
     event = {"channel": "readings", "id": reading_id, "payload": reading}
-    tolerate("EventExistsError", gateway.append_event, event)  # (2)!
+    with suppress(EventExistsError):  # (2)!
+        gateway.append_event(event)
 
 
 publish("boiler-1", "boiler", 64.0)

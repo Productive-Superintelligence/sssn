@@ -7,6 +7,7 @@ stores should behave alike.
 
 import asyncio
 import inspect
+import pickle
 import threading
 from pathlib import Path
 
@@ -15,7 +16,35 @@ import pytest
 from fastapi.testclient import TestClient
 
 import sssn.stores.local as local_module
-from sssn import AsyncRemoteStore, LocalStore, RemoteStore, create_app
+from sssn import (
+    ArtifactNotFoundError,
+    AsyncRemoteStore,
+    ChannelExistsError,
+    ChannelNotFoundError,
+    EventExistsError,
+    EventNotFoundError,
+    InvalidPayloadError,
+    LocalStore,
+    NetworkError,
+    RemoteStore,
+    RemoteStoreError,
+    SnapshotNotFoundError,
+    SubscriptionExistsError,
+    SubscriptionNotFoundError,
+    create_app,
+)
+
+STORE_ERRORS = (
+    ArtifactNotFoundError,
+    ChannelExistsError,
+    ChannelNotFoundError,
+    EventExistsError,
+    EventNotFoundError,
+    InvalidPayloadError,
+    SnapshotNotFoundError,
+    SubscriptionExistsError,
+    SubscriptionNotFoundError,
+)
 
 
 def request(app, method, path, **kwargs):
@@ -154,3 +183,149 @@ def test_many_workers_pulling_one_subscription_get_each_event_once(tmp_path):
 
     assert errors == []
     assert sorted(seen) == list(range(40))
+
+
+# 4: remote stores raise the same error classes as LocalStore
+
+
+def test_remote_store_error_is_a_network_error():
+    assert issubclass(RemoteStoreError, NetworkError)
+
+
+def test_every_store_raises_the_same_error_classes(any_store):
+    any_store.create_channel({"name": "events"})
+    any_store.create_channel({"name": "other"})
+    any_store.append_event({"id": "e1", "channel": "events"})
+    any_store.create_subscription("events", subscription_id="worker")
+    orphan = {"channel": "events", "parent_ids": ["missing"]}
+    calls = [
+        (ChannelNotFoundError, any_store.get_channel, "missing"),
+        (ChannelNotFoundError, any_store.query_events, "missing"),
+        (ChannelExistsError, any_store.create_channel, {"name": "events"}),
+        (EventExistsError, any_store.append_event, {"id": "e1", "channel": "events"}),
+        (EventNotFoundError, any_store.get_event, "missing"),
+        (EventNotFoundError, any_store.append_event, orphan),
+        (SubscriptionNotFoundError, any_store.get_subscription, "missing"),
+        (SubscriptionNotFoundError, any_store.pull_subscription, "missing"),
+        (ArtifactNotFoundError, any_store.get_artifact, "missing"),
+        (ArtifactNotFoundError, any_store.read_artifact, "missing"),
+        (SnapshotNotFoundError, any_store.get_snapshot, "missing"),
+        (InvalidPayloadError, any_store.create_channel, {"name": "x", "form": "?"}),
+    ]
+    for error, method, argument in calls:
+        with pytest.raises(error):
+            method(argument)
+    with pytest.raises(SubscriptionExistsError):
+        any_store.create_subscription("other", subscription_id="worker")
+    with pytest.raises(InvalidPayloadError):
+        any_store.query_events("events", limit=0)
+
+
+def test_remote_store_errors_keep_the_remote_store_error_fields(remote_store):
+    with pytest.raises(ChannelNotFoundError) as exc_info:
+        remote_store.get_channel("missing")
+
+    error = exc_info.value
+    assert isinstance(error, RemoteStoreError)
+    assert type(error).__name__ == "RemoteStoreError"
+    assert error.status_code == 404
+    assert error.error_type == "ChannelNotFoundError"
+    assert error.message == "Channel not found: missing"
+    assert str(error) == (
+        "SSSN server returned HTTP 404 (ChannelNotFoundError): "
+        "Channel not found: missing"
+    )
+
+
+def error_response(status_code, error_type, message="boom"):
+    body = {"detail": {"error": {"type": error_type, "message": message}}}
+
+    def handler(outgoing: httpx.Request) -> httpx.Response:
+        return httpx.Response(status_code, json=body)
+
+    return httpx.MockTransport(handler)
+
+
+@pytest.mark.parametrize("error", STORE_ERRORS)
+def test_remote_store_errors_are_instances_of_the_reported_store_error(error):
+    transport = error_response(400, error.__name__)
+    store = RemoteStore("http://testserver", transport=transport)
+
+    with pytest.raises(error) as exc_info:
+        store.get_channel("events")
+
+    assert isinstance(exc_info.value, RemoteStoreError)
+    assert exc_info.value.error_type == error.__name__
+    others = [other for other in STORE_ERRORS if other is not error]
+    assert not isinstance(exc_info.value, tuple(others))
+
+
+def test_unknown_remote_error_types_raise_a_plain_remote_store_error():
+    store = RemoteStore("http://testserver", transport=error_response(500, "KeyError"))
+
+    with pytest.raises(RemoteStoreError) as exc_info:
+        store.get_channel("events")
+
+    assert type(exc_info.value) is RemoteStoreError
+    assert not isinstance(exc_info.value, STORE_ERRORS)
+    assert exc_info.value.error_type == "KeyError"
+
+
+def test_remote_store_errors_survive_pickling():
+    transport = error_response(404, "ChannelNotFoundError", "Channel not found: x")
+    with pytest.raises(ChannelNotFoundError) as exc_info:
+        RemoteStore("http://testserver", transport=transport).get_channel("x")
+    error = exc_info.value
+
+    copy = pickle.loads(pickle.dumps(error))
+
+    assert isinstance(copy, ChannelNotFoundError)
+    assert isinstance(copy, RemoteStoreError)
+    assert str(copy) == str(error)
+    assert (copy.status_code, copy.error_type, copy.message, copy.detail) == (
+        error.status_code,
+        error.error_type,
+        error.message,
+        error.detail,
+    )
+
+
+def test_store_server_passes_on_the_errors_of_a_remote_store_it_serves(tmp_path):
+    backend = create_app(LocalStore(tmp_path / "backend"))
+    remote = RemoteStore("http://backend", transport=sync_transport(backend))
+    proxy = create_app(remote)
+    request(proxy, "POST", "/channels", json={"name": "events"})
+
+    missing = request(proxy, "GET", "/channels/missing")
+    taken = request(proxy, "POST", "/channels", json={"name": "events"})
+
+    assert missing.status_code == 404
+    assert missing.json()["detail"]["error"] == {
+        "type": "ChannelNotFoundError",
+        "message": "Channel not found: missing",
+    }
+    assert taken.status_code == 409
+    assert taken.json()["detail"]["error"] == {
+        "type": "ChannelExistsError",
+        "message": "Channel already exists: events",
+    }
+
+
+@pytest.mark.parametrize(
+    ("response", "status_code"),
+    [
+        (httpx.Response(401, json={"detail": "Invalid token."}), 401),
+        (httpx.Response(503, text="unavailable"), 500),
+        (httpx.Response(200, text="not json"), 500),
+    ],
+)
+def test_store_server_reports_other_remote_store_failures_as_before(
+    response, status_code
+):
+    transport = httpx.MockTransport(lambda outgoing: response)
+    proxy = create_app(RemoteStore("http://backend", transport=transport))
+
+    answer = request(proxy, "GET", "/channels/events")
+
+    assert answer.status_code == status_code
+    assert answer.json()["detail"]["error"]["type"] == "RemoteStoreError"

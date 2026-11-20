@@ -190,9 +190,13 @@ class name, such as `"ChannelNotFoundError"`), `message`, and `detail`
 (the raw response body). A response that does not match the expected
 model raises `RemoteStoreError` with `error_type="InvalidResponse"`.
 
-`RemoteStoreError` is a `RuntimeError`, not a `NetworkError`, so code that
-runs on local and remote stores should check the error's name
-([The store interface](stores.md#the-store-interface) has a helper).
+`RemoteStoreError` is a `NetworkError`. When the server reports one of the
+store errors, the error raised is also an instance of that class, so
+`except ChannelNotFoundError` catches a missing channel from a remote store
+as it does from a `LocalStore`
+([The store interface](stores.md#the-store-interface)). A store served by
+`create_app` can itself be a `RemoteStore`; the app then reports the store
+errors of the server behind it as that server did.
 Artifact data may be `bytes`, sent base64-encoded, or `str`, sent as UTF-8
 text.
 
