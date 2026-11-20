@@ -138,7 +138,9 @@ own functions, calls only these methods, so a function written and tested
 against a `LocalStore` works on a store served from another machine. The
 store server is built the same way: `create_app` turns each method into a
 route, and `RemoteStore` turns each route back into the method
-([Over HTTP](http.md)).
+([Over HTTP](http.md)). The server calls a synchronous store's methods
+from a thread pool, possibly in several threads at once, so a store you
+write must be thread-safe, as `LocalStore` is, or async.
 
 Errors are the same on every store too. A remote store raises the error
 the server reported, so `except ChannelExistsError` catches a taken name

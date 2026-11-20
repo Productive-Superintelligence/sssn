@@ -111,8 +111,9 @@ class RemoteStore:
     ``headers`` are sent with every request, such as
     ``{"Authorization": "Bearer ..."}`` for a server behind a token check,
     and ``auth`` takes an httpx authentication, such as ``httpx.BasicAuth``.
-    ``transport`` is an httpx transport, such as ``httpx.ASGITransport`` in
-    tests.
+    ``transport`` is a synchronous httpx transport, such as
+    ``httpx.MockTransport`` or one that forwards to a ``TestClient`` in
+    tests (``httpx.ASGITransport`` is async, for ``AsyncRemoteStore``).
     """
 
     def __init__(
@@ -375,8 +376,8 @@ class AsyncRemoteStore:
     ``headers`` are sent with every request, such as
     ``{"Authorization": "Bearer ..."}`` for a server behind a token check,
     and ``auth`` takes an httpx authentication, such as ``httpx.BasicAuth``.
-    ``transport`` is an httpx transport, such as ``httpx.ASGITransport`` in
-    tests.
+    ``transport`` is an async httpx transport, such as
+    ``httpx.ASGITransport`` in tests.
     """
 
     def __init__(

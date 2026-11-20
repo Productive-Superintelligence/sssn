@@ -309,6 +309,7 @@ All of them subclass `NetworkError`. Building a model yourself, as in
 `Channel(name="two words")`, raises Pydantic's `ValidationError` instead;
 a dict passed to the store is reported as `InvalidPayloadError`. A served
 store answers 404 for the not-found errors, 409 for the exists errors, and
-400 for the rest, and `RemoteStore` raises the same classes. Its errors are
-also `RemoteStoreError`s, with the `status_code` and the `error_type`
-([Over HTTP](http.md)).
+400 for the rest, and `RemoteStore` raises the same classes. An error the
+server reports is also a `RemoteStoreError`, with the `status_code` and
+the `error_type`, while a name or value the client rejects before sending
+raises a plain `InvalidPayloadError` ([Over HTTP](http.md)).

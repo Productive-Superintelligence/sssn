@@ -97,7 +97,11 @@ declares, use `lllm serve PACKAGE --resource channels.NAME`
 The routes call the store in a worker thread, so while one request waits
 on SQLite the server answers others; SQLite still commits one write at a
 time. The store may also be async, such as an `AsyncRemoteStore` in front
-of another server, and then its methods are awaited.
+of another server, and then its methods are awaited. Synchronous store
+methods and custom endpoint handlers run in a thread pool, possibly in
+several threads at once, so a store or handler you write must be
+thread-safe, or async. `LocalStore` is thread-safe: each call opens its
+own connection.
 
 ## Routes
 
@@ -159,11 +163,17 @@ message. The status says what kind of error it is:
 
 | Status | Errors |
 | --- | --- |
-| 400 | `InvalidPayloadError` and other `NetworkError`s; a request body that does not validate is reported as `InvalidPayloadError` with the field, as in `channel: Field required` |
+| 400 | `InvalidPayloadError` and other `NetworkError`s (but see a served `RemoteStore` below); a request body that does not validate is reported as `InvalidPayloadError` with the field, as in `channel: Field required` |
 | 404 | `ChannelNotFoundError`, `EventNotFoundError`, `SubscriptionNotFoundError`, `ArtifactNotFoundError`, `SnapshotNotFoundError` |
 | 409 | `ChannelExistsError`, `EventExistsError`, `SubscriptionExistsError` |
 | 503 | `StoreBusyError`: another process kept the store locked past SQLite's busy timeout; the request changed nothing, so retry it |
 | 500 | Anything else, with the exception's class name and message |
+
+When the store an app serves is a `RemoteStore`, a store error from the
+server behind it is reported as that server reported it, with the same
+status and type. Another client error from that server (a 4xx, such as a
+401) passes through with its status as a `RemoteStoreError`, and anything
+else is a 500.
 
 A 409 is often not a failure. A producer that retries after a timeout and
 gets `EventExistsError` knows its event was written the first time, and a
@@ -182,7 +192,7 @@ another kind filter, is a 409 `SubscriptionExistsError`.
 | --- | --- | --- |
 | `base_url` | required | The server's absolute `http` or `https` URL; a trailing `/` is dropped |
 | `timeout` | `30.0` | Seconds to wait for each request; `None` waits forever |
-| `transport` | `None` | An httpx transport, such as `httpx.ASGITransport` in tests |
+| `transport` | `None` | An httpx transport: an async one, such as `httpx.ASGITransport` in tests, for `AsyncRemoteStore`, and a synchronous one, such as `httpx.MockTransport`, for `RemoteStore` |
 | `headers` | `None` | Headers sent with every request, such as `{"Authorization": "Bearer ..."}` ([Securing a store](#securing-a-store)) |
 | `auth` | `None` | An httpx authentication, such as `httpx.BasicAuth(user, password)` |
 
@@ -380,5 +390,6 @@ asyncio.run(main())
 
 A store behind a gateway that checks tokens works the same way. For TLS
 settings, such as a private certificate authority, pass a transport that
-carries them: `transport=httpx.HTTPTransport(verify=context)`, with an
-`ssl.SSLContext` as `context`.
+carries them, with an `ssl.SSLContext` as `context`:
+`httpx.HTTPTransport(verify=context)` for a `RemoteStore`, or
+`httpx.AsyncHTTPTransport(verify=context)` for an `AsyncRemoteStore`.

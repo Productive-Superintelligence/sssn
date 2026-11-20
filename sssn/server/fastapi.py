@@ -124,11 +124,19 @@ class SnapshotWriteRequest(BaseModel):
 
 
 def create_app(
-    store: LocalStore | None = None,
+    store: Any = None,
     *,
     custom_endpoints: Sequence[Callable[..., Any]] = (),
 ):
-    """Create a FastAPI app exposing a store's portable API."""
+    """Create a FastAPI app exposing a store's portable API.
+
+    ``store`` is any store, synchronous or async: a ``LocalStore`` (without
+    one, the app opens ``LocalStore()``), an ``AsyncRemoteStore`` in front of
+    another server, or another object with the store methods. Synchronous
+    store methods and custom endpoint handlers run in a thread pool,
+    possibly at the same time, so they must be thread-safe; async ones are
+    awaited on the event loop.
+    """
 
     try:
         from fastapi import FastAPI, Query
@@ -140,7 +148,7 @@ def create_app(
 
     from .. import __version__
 
-    local_store = store or LocalStore()
+    local_store = LocalStore() if store is None else store
     app = FastAPI(title="SSSN Store", version=__version__)
     app.state.sssn_store = local_store
     # LLLM 0.3's lllm.network kept the store here; code written against it
@@ -355,7 +363,7 @@ async def _call(function: Callable[..., Any], /, *args: Any, **kwargs: Any) -> A
 
 def _mount_custom_endpoint(
     app: Any,
-    store: LocalStore,
+    store: Any,
     spec: StoreEndpointSpec,
     fn: Callable[..., Any],
 ) -> None:

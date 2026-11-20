@@ -54,11 +54,16 @@ Errors come back in one envelope, with the error class name as `type`:
 
 | Status | When |
 | --- | --- |
-| 400 | `InvalidPayloadError`, other `NetworkError`s, and request bodies that fail validation (reported as `InvalidPayloadError`). |
+| 400 | `InvalidPayloadError`, other `NetworkError`s, and request bodies that fail validation (reported as `InvalidPayloadError`). A served `RemoteStore` is different; see below. |
 | 404 | `ChannelNotFoundError`, `EventNotFoundError`, `SubscriptionNotFoundError`, `ArtifactNotFoundError`, `SnapshotNotFoundError`. |
 | 409 | `ChannelExistsError`, `EventExistsError` (an event id that is taken), `SubscriptionExistsError`. |
 | 503 | `StoreBusyError`: another process kept the store locked past SQLite's busy timeout; retry the request. |
 | 500 | Anything else, with the exception's class name and message. |
+
+When the served store is a `RemoteStore`, a store error from the server
+behind it keeps that server's status and type, another client error (4xx)
+from it passes through with its status as a `RemoteStoreError`, and
+anything else is a 500.
 
 ## Custom endpoints
 
