@@ -207,14 +207,19 @@ def test_concurrent_pulls_of_one_subscription_get_different_events(
     def pull(store):
         pulled[store] = store.pull_subscription("workers", limit=3)
 
+    # Daemon threads, joined against a deadline: a pull that spins fails the
+    # test instead of hanging the suite.
     threads = [
-        threading.Thread(target=pull, args=(store,)) for store in (first, second)
+        threading.Thread(target=pull, args=(store,), daemon=True)
+        for store in (first, second)
     ]
     for thread in threads:
         thread.start()
+    deadline = time.monotonic() + 60
     for thread in threads:
-        thread.join()
+        thread.join(timeout=max(0.0, deadline - time.monotonic()))
 
+    assert not [thread for thread in threads if thread.is_alive()]
     payloads = [event.payload for batch in pulled.values() for event in batch]
     assert sorted(payloads) == [0, 1, 2, 3, 4, 5]
     assert second.get_subscription("workers").cursor == 6
