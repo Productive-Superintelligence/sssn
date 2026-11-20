@@ -9,6 +9,7 @@ import asyncio
 import base64
 import hashlib
 import inspect
+import math
 import pickle
 import sys
 import threading
@@ -18,14 +19,16 @@ import httpx
 import pytest
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
+from pydantic import BaseModel, ValidationError
 
 import sssn.stores.local as local_module
 from sssn import (
     ArtifactNotFoundError,
     AsyncRemoteStore,
     ChannelExistsError,
-    ChannelResolver,
     ChannelNotFoundError,
+    ChannelResolver,
+    Event,
     EventExistsError,
     EventNotFoundError,
     InvalidPayloadError,
@@ -33,6 +36,7 @@ from sssn import (
     NetworkError,
     RemoteStore,
     RemoteStoreError,
+    Snapshot,
     SnapshotNotFoundError,
     SubscriptionExistsError,
     SubscriptionNotFoundError,
@@ -560,3 +564,88 @@ def test_write_artifact_has_the_same_signature_on_every_store():
 
     assert inspect.signature(RemoteStore.write_artifact) == signature
     assert inspect.signature(AsyncRemoteStore.write_artifact) == signature
+
+
+# 9: NaN and infinity raise InvalidPayloadError instead of becoming null
+
+NON_FINITE = [math.nan, math.inf, -math.inf]
+
+
+class Reading(BaseModel):
+    sensor: str
+    celsius: float
+
+
+@pytest.mark.parametrize("number", NON_FINITE)
+def test_non_finite_numbers_raise_invalid_payload_error_on_every_store(
+    any_store, number
+):
+    any_store.create_channel({"name": "readings"})
+    reading = Reading(sensor="boiler", celsius=number)
+    events = [
+        {"channel": "readings", "payload": {"celsius": number}},
+        {"channel": "readings", "payload": [1, [number]]},
+        {"channel": "readings", "payload": reading},
+        Event(channel="readings", payload={"celsius": number}),
+        {"channel": "readings", "metadata": {"celsius": number}},
+        {"channel": "readings", "timestamp": number},
+    ]
+    for event in events:
+        with pytest.raises(InvalidPayloadError):
+            any_store.append_event(event)
+    snapshots = [
+        (("latest", {"celsius": number}), {}),
+        (("latest", reading), {}),
+        (("latest", 1), {"timestamp": number}),
+        (({"name": "latest", "value": 1, "timestamp": number},), {}),
+        (("latest", 1), {"metadata": {"celsius": number}}),
+    ]
+    for args, kwargs in snapshots:
+        with pytest.raises(InvalidPayloadError):
+            any_store.put_snapshot(*args, **kwargs)
+    with pytest.raises(InvalidPayloadError):
+        any_store.create_channel({"name": "other", "metadata": {"n": number}})
+    with pytest.raises(InvalidPayloadError):
+        any_store.create_subscription("readings", metadata={"n": number})
+    with pytest.raises(InvalidPayloadError):
+        any_store.write_artifact(b"raw", metadata={"n": number})
+
+    assert any_store.query_events("readings") == ()
+    with pytest.raises(SnapshotNotFoundError):
+        any_store.get_snapshot("latest")
+    assert [channel.name for channel in any_store.list_channels()] == ["readings"]
+
+
+@pytest.mark.parametrize("number", NON_FINITE)
+def test_models_reject_non_finite_timestamps(number):
+    with pytest.raises(ValidationError):
+        Event(channel="readings", timestamp=number)
+    with pytest.raises(ValidationError):
+        Snapshot(name="latest", timestamp=number)
+
+
+@pytest.mark.parametrize(
+    ("method", "path", "body"),
+    [
+        ("POST", "/events", '{"channel": "readings", "payload": {"c": NaN}}'),
+        ("POST", "/events", '{"channel": "readings", "timestamp": Infinity}'),
+        ("PUT", "/snapshots/latest", '{"value": [-Infinity]}'),
+        ("PUT", "/snapshots/latest", '{"value": 1, "timestamp": NaN}'),
+    ],
+)
+def test_store_server_rejects_non_finite_numbers_in_bodies(
+    tmp_path, method, path, body
+):
+    # Python's json module, which the server parses bodies with, reads the
+    # NaN and Infinity that some clients write.
+    store = LocalStore(tmp_path / "store")
+    store.create_channel({"name": "readings"})
+    app = create_app(store)
+
+    response = request(
+        app, method, path, content=body, headers={"content-type": "application/json"}
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"]["error"]["type"] == "InvalidPayloadError"
+    assert store.query_events("readings") == ()

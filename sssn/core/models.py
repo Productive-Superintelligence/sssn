@@ -6,9 +6,18 @@ import time
 import uuid
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StrictStr, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictStr,
+    TypeAdapter,
+    model_validator,
+)
 
 from lllm.protocol.validation import copy_boundary_value
+
+from .errors import InvalidPayloadError
 
 ChannelForm = Literal[
     "log",
@@ -57,7 +66,7 @@ class Event(BaseModel):
     id: StrictStr = Field(default_factory=lambda: str(uuid.uuid4()))
     cursor: int | None = None
     channel: StrictStr
-    timestamp: float = Field(default_factory=time.time)
+    timestamp: float = Field(default_factory=time.time, allow_inf_nan=False)
     source: StrictStr | None = None
     kind: StrictStr = "event"
     payload: Any = None
@@ -115,7 +124,7 @@ class Snapshot(BaseModel):
 
     name: StrictStr
     channel: StrictStr | None = None
-    timestamp: float = Field(default_factory=time.time)
+    timestamp: float = Field(default_factory=time.time, allow_inf_nan=False)
     value: Any = None
     schema_ref: StrictStr | None = Field(default=None, alias="schema")
     source_event_id: StrictStr | None = None
@@ -159,6 +168,40 @@ class Subscription(BaseModel):
         if self.consumer is not None:
             _validate_token(self.consumer, "subscription.consumer")
         return self
+
+
+_VALUES = TypeAdapter(Any)
+
+
+def json_value(value: Any) -> Any:
+    """Return ``value`` as JSON data, the form that stores keep and send.
+
+    Pydantic models become dicts, tuples and sets become lists, and dates
+    become strings. A value with no JSON form, or holding NaN or an infinity
+    (which JSON cannot represent), raises ``InvalidPayloadError``.
+    """
+
+    try:
+        # Pydantic's JSON mode turns NaN into null, so look for it first.
+        if not _finite(_VALUES.dump_python(value)):
+            raise InvalidPayloadError(
+                "Value holds NaN or infinity, which JSON cannot represent."
+            )
+        return _VALUES.dump_python(value, mode="json")
+    except (TypeError, ValueError) as exc:
+        raise InvalidPayloadError(f"Value is not JSON serializable: {exc}") from exc
+
+
+def _finite(value: Any) -> bool:
+    """Whether ``value`` holds no NaN or infinite number, at any depth."""
+
+    if isinstance(value, float):
+        return value == value and abs(value) != float("inf")
+    if isinstance(value, dict):
+        return all(_finite(item) for item in value.values())
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return all(_finite(item) for item in value)
+    return True
 
 
 def _validate_optional_segment(value: str | None, field_name: str) -> None:

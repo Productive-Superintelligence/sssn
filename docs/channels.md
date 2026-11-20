@@ -142,9 +142,10 @@ stored event, with its cursor:
 Payloads are stored as JSON. A Pydantic model is stored as its JSON form
 and read back as a dict, so readers validate it into their own model, as
 `Order.model_validate(event.payload)`. A value that has no JSON form, such
-as an arbitrary object, raises `InvalidPayloadError`, and nothing is
-written. [Stores](stores.md) shows how other values, such as dates and
-tuples, are stored.
+as an arbitrary object, or a NaN or infinite number, raises
+`InvalidPayloadError`, and nothing is written; so does a timestamp that is
+NaN or infinite. [Stores](stores.md) shows how other values, such as dates
+and tuples, are stored.
 
 ## Reading events
 

@@ -110,9 +110,12 @@ print(stored.metadata)
 1. The event that `append_event` returns holds the value you passed. Read
    the event back to see what other processes will get.
 
-A value that cannot become JSON, such as an arbitrary object, raises
-`InvalidPayloadError` and nothing is written. Readers get plain JSON data,
-so validate it back into your model where you need one, as a
+A value that cannot become JSON raises `InvalidPayloadError` and nothing
+is written. That includes an arbitrary object, and NaN and infinite
+numbers, which JSON cannot represent (Pydantic would write them as
+`null`). Remote stores send values in the same JSON form and raise the same
+error before sending. Readers get plain JSON data, so validate it back
+into your model where you need one, as a
 [tactic](processing.md#what-the-tactic-sees) does with its input model.
 
 ## The store interface

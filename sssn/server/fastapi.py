@@ -270,9 +270,10 @@ def create_app(
     @app.put("/snapshots/{name}")
     async def put_snapshot(name: str, snapshot: SnapshotWriteRequest) -> dict[str, Any]:
         try:
+            # A dict, so the store reports invalid fields, such as a NaN
+            # timestamp, as InvalidPayloadError.
             data = snapshot.model_dump(by_alias=True, exclude_none=True)
-            value = Snapshot(name=name, **data)
-            return jsonable_encoder(local_store.put_snapshot(value))
+            return jsonable_encoder(local_store.put_snapshot({**data, "name": name}))
         except Exception as exc:
             raise _http_error(exc) from exc
 

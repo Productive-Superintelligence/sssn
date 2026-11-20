@@ -11,7 +11,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, TypeVar
 
-from pydantic import BaseModel, TypeAdapter, ValidationError
+from pydantic import BaseModel, ValidationError
 
 from lllm.protocol.validation import copy_boundary_value
 
@@ -31,6 +31,7 @@ from ..core import (
     SubscriptionExistsError,
     SubscriptionNotFoundError,
 )
+from ..core.models import json_value
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
 
@@ -284,6 +285,9 @@ class LocalStore:
             metadata=artifact_metadata,
             event_ids=artifact_event_ids,
         )
+        # Encode the metadata before writing the file, so metadata that
+        # cannot be stored leaves no file behind.
+        metadata_json = _json(artifact.metadata)
         path = self._artifact_payload_path(artifact.path)
         path.write_bytes(payload)
         with self._connect() as db:
@@ -299,7 +303,7 @@ class LocalStore:
                     artifact.media_type,
                     artifact.size,
                     artifact.sha256,
-                    _json(artifact.metadata),
+                    metadata_json,
                     _json(list(artifact.event_ids)),
                 ),
             )
@@ -768,8 +772,9 @@ def _subscription_kind(filters: dict[str, Any]) -> str | None:
 
 
 def _json(value: Any) -> str:
+    data = json_value(value)
     try:
-        return json.dumps(TypeAdapter(Any).dump_python(value, mode="json"), sort_keys=True)
+        return json.dumps(data, sort_keys=True, allow_nan=False)
     except (TypeError, ValueError) as exc:
         raise InvalidPayloadError(f"Value is not JSON serializable: {exc}") from exc
 

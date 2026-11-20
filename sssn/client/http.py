@@ -26,6 +26,7 @@ from ..core import (
     SubscriptionExistsError,
     SubscriptionNotFoundError,
 )
+from ..core.models import json_value
 
 
 class RemoteStoreError(NetworkError):
@@ -360,6 +361,8 @@ class RemoteStore:
 
     def _request(self, method: str, path: str, **kwargs: Any):
         httpx = _httpx()
+        if "json" in kwargs:
+            kwargs["json"] = json_value(kwargs["json"])
         with httpx.Client(
             base_url=self.base_url,
             timeout=self.timeout,
@@ -637,6 +640,8 @@ class AsyncRemoteStore:
 
     async def _request(self, method: str, path: str, **kwargs: Any):
         httpx = _httpx()
+        if "json" in kwargs:
+            kwargs["json"] = json_value(kwargs["json"])
         async with httpx.AsyncClient(
             base_url=self.base_url,
             timeout=self.timeout,
@@ -663,15 +668,19 @@ def _httpx() -> Any:
     return httpx
 
 
+# Models are dumped in Python mode: _request turns the body into JSON with
+# json_value, which rejects NaN where Pydantic's JSON mode would send null.
+
+
 def _dump_channel(channel: Channel | dict[str, Any]) -> dict[str, Any]:
     if isinstance(channel, Channel):
-        return copy_boundary_value(channel.model_dump(mode="json", by_alias=True))
+        return copy_boundary_value(channel.model_dump(by_alias=True))
     return _mapping_payload("channel", channel)
 
 
 def _dump_event(event: Event | dict[str, Any]) -> dict[str, Any]:
     if isinstance(event, Event):
-        return copy_boundary_value(event.model_dump(mode="json", by_alias=True))
+        return copy_boundary_value(event.model_dump(by_alias=True))
     return _mapping_payload("event", event)
 
 
@@ -770,7 +779,7 @@ def _require_segments(field_name: str, values: Any) -> None:
 def _dump_snapshot(snapshot: Snapshot | Mapping[str, Any]) -> dict[str, Any]:
     if isinstance(snapshot, Snapshot):
         return copy_boundary_value(
-            snapshot.model_dump(mode="json", by_alias=True, exclude_none=True)
+            snapshot.model_dump(by_alias=True, exclude_none=True)
         )
     return {
         key: item
