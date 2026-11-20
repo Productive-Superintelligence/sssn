@@ -2813,10 +2813,13 @@ def test_cli_read_artifact_text_stops_cleanly_on_a_stdout_that_cannot_show_it(
     store = LocalStore(tmp_path / "store")
     artifact = store.write_artifact(READABLE)
     raw = io.BytesIO()
-    monkeypatch.setattr(sys, "stdout", io.TextIOWrapper(raw, encoding="cp1252"))
 
-    with pytest.raises(SystemExit) as exc_info:
-        cli_main(["--store", str(store.root), "read-artifact", artifact.id])
+    # Patched only for the call: undone before capsys puts sys.stdout back,
+    # so it is not left on capsys's closed buffer (as under pytest -s).
+    with monkeypatch.context() as patch:
+        patch.setattr(sys, "stdout", io.TextIOWrapper(raw, encoding="cp1252"))
+        with pytest.raises(SystemExit) as exc_info:
+            cli_main(["--store", str(store.root), "read-artifact", artifact.id])
 
     assert exc_info.value.code == 2
     assert "--encoding base64" in capsys.readouterr().err
@@ -3091,3 +3094,43 @@ def test_a_model_writing_nan_as_strings_is_refused_in_the_fallback_on_every_stor
 
     assert stored.payload == {"text": "hi", "extra": "NaN"}
     assert [event.id for event in any_store.query_events("notes")] == [stored.id]
+
+
+# Round 8, item 7: a value only jsonable_encoder can write
+
+
+class Point:
+    """A plain object, which jsonable_encoder writes from its attributes."""
+
+    def __init__(self, x, y):
+        self.x, self.y = x, y
+
+
+def test_records_holding_plain_objects_are_written_by_jsonable_encoder(tmp_path):
+    def plain_record():
+        return Event(
+            id="plain",
+            channel="notes",
+            timestamp=1.0,
+            payload={"at": Point(1.5, math.nan), "day": date(2026, 11, 20)},
+        )
+
+    class BuildingStore(LocalStore):
+        def get_event(self, event_id):
+            return plain_record()
+
+    @endpoint.get("/plain")
+    def plain(store):
+        return plain_record()
+
+    app = create_app(BuildingStore(tmp_path / "store"), custom_endpoints=[plain])
+
+    from_endpoint = request(app, "GET", "/plain")
+    from_route = request(app, "GET", "/events/plain")
+
+    assert from_endpoint.status_code == from_route.status_code == 200
+    assert from_endpoint.content == from_route.content
+    assert strict_json(from_route.content)["payload"] == {
+        "at": {"x": 1.5, "y": None},
+        "day": "2026-11-20",
+    }
