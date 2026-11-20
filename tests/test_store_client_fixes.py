@@ -7,6 +7,7 @@ stores should behave alike.
 
 import asyncio
 import base64
+import dataclasses
 import hashlib
 import inspect
 import math
@@ -19,7 +20,7 @@ from collections import deque
 from contextlib import contextmanager
 from datetime import date, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 import httpx
 import pydantic
@@ -27,7 +28,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
-from pydantic import BaseModel, ConfigDict, field_serializer
+from pydantic import BaseModel, ConfigDict, PlainSerializer, field_serializer
 from pydantic_core import core_schema
 
 from lllm import as_tactic
@@ -1971,3 +1972,90 @@ def test_a_recording_processor_records_errors_holding_lone_surrogates(tmp_path):
     assert error.payload["error"] == f"cannot read {LONE_SURROGATE}"
     assert error.parent_ids == (source.id,)
     assert processor.process() == []
+
+
+# Round 4, item 1: a processor stores an output by its own type's schema
+
+
+class Kelvin:
+    """An output type whose serializer returns a plain float."""
+
+    def __init__(self, degrees: float) -> None:
+        self.degrees = degrees
+
+    @classmethod
+    def __get_pydantic_core_schema__(cls, source, handler):
+        return core_schema.no_info_plain_validator_function(
+            lambda value: value if isinstance(value, cls) else cls(value),
+            serialization=core_schema.plain_serializer_function_ser_schema(
+                lambda value: value.degrees
+            ),
+        )
+
+
+@dataclasses.dataclass
+class Station:
+    """A dataclass holding a custom-schema value and a model."""
+
+    temperature: Celsius
+    reading: Reading
+
+
+@dataclasses.dataclass
+class Sample:
+    value: float
+
+
+@dataclasses.dataclass
+class Labeled:
+    label: Annotated[str, PlainSerializer(lambda value: value.upper(), when_used="json")]
+
+
+def processed(tmp_path, output, *, errors="raise"):
+    store = LocalStore(tmp_path / "store")
+    store.create_channel({"name": "inbox"})
+    store.create_channel({"name": "outputs"})
+    store.append_event({"channel": "inbox", "payload": {"text": "hi"}})
+
+    def produce(payload: dict) -> Any:
+        return output
+
+    processor = TacticProcessor(
+        as_tactic(produce), store, source="inbox", sink="outputs", errors=errors
+    )
+    return store, processor
+
+
+@pytest.mark.parametrize(
+    ("make_output", "stored"),
+    [
+        (
+            lambda: Station(Celsius(1.0), Reading(sensor="boiler", celsius=math.nan)),
+            {"temperature": {"celsius": 1.0}, "reading": {"sensor": "boiler", "celsius": None}},
+        ),
+        (lambda: Celsius(21.5), {"celsius": 21.5}),
+        (lambda: Labeled("ok"), {"label": "OK"}),
+    ],
+    ids=["dataclass-with-a-nan-model", "custom-schema", "annotated-serializer"],
+)
+def test_processor_outputs_use_their_types_own_schema(tmp_path, make_output, stored):
+    _, processor = processed(tmp_path, make_output())
+
+    [event] = processor.process()
+
+    assert event.payload == stored
+
+
+@pytest.mark.parametrize(
+    "make_output",
+    [lambda: Kelvin(math.nan), lambda: Celsius(math.nan), lambda: Sample(math.nan)],
+    ids=["serializer-returning-nan", "custom-schema-with-nan", "dataclass-float"],
+)
+def test_processor_outputs_holding_plain_nan_fail(tmp_path, make_output):
+    store, processor = processed(tmp_path, make_output())
+
+    with pytest.raises(InvalidPayloadError, match="NaN"):
+        processor.process()
+
+    assert store.get_subscription(processor.consumer).cursor == 0
+    assert store.query_events("outputs") == ()

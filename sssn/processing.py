@@ -14,14 +14,15 @@ from __future__ import annotations
 
 import inspect
 import json
+from functools import lru_cache
 from typing import Any, Literal
 
-from pydantic import BaseModel, TypeAdapter
+from pydantic import BaseModel, ConfigDict, TypeAdapter
 
 from lllm.protocol import CallContext, Tactic
 
-from .core import Event, InvalidPayloadError, Subscription, SubscriptionNotFoundError
-from .core.models import json_value
+from .core import Event, Subscription, SubscriptionNotFoundError
+from .core.models import json_data, json_value
 
 
 class TacticProcessor:
@@ -287,19 +288,30 @@ def _payload(value: Any) -> Any:
     if isinstance(value, BaseModel):
         # A model's own JSON serialization, NaN as null included.
         return json.loads(value.model_dump_json())
-    try:
+    adapter = _output_adapter(type(value))
+    if adapter is None:
         return json_value(value)
-    except InvalidPayloadError as exc:
-        # json_value serializes from the value alone, as TypeAdapter(Any)
-        # does. When Pydantic could not (its error is the cause; NaN has
-        # none), the output's own type may know how, as 0.2.0 asked it.
-        if exc.__cause__ is None:
-            raise
-        try:
-            data = TypeAdapter(type(value)).dump_python(value, mode="json")
-        except Exception:
-            raise exc
-        return json_value(data)
+    # The output type's own schema first, as 0.2.0 used it (Annotated
+    # serializers, a dataclass's config), by the stores' rule: NaN outside
+    # a model raises, and a model inside writes its own JSON.
+    return json_data(adapter, [value])[0]
+
+
+@lru_cache(maxsize=256)
+def _output_adapter(output_type: type) -> TypeAdapter[Any] | None:
+    """An adapter for a list of ``output_type``, or None if none can be built.
+
+    The list lets the config apply: TypeAdapter refuses ``config=`` for a
+    dataclass or a TypedDict itself.
+    """
+
+    try:
+        return TypeAdapter(
+            list[output_type],  # type: ignore[valid-type]
+            config=ConfigDict(ser_json_inf_nan="constants"),
+        )
+    except Exception:
+        return None
 
 
 async def _maybe_await(value: Any) -> Any:

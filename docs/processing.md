@@ -143,7 +143,7 @@ Each output event carries the result and its lineage:
 | `channel` | The sink |
 | `source` | The consumer name |
 | `kind` | `output_kind`, `"result"` by default |
-| `payload` | The result as JSON; Pydantic models are dumped with `model_dump(mode="json")` |
+| `payload` | The result as JSON: a Pydantic model as its own JSON (`model_dump_json()`), and any other result by its type's own Pydantic schema |
 | `parent_ids` | `(input.id,)` |
 | `correlation_id` | The input's `correlation_id`, or the input's id |
 
@@ -338,10 +338,13 @@ print([event.parent_ids[0] for event in errors])
 An error event's payload is
 `{"error": str(exc), "type": type(exc).__name__}`, with the same `source`,
 `parent_ids`, and `correlation_id` as an output. A failure to write the
-output, such as a result that cannot become JSON (an arbitrary object, or
-a number that is NaN or infinite), is recorded the same way. `"record"`
-needs a sink; without one it acts like `"raise"`. If the error event
-cannot be written either, `process()` raises and the event stays pending.
+output, such as a result that cannot become JSON, is recorded the same
+way: an arbitrary object, or a NaN or infinite number in a plain result.
+Inside a Pydantic model, NaN follows the model's JSON, `null` by default,
+as a store stores it ([Stores](stores.md#how-values-are-stored)).
+`"record"` needs a sink; without one it acts like `"raise"`. If the error
+event cannot be written either, `process()` raises and the event stays
+pending.
 
 Use `"record"` when a failure belongs to the event, such as bad input, so
 that one bad event cannot block the channel. Keep `"raise"` when a failure
