@@ -16,11 +16,11 @@ import inspect
 from functools import lru_cache
 from typing import Any, Literal
 
-from pydantic import ConfigDict, TypeAdapter
+from pydantic import BaseModel, ConfigDict, TypeAdapter
 
 from lllm.protocol import CallContext, Tactic
 
-from .core import Event, Subscription, SubscriptionNotFoundError
+from .core import Event, InvalidPayloadError, Subscription, SubscriptionNotFoundError
 from .core.models import json_text, json_value, parse_json
 
 
@@ -286,10 +286,17 @@ def _payload(value: Any) -> Any:
     # raises, a model writes its own JSON, and a lone surrogate is kept.
     # Output a store cannot hold raises InvalidPayloadError here, a failure
     # of this event that errors="raise" or "record" handles.
+    if isinstance(value, BaseModel):
+        # The model's own serializer and config, as model_dump_json writes it.
+        try:
+            text = json_text(_ModelWriter, value)
+        except Exception as exc:
+            raise InvalidPayloadError(f"Value is not JSON serializable: {exc}") from exc
+        return parse_json(text)
     adapter = _output_adapter(type(value))
     if adapter is not None:
-        # The output type's own schema first, as 0.2.0 used it (a model's own
-        # serializer, Annotated serializers, a dataclass's config).
+        # The output type's own schema first, as 0.2.0 used it (Annotated
+        # serializers, a dataclass's config).
         try:
             text = json_text(adapter, [value])
         except Exception:
@@ -300,6 +307,18 @@ def _payload(value: Any) -> Any:
             # NaN outside a model is refused here, with no second try.
             return parse_json(text)[0]
     return json_value(value)
+
+
+class _ModelWriter:
+    """A model's own serializer, with the TypeAdapter methods json_text uses."""
+
+    @staticmethod
+    def dump_json(model: BaseModel) -> str:
+        return model.model_dump_json()
+
+    @staticmethod
+    def dump_python(model: BaseModel, *, mode: str) -> Any:
+        return model.model_dump(mode=mode)
 
 
 @lru_cache(maxsize=256)

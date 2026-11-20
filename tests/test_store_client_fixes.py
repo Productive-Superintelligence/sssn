@@ -2436,3 +2436,56 @@ def test_cli_writes_escapes_to_a_stdout_that_cannot_encode_text(
 
     assert "\\u4e2d" in printed  # 中, escaped
     assert json.loads(printed)["payload"] == payload
+
+
+# Round 6, item 2: a model output is written by the model's own serializer
+
+
+class Timed(BaseModel):
+    model_config = ConfigDict(ser_json_timedelta="float")
+
+    took: timedelta
+    extra: Any = None
+
+
+def test_model_outputs_follow_the_models_json_for_nan(tmp_path):
+    message = Message(
+        text="hi", score=math.nan, data={"score": math.nan}, extra=[math.inf]
+    )
+    _, processor = processed(tmp_path, message)
+
+    [event] = processor.process()
+
+    assert event.payload == {
+        "text": "hi",
+        "score": None,
+        "data": {"score": None},
+        "extra": [None],
+    }
+
+
+def test_model_outputs_keep_the_models_own_formats(tmp_path):
+    output = Timed(took=timedelta(seconds=1.5), extra=timedelta(seconds=2))
+    _, processor = processed(tmp_path, output)
+
+    [event] = processor.process()
+
+    assert event.payload == {"took": 1.5, "extra": 2.0}
+
+
+@pytest.mark.skipif(
+    PYDANTIC_VERSION < (2, 8), reason='ser_json_inf_nan="strings" needs Pydantic 2.8'
+)
+def test_model_outputs_can_write_nan_as_strings(tmp_path):
+    class StringsForNaN(BaseModel):
+        model_config = ConfigDict(ser_json_inf_nan="strings")
+
+        score: float
+        data: dict[str, Any] = {}
+
+    output = StringsForNaN(score=math.nan, data={"x": -math.inf})
+    _, processor = processed(tmp_path, output)
+
+    [event] = processor.process()
+
+    assert event.payload == {"score": "NaN", "data": {"x": "-Infinity"}}
