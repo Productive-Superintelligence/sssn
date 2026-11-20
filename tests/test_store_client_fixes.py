@@ -9,6 +9,7 @@ import asyncio
 import base64
 import hashlib
 import inspect
+import json
 import math
 import os
 import pickle
@@ -847,39 +848,73 @@ def test_remote_stores_raise_store_busy_error_for_a_locked_store(tmp_path, kind)
 # 11: create_subscription with a taken id and other settings raises
 
 
-def test_create_subscription_with_other_settings_raises(any_store):
-    any_store.create_channel({"name": "orders"})
-    any_store.create_channel({"name": "refunds"})
-    settings = {"filters": {"kind": "placed"}, "batch_size": 10}
-    any_store.create_subscription(
+def billing_subscription(store):
+    store.create_channel({"name": "orders"})
+    store.create_channel({"name": "refunds"})
+    store.create_subscription(
         "orders",
         subscription_id="billing",
         consumer="billing",
+        batch_size=10,
+        filters={"kind": "placed"},
         metadata={"team": "finance"},
-        **settings,
     )
-    any_store.append_event({"channel": "orders", "kind": "placed"})
-    any_store.pull_subscription("billing")
+    store.append_event({"channel": "orders", "kind": "placed"})
+    store.pull_subscription("billing")
+    return store.get_subscription("billing")
 
-    for channel, changes in [
-        ("refunds", {}),
-        ("orders", {"filters": {"kind": "paid"}}),
-        ("orders", {"filters": None}),
-        ("orders", {"batch_size": 50}),
+
+def test_create_subscription_raises_for_other_events_than_it_delivers(any_store):
+    billing_subscription(any_store)
+
+    for channel, filters in [
+        ("refunds", {"kind": "placed"}),
+        ("orders", {"kind": "paid"}),
+        ("orders", {}),
+        ("orders", {"kind": None}),
     ]:
         with pytest.raises(SubscriptionExistsError, match="billing"):
             any_store.create_subscription(
-                channel, subscription_id="billing", **{**settings, **changes}
+                channel, subscription_id="billing", filters=filters
             )
 
-    # The same settings resume the subscription; consumer and metadata are
-    # not settings, and the subscription keeps its own.
-    again = any_store.create_subscription(
-        "orders", subscription_id="billing", consumer="other", **settings
+
+def test_create_subscription_resumes_whatever_else_differs(any_store):
+    existing = billing_subscription(any_store)
+
+    # Leaving filters out keeps the subscription's filter, and batch_size,
+    # consumer, and metadata are not compared: the subscription comes back
+    # unchanged, cursor included, as in sssn 0.2.0.
+    for kwargs in [
+        {},
+        {"filters": {"kind": "placed"}},
+        {"batch_size": 50, "consumer": "other", "metadata": {"x": 1}},
+    ]:
+        again = any_store.create_subscription(
+            "orders", subscription_id="billing", **kwargs
+        )
+        assert again == existing
+    assert existing.cursor == 1
+
+
+@pytest.mark.parametrize("client_cls", [RemoteStore, AsyncRemoteStore])
+def test_remote_create_subscription_leaves_out_filters_it_was_not_given(client_cls):
+    bodies = []
+
+    def handler(outgoing: httpx.Request) -> httpx.Response:
+        bodies.append(json.loads(outgoing.content))
+        return httpx.Response(200, json={"id": "w", "channel": "events"})
+
+    store = Blocking(
+        client_cls("http://testserver", transport=httpx.MockTransport(handler))
     )
-    assert again == any_store.get_subscription("billing")
-    assert again.cursor == 1
-    assert (again.consumer, again.metadata) == ("billing", {"team": "finance"})
+    store.create_subscription("events", subscription_id="w")
+    store.create_subscription("events", subscription_id="w", filters={})
+
+    # A server that predates the omitted-filters rule reads a missing
+    # filters as {}, so leaving it out works there too.
+    assert "filters" not in bodies[0]
+    assert bodies[1]["filters"] == {}
 
 
 def test_create_subscription_treats_a_none_kind_as_no_filter(any_store):

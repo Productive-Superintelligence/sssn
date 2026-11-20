@@ -196,9 +196,9 @@ same_event = await client.get_event(event.id)
 
 `RemoteStore` provides the same shape for synchronous code; both have the
 `LocalStore` methods. Subscription creation accepts an optional
-`subscription_id`; if that id already exists with the same channel, kind
-filter, and batch size, the existing subscription is returned so processors can
-keep a stable cursor across restarts. Reusing an id with other settings raises
+`subscription_id`; if that id already exists, the existing subscription is
+returned so processors can keep a stable cursor across restarts. Reusing an id
+for another channel, or with `filters` that name another kind, raises
 `SubscriptionExistsError`. Every store's
 `write_artifact()` takes `bytes`, `bytearray`, `memoryview`, or `str` (stored
 as UTF-8); HTTP clients send bytes as base64 so binary payloads round-trip

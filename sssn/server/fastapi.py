@@ -77,11 +77,13 @@ class SubscriptionRequest(BaseModel):
     channel: StrictStr
     consumer: StrictStr | None = None
     batch_size: int = 100
-    filters: dict[str, Any] = Field(default_factory=dict)
+    # Left out, an existing subscription keeps its filter; a new one has none.
+    filters: dict[str, Any] | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     def model_post_init(self, __context: Any) -> None:
-        self.filters = copy_boundary_value(self.filters)
+        if self.filters is not None:
+            self.filters = copy_boundary_value(self.filters)
         self.metadata = copy_boundary_value(self.metadata)
 
 

@@ -217,19 +217,11 @@ class RemoteStore:
         _require_segment("subscription.channel", channel)
         _require_optional_segment("subscription.id", subscription_id)
         _require_optional_token("subscription.consumer", consumer)
+        body = _subscription_body(
+            channel, subscription_id, consumer, batch_size, filters, metadata
+        )
         return _model_response(
-            self._request(
-                "POST",
-                "/subscriptions",
-                json={
-                    "id": subscription_id,
-                    "channel": channel,
-                    "consumer": consumer,
-                    "batch_size": batch_size,
-                    "filters": _copy_mapping("subscription.filters", filters),
-                    "metadata": _copy_mapping("subscription.metadata", metadata),
-                },
-            ),
+            self._request("POST", "/subscriptions", json=body),
             Subscription,
             "POST /subscriptions",
         )
@@ -489,21 +481,11 @@ class AsyncRemoteStore:
         _require_segment("subscription.channel", channel)
         _require_optional_segment("subscription.id", subscription_id)
         _require_optional_token("subscription.consumer", consumer)
+        body = _subscription_body(
+            channel, subscription_id, consumer, batch_size, filters, metadata
+        )
         return _model_response(
-            (
-                await self._request(
-                    "POST",
-                    "/subscriptions",
-                    json={
-                        "id": subscription_id,
-                        "channel": channel,
-                        "consumer": consumer,
-                        "batch_size": batch_size,
-                        "filters": _copy_mapping("subscription.filters", filters),
-                        "metadata": _copy_mapping("subscription.metadata", metadata),
-                    },
-                )
-            ),
+            await self._request("POST", "/subscriptions", json=body),
             Subscription,
             "POST /subscriptions",
         )
@@ -693,6 +675,28 @@ def _dump_event(event: Event | dict[str, Any]) -> dict[str, Any]:
         data["metadata"] = json_value(event.metadata)
         return data
     return _mapping_payload("event", event)
+
+
+def _subscription_body(
+    channel: str,
+    subscription_id: str | None,
+    consumer: str | None,
+    batch_size: int,
+    filters: Any,
+    metadata: Any,
+) -> dict[str, Any]:
+    body = {
+        "id": subscription_id,
+        "channel": channel,
+        "consumer": consumer,
+        "batch_size": batch_size,
+        "metadata": _copy_mapping("subscription.metadata", metadata),
+    }
+    if filters is not None:
+        # Left out, the server keeps an existing subscription's filter (and
+        # an older server reads it as no filter, as before).
+        body["filters"] = _mapping_payload("subscription.filters", filters)
+    return body
 
 
 def _artifact_payload(data: Any) -> dict[str, str]:

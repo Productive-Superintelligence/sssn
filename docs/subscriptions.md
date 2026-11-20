@@ -54,15 +54,16 @@ print([event.payload for event in batch])
 | `metadata` | `{}` | A JSON object for anything else |
 
 Give every long-lived consumer a fixed `subscription_id`. Creating a
-subscription whose id exists, with the same channel, kind filter, and batch
-size, returns the existing one with its cursor, so a worker can call
-`create_subscription` with the same arguments every time it starts. An id
-that exists with other settings raises `SubscriptionExistsError` instead
-of handing back a subscription that delivers other events than you asked
-for; to change the settings, use a new id. `consumer` and `metadata` are
-not compared, and the existing subscription keeps its own. Without an id,
-every call makes a new subscription with a random id, which is right only
-for a reader that never restarts.
+subscription whose id exists returns the existing one, unchanged, with its
+cursor, filter, and batch size, so a worker can call `create_subscription`
+every time it starts. It raises `SubscriptionExistsError` instead when the
+subscription would deliver other events than you asked for: when it reads
+another channel, or when you pass `filters` and its kind filter differs.
+Leave `filters` out to take the subscription with whatever filter it has;
+`batch_size`, `consumer`, and `metadata` are not compared. To change what a
+subscription delivers, use a new id. Without an id, every call makes a new
+subscription with a random id, which is right only for a reader that never
+restarts.
 
 `get_subscription(subscription_id)` returns a subscription, with its
 current `cursor`, and raises `SubscriptionNotFoundError` for an unknown id.

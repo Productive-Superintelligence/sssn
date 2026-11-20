@@ -165,10 +165,10 @@ message. The status says what kind of error it is:
 A 409 is often not a failure. A producer that retries after a timeout and
 gets `EventExistsError` knows its event was written the first time, and a
 worker that creates its channels on every start can ignore
-`ChannelExistsError`. Creating a subscription with an id that exists,
-with the same channel, kind filter, and batch size, is not a conflict: the
-server returns the existing subscription, so a worker resumes where it
-stopped. Other settings are a 409 `SubscriptionExistsError`.
+`ChannelExistsError`. Creating a subscription with an id that exists is
+not a conflict either: the server returns the existing subscription, so a
+worker resumes where it stopped. Only another channel, or `filters` with
+another kind filter, is a 409 `SubscriptionExistsError`.
 
 ## Use a served store from Python
 

@@ -230,10 +230,6 @@ def test_cli_create_list_and_append(tmp_path, capsys):
                 "events",
                 "--id",
                 "analysis-worker",
-                "--batch-size",
-                "10",
-                "--kind",
-                "analysis",
             ]
         )
         == 0

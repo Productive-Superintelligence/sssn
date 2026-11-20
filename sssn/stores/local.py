@@ -190,7 +190,7 @@ class LocalStore:
         if subscription_id is not None:
             payload["id"] = subscription_id
         sub = _model(Subscription, payload, "subscription")
-        settings = (sub.channel, _subscription_kind(sub.filters), sub.batch_size)
+        kind = _subscription_kind(sub.filters)
         filters_json = _json(sub.filters)
         metadata_json = _json(sub.metadata)
         # Look the id up and insert in one write transaction, so two workers
@@ -200,14 +200,19 @@ class LocalStore:
                 _find_subscription(db, sub.id) if subscription_id is not None else None
             )
             if existing is not None:
-                # The same settings resume the subscription; other settings
-                # would quietly deliver other events than the caller asked for.
-                kind = _subscription_kind(existing.filters)
-                if (existing.channel, kind, existing.batch_size) != settings:
+                # An existing subscription comes back unchanged, so a worker can
+                # create it every time it starts, unless it delivers other
+                # events than asked for: another channel, or another kind
+                # filter when filters are given. batch_size, consumer, and
+                # metadata are not compared.
+                existing_kind = _subscription_kind(existing.filters)
+                if existing.channel != sub.channel or (
+                    filters is not None and existing_kind != kind
+                ):
                     raise SubscriptionExistsError(
-                        f"Subscription already exists with other settings: {sub.id} "
+                        f"Subscription already exists for other events: {sub.id} "
                         f"reads channel {existing.channel!r} with kind filter "
-                        f"{kind!r} and batch size {existing.batch_size}."
+                        f"{existing_kind!r}."
                     )
                 return existing
             db.execute(
