@@ -160,10 +160,10 @@ def test_concurrent_pulls_of_one_subscription_get_different_events(
         first.append_event({"channel": "jobs", "payload": n})
     first.create_subscription("jobs", subscription_id="workers")
 
-    # Each pull waits in its read of the rows, inside its transaction, until
-    # the other pull reads too (or a second passes). Without the write lock
-    # taken first, both would read the same cursor here; with it, the second
-    # pull cannot start reading until the first commits.
+    # Each pull waits in its read of the rows until the other pull reads too
+    # (or a second passes), so both read the same cursor and build the same
+    # events. Only one of them can then move the cursor (compare-and-set);
+    # the other reads again, from the new cursor.
     barrier = threading.Barrier(2, timeout=1.0)
     query_rows = local_module._query_rows
 
@@ -867,12 +867,13 @@ def test_store_busy_error_is_exported_like_other_network_errors():
 
 def test_a_locked_store_raises_store_busy_error(tmp_path):
     store = busy_store(tmp_path / "store")
+    pending = store.append_event({"channel": "events"})
     store.create_subscription("events", subscription_id="worker")
 
     with locked(store, "immediate"):  # another writer holds the write lock
         with pytest.raises(StoreBusyError, match="busy") as exc_info:
             store.append_event({"channel": "events"})
-        with pytest.raises(StoreBusyError):
+        with pytest.raises(StoreBusyError):  # moving the cursor needs the lock
             store.pull_subscription("worker")
         assert store.get_channel("events").name == "events"  # reads still work
     with locked(store, "exclusive"):  # another writer is committing
@@ -880,7 +881,9 @@ def test_a_locked_store_raises_store_busy_error(tmp_path):
             store.get_channel("events")
 
     assert isinstance(exc_info.value.__cause__, sqlite3.OperationalError)
-    assert store.append_event({"channel": "events"}).cursor == 1
+    # The busy pull changed nothing: its event is still pending.
+    assert store.pull_subscription("worker") == (pending,)
+    assert store.append_event({"channel": "events"}).cursor == 2
 
 
 def test_store_server_answers_503_for_a_locked_store(tmp_path):
@@ -1678,25 +1681,36 @@ def test_a_pull_whose_events_fail_to_build_keeps_its_batch(tmp_path, monkeypatch
     assert [event.payload for event in store.pull_subscription("w")] == [0, 1]
 
 
-def test_a_failed_pull_leaves_a_cursor_another_pull_moved(tmp_path, monkeypatch):
-    store = LocalStore(tmp_path / "store")
+def test_a_failed_pull_loses_nothing_when_another_pull_moves_on(
+    tmp_path, monkeypatch
+):
+    root = tmp_path / "store"
+    store, other = LocalStore(root), LocalStore(root)
     store.create_channel({"name": "jobs"})
-    store.append_event({"channel": "jobs", "payload": 0})
+    for n in range(2):
+        store.append_event({"channel": "jobs", "payload": n})
     store.create_subscription("jobs", subscription_id="w")
+    build_event = local_module._event
+    delivered, interleaved = [], []
 
-    def build_while_another_pull_moves_on(row):
-        # Another worker moves the cursor on before this pull's events fail.
-        db = sqlite3.connect(store.db_path)
-        with db:
-            db.execute("update subscriptions set cursor = 5")
-        db.close()
+    def build_while_another_pull_runs(row):
+        if interleaved:
+            return build_event(row)
+        interleaved.append(True)
+        # While this pull builds, an event arrives and another worker pulls;
+        # then this pull's build fails.
+        other.append_event({"channel": "jobs", "payload": 2})
+        delivered.extend(other.pull_subscription("w"))
         raise ValueError("cannot build")
 
-    monkeypatch.setattr(local_module, "_event", build_while_another_pull_moves_on)
+    monkeypatch.setattr(local_module, "_event", build_while_another_pull_runs)
     with pytest.raises(ValueError):
         store.pull_subscription("w")
+    monkeypatch.setattr(local_module, "_event", build_event)
+    delivered.extend(store.pull_subscription("w"))
 
-    assert store.get_subscription("w").cursor == 5
+    # Every event reached a worker exactly once.
+    assert sorted(event.payload for event in delivered) == [0, 1, 2]
 
 
 @pytest.mark.parametrize("kind", ["remote", "async"])
@@ -1801,3 +1815,54 @@ def test_ints_too_long_to_parse_raise_invalid_payload_error_on_every_store(
         any_store.append_event({"channel": "numbers", "payload": 10**5000})
 
     assert any_store.query_events("numbers") == ()
+
+
+# Round 4, item 4: pulls build first, then move the cursor by compare-and-set
+
+
+def test_workers_sharing_a_subscription_get_each_event_once_despite_failures(
+    tmp_path, monkeypatch
+):
+    root = tmp_path / "store"
+    seed = LocalStore(root)
+    seed.create_channel({"name": "jobs"})
+    for n in range(120):
+        seed.append_event({"channel": "jobs", "payload": n})
+    seed.create_subscription("jobs", subscription_id="workers")
+    build_event = local_module._event
+    failed_once, lock = set(), threading.Lock()
+
+    def flaky_build(row):
+        # Each event fails to build the first time any worker builds it.
+        with lock:
+            first_time = row["id"] not in failed_once
+            failed_once.add(row["id"])
+        if first_time:
+            raise ValueError("flaky build")
+        return build_event(row)
+
+    monkeypatch.setattr(local_module, "_event", flaky_build)
+    seen, errors = [], []
+
+    def work():
+        store, empty_pulls = LocalStore(root), 0
+        try:
+            while empty_pulls < 3:
+                try:
+                    batch = store.pull_subscription("workers", limit=5)
+                except (ValueError, StoreBusyError):
+                    continue  # the pull changed nothing; pull again
+                empty_pulls = 0 if batch else empty_pulls + 1
+                with lock:
+                    seen.extend(event.payload for event in batch)
+        except Exception as exc:  # pragma: no cover - reported below
+            errors.append(exc)
+
+    threads = [threading.Thread(target=work) for _ in range(8)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert errors == []
+    assert sorted(seen) == list(range(120))

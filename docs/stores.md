@@ -211,11 +211,13 @@ one `LocalStore` object can also be shared between threads.
   `StoreBusyError`, a `NetworkError`, and changes nothing, so it is safe to
   retry. From a `LocalStore` it is also the `sqlite3.OperationalError` that
   earlier versions raised. A served store answers it with a 503.
-- **A pull is one transaction.** `pull_subscription` reads the events and
-  moves the cursor in one step, so processes pulling the same subscription
-  at once get different events. Reading ahead with `query_events` and
-  acknowledging with a pull are two steps, so a worker that does that needs
-  a subscription of its own
+- **Pulls never share or skip events.** `pull_subscription` reads and
+  builds its events, then moves the cursor past them only if no other pull
+  has moved it meanwhile, and reads again if one has. Processes pulling the
+  same subscription at once get different events, and a pull that fails
+  before it returns leaves its events pending. Reading ahead with
+  `query_events` and acknowledging with a pull are two steps, so a worker
+  that does that needs a subscription of its own
   ([Several consumers](subscriptions.md#several-consumers-on-one-channel)).
 - **Share over HTTP, not over a network drive.** SQLite's file locking is
   unreliable on network file systems. To share a store between machines,

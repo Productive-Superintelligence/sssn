@@ -213,10 +213,10 @@ publish/subscribe: every subscription sees every event (of its kind), as
 billing and shipping do at the top of this page. Add a consumer at any time;
 it starts at the beginning and catches up.
 
-Workers can share one subscription with plain pulls. A pull reads the
-events and moves the cursor in one transaction, so workers pulling the same
-subscription at once get different events, like workers taking items from
-a queue, with at-most-once delivery. The at-least-once loop above is
+Workers can share one subscription with plain pulls. A pull moves the
+cursor only past events no other pull has taken, so workers pulling the
+same subscription at once get different events, like workers taking items
+from a queue, with at-most-once delivery. The at-least-once loop above is
 different: reading ahead and acknowledging are separate calls, so two
 workers would run the same event, and one could acknowledge an event the
 other has not finished. Give each such worker its own subscription, and to

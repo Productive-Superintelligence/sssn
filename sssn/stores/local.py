@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import contextlib
 import hashlib
 import json
 import math
@@ -261,40 +260,35 @@ class LocalStore:
         if limit is not None:
             limit = _positive_int("limit", limit)
         _require_segment("subscription.id", subscription_id)
-        # One write transaction reads the rows and moves the cursor past
-        # them, so two pulls of one subscription never get the same events.
-        # The events are built after it commits, to hold the lock briefly.
-        with self._connect(write=True) as db:
-            sub = _find_subscription(db, subscription_id)
-            if sub is None:
-                raise SubscriptionNotFoundError(
-                    f"Subscription not found: {subscription_id}"
-                )
-            rows = _query_rows(
-                db,
-                sub.channel,
-                after_cursor=sub.cursor,
-                limit=limit if limit is not None else sub.batch_size,
-                kind=_subscription_kind(sub.filters),
-            )
-            if rows:
-                db.execute(
-                    "update subscriptions set cursor = ? where id = ?",
-                    (rows[-1]["rowid"], subscription_id),
-                )
-        try:
-            return tuple(_event(row) for row in rows)
-        except BaseException:
-            # The batch never reached the caller: put the cursor back, unless
-            # another pull has moved it on since.
-            if rows:
-                with contextlib.suppress(Exception), self._connect() as db:
-                    db.execute(
-                        "update subscriptions set cursor = ? "
-                        "where id = ? and cursor = ?",
-                        (sub.cursor, subscription_id, rows[-1]["rowid"]),
+        while True:
+            # Read and build the events without the write lock; a build that
+            # fails raises with the cursor where it was.
+            with self._connect() as db:
+                sub = _find_subscription(db, subscription_id)
+                if sub is None:
+                    raise SubscriptionNotFoundError(
+                        f"Subscription not found: {subscription_id}"
                     )
-            raise
+                rows = _query_rows(
+                    db,
+                    sub.channel,
+                    after_cursor=sub.cursor,
+                    limit=limit if limit is not None else sub.batch_size,
+                    kind=_subscription_kind(sub.filters),
+                )
+            events = tuple(_event(row) for row in rows)
+            if not events:
+                return events
+            # Move the cursor only if no other pull moved it since the read
+            # (compare-and-set), so pulls of one subscription never share or
+            # skip events. A pull that loses reads again from the new cursor.
+            with self._connect(write=True) as db:
+                moved = db.execute(
+                    "update subscriptions set cursor = ? where id = ? and cursor = ?",
+                    (events[-1].cursor, subscription_id, sub.cursor),
+                ).rowcount
+            if moved:
+                return events
 
     def get_subscription(self, subscription_id: str) -> Subscription:
         _require_segment("subscription.id", subscription_id)
