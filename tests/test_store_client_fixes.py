@@ -159,19 +159,21 @@ def test_concurrent_pulls_of_one_subscription_get_different_events(
         first.append_event({"channel": "jobs", "payload": n})
     first.create_subscription("jobs", subscription_id="workers")
 
-    # Each pull waits inside its read until the other pull reads too (or a
-    # second passes), so the two pulls overlap as much as the store allows.
+    # Each pull waits in its read of the rows, inside its transaction, until
+    # the other pull reads too (or a second passes). Without the write lock
+    # taken first, both would read the same cursor here; with it, the second
+    # pull cannot start reading until the first commits.
     barrier = threading.Barrier(2, timeout=1.0)
-    read_event = local_module._event
+    query_rows = local_module._query_rows
 
-    def overlapping_read(row):
+    def overlapping_read(*args, **kwargs):
         try:
             barrier.wait()
         except threading.BrokenBarrierError:
             pass
-        return read_event(row)
+        return query_rows(*args, **kwargs)
 
-    monkeypatch.setattr(local_module, "_event", overlapping_read)
+    monkeypatch.setattr(local_module, "_query_rows", overlapping_read)
     pulled = {}
 
     def pull(store):
@@ -1117,12 +1119,11 @@ def test_rewriting_stored_bytes_never_truncates_a_read(tmp_path):
     store = LocalStore(tmp_path / "store")
     payload = os.urandom(4 * 1024 * 1024)
     artifact = store.write_artifact(payload)
-    stop = threading.Event()
     short_reads, errors = [], []
 
     def write():
         try:
-            while not stop.is_set():
+            for _ in range(20):
                 store.write_artifact(payload)
         except Exception as exc:  # pragma: no cover - reported below
             errors.append(exc)
@@ -1140,24 +1141,27 @@ def test_rewriting_stored_bytes_never_truncates_a_read(tmp_path):
     readers = [threading.Thread(target=read) for _ in range(2)]
     for thread in writers + readers:
         thread.start()
-    for thread in readers:
-        thread.join()
-    stop.set()
-    for thread in writers:
+    for thread in writers + readers:
         thread.join()
 
     assert errors == []
     assert short_reads == []
 
 
+@pytest.mark.skipif(os.name != "posix", reason="replaces a file that is open")
 def test_write_artifact_replaces_a_damaged_file_in_one_step(tmp_path):
     store = LocalStore(tmp_path / "store")
     artifact = store.write_artifact(b"complete payload")
     payload_file = store.root / artifact.path
     payload_file.write_bytes(b"compl")  # a file cut short by an old crash
+    old_inode = payload_file.stat().st_ino
 
-    store.write_artifact(b"complete payload")
+    with open(payload_file, "rb") as damaged:
+        store.write_artifact(b"complete payload")
+        # A reader of the old file keeps it whole: a new file took its name.
+        assert damaged.read() == b"compl"
 
+    assert payload_file.stat().st_ino != old_inode
     assert store.read_artifact(artifact.id) == b"complete payload"
     assert sorted(path.name for path in store.artifacts_dir.iterdir()) == [
         payload_file.name
@@ -1308,6 +1312,9 @@ def test_payload_models_are_stored_in_their_json_form_on_every_store(any_store):
         Snapshot(name="s", value=measurement, metadata=tagged)
     )
     named = any_store.put_snapshot("n", Snapshot(name="x", value=measurement))
+    overridden = any_store.put_snapshot(
+        Snapshot(name="o", value=measurement), channel="m"
+    )
 
     assert stored == {"raw": "_wA=", "took": 1.5, "label": "OK"}
     assert channel.metadata == {"m": stored}
@@ -1315,6 +1322,7 @@ def test_payload_models_are_stored_in_their_json_form_on_every_store(any_store):
     assert from_dict.payload == stored
     assert (snapshot.value, snapshot.metadata) == (stored, {"m": stored})
     assert named.value == stored
+    assert (overridden.value, overridden.channel) == (stored, "m")
 
 
 # Review 4: a processor output holding NaN fails like other unstorable output
@@ -1731,3 +1739,40 @@ def test_store_busy_errors_keep_sqlites_text_and_error_codes(tmp_path):
     assert error.sqlite_errorname == getattr(cause, "sqlite_errorname", None)
     if sys.version_info >= (3, 11):
         assert error.sqlite_errorname == "SQLITE_BUSY"
+
+
+# Round 2, item 8: the server checks timestamps before calling the store
+
+
+def test_store_server_refuses_non_finite_timestamps_before_the_store(tmp_path):
+    class RecordingStore(LocalStore):
+        def __init__(self, root):
+            super().__init__(root)
+            self.calls = []
+
+        def append_event(self, event):
+            self.calls.append("append_event")
+            return super().append_event(event)
+
+        def put_snapshot(self, *args, **kwargs):
+            self.calls.append("put_snapshot")
+            return super().put_snapshot(*args, **kwargs)
+
+    store = RecordingStore(tmp_path / "store")
+    store.create_channel({"name": "readings"})
+    app = create_app(store)
+    json_body = {"content-type": "application/json"}
+    bodies = [
+        ("POST", "/events", '{"channel": "readings", "timestamp": Infinity}'),
+        ("POST", "/events", '{"channel": "readings", "timestamp": NaN}'),
+        ("PUT", "/snapshots/latest", '{"value": 1, "timestamp": -Infinity}'),
+        ("PUT", "/snapshots/latest", '{"value": 1, "timestamp": NaN}'),
+    ]
+
+    for method, path, body in bodies:
+        response = request(app, method, path, content=body, headers=json_body)
+        assert response.status_code == 400, (path, body)
+        error = response.json()["detail"]["error"]
+        assert error["type"] == "InvalidPayloadError"
+
+    assert store.calls == []
