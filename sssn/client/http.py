@@ -136,8 +136,6 @@ class RemoteStore:
     def create_channel(self, channel: Channel | dict[str, Any]) -> Channel:
         data = _dump_channel(channel)
         _require_segment("channel.name", data.get("name"))
-        if "metadata" in data:
-            data["metadata"] = _mapping_payload("channel.metadata", data["metadata"])
         return _model_response(
             self._request("POST", "/channels", json=data),
             Channel,
@@ -167,8 +165,6 @@ class RemoteStore:
             _require_token("event.kind", data["kind"])
         if data.get("correlation_id") is not None:
             _require_token("event.correlation_id", data["correlation_id"])
-        if "metadata" in data:
-            data["metadata"] = _mapping_payload("event.metadata", data["metadata"])
         data["parent_ids"] = _segment_list(
             "event.parent_ids",
             data.get("parent_ids", ()),
@@ -332,11 +328,6 @@ class RemoteStore:
             "snapshot.source_event_id",
             payload.get("source_event_id"),
         )
-        if "metadata" in payload:
-            payload["metadata"] = _mapping_payload(
-                "snapshot.metadata",
-                payload["metadata"],
-            )
         return _model_response(
             self._request(
                 "PUT",
@@ -399,8 +390,6 @@ class AsyncRemoteStore:
     async def create_channel(self, channel: Channel | dict[str, Any]) -> Channel:
         data = _dump_channel(channel)
         _require_segment("channel.name", data.get("name"))
-        if "metadata" in data:
-            data["metadata"] = _mapping_payload("channel.metadata", data["metadata"])
         return _model_response(
             await self._request("POST", "/channels", json=data),
             Channel,
@@ -430,8 +419,6 @@ class AsyncRemoteStore:
             _require_token("event.kind", data["kind"])
         if data.get("correlation_id") is not None:
             _require_token("event.correlation_id", data["correlation_id"])
-        if "metadata" in data:
-            data["metadata"] = _mapping_payload("event.metadata", data["metadata"])
         data["parent_ids"] = _segment_list(
             "event.parent_ids",
             data.get("parent_ids", ()),
@@ -598,11 +585,6 @@ class AsyncRemoteStore:
             "snapshot.source_event_id",
             payload.get("source_event_id"),
         )
-        if "metadata" in payload:
-            payload["metadata"] = _mapping_payload(
-                "snapshot.metadata",
-                payload["metadata"],
-            )
         return _model_response(
             (
                 await self._request(
@@ -677,7 +659,7 @@ def _dump_channel(channel: Channel | dict[str, Any]) -> dict[str, Any]:
         data = channel.model_dump(mode="json", by_alias=True, exclude={"metadata"})
         data["metadata"] = json_value(channel.metadata)
         return data
-    return _encode_fields(_mapping_payload("channel", channel), "metadata")
+    return _encode_fields("channel", _mapping_payload("channel", channel), "metadata")
 
 
 def _dump_event(event: Event | dict[str, Any]) -> dict[str, Any]:
@@ -689,7 +671,9 @@ def _dump_event(event: Event | dict[str, Any]) -> dict[str, Any]:
         data["payload"] = json_value(event.payload)
         data["metadata"] = json_value(event.metadata)
         return data
-    return _encode_fields(_mapping_payload("event", event), "payload", "metadata")
+    return _encode_fields(
+        "event", _mapping_payload("event", event), "payload", "metadata"
+    )
 
 
 def _require_finite_timestamp(name: str, value: float) -> None:
@@ -706,7 +690,7 @@ def _subscription_body(
     filters: Any,
     metadata: Any,
 ) -> dict[str, Any]:
-    return {
+    body = {
         "id": subscription_id,
         "channel": channel,
         "consumer": consumer,
@@ -714,6 +698,7 @@ def _subscription_body(
         "filters": _copy_mapping("subscription.filters", filters),
         "metadata": _copy_mapping("subscription.metadata", metadata),
     }
+    return _encode_fields("subscription", body, "filters", "metadata")
 
 
 def _artifact_payload(data: Any) -> dict[str, str]:
@@ -867,20 +852,25 @@ def _snapshot_payload(
         payload["source_event_id"] = source_event_id
     if metadata is not None:
         payload["metadata"] = _mapping_payload("snapshot.metadata", metadata)
-    return name, _encode_fields(payload, "value", "metadata")
+    return name, _encode_fields("snapshot", payload, "value", "metadata")
 
 
-def _encode_fields(data: dict[str, Any], *names: str) -> dict[str, Any]:
+def _encode_fields(record: str, data: dict[str, Any], *names: str) -> dict[str, Any]:
     """Encode free-form fields each on its own, as LocalStore stores them.
 
     Encoded with the whole request, a lone surrogate anywhere in it would
     send a model in these fields down json_text's fallback, which refuses
-    a NaN that the model's own JSON writes as null.
+    a NaN that the model's own JSON writes as null. ``filters`` and
+    ``metadata`` must be objects as given, as LocalStore requires, so they
+    are checked first: encoding turns a model or a dataclass into one.
     """
 
     for name in names:
-        if name in data:
-            data[name] = json_value(data[name])
+        if name not in data:
+            continue
+        if name in {"filters", "metadata"}:
+            data[name] = _mapping_payload(f"{record}.{name}", data[name])
+        data[name] = json_value(data[name])
     return data
 
 

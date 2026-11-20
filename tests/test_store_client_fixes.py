@@ -2917,3 +2917,69 @@ def test_record_subclasses_are_written_by_their_own_json(tmp_path):
     assert body["token"] == "***"  # redacted in JSON
     assert body["timestamp"] == "inf"  # the record rules still apply
     assert body["payload"] == {"score": None}
+
+
+# Round 8, item 4: remote stores encode filters and metadata alone, and
+# check that metadata is a mapping before encoding it
+
+
+def test_a_lone_surrogate_in_filters_leaves_a_models_nan_null_on_every_store(
+    any_store,
+):
+    any_store.create_channel({"name": "jobs"})
+
+    subscription = any_store.create_subscription(
+        "jobs",
+        subscription_id="files",
+        filters={"kind": LONE_SURROGATE},
+        metadata={"message": Message(text="hi", score=math.nan)},
+    )
+
+    assert subscription.filters == {"kind": LONE_SURROGATE}
+    assert subscription.metadata == {
+        "message": {"text": "hi", "score": None, "data": {}, "extra": None}
+    }
+
+
+class Owner(BaseModel):
+    owner: str
+
+
+@dataclasses.dataclass
+class OwnerData:
+    owner: str
+
+
+@pytest.mark.parametrize(
+    "make_metadata",
+    [lambda: Owner(owner="ada"), lambda: OwnerData(owner="ada")],
+    ids=["model", "dataclass"],
+)
+def test_metadata_must_be_a_mapping_on_every_store(any_store, make_metadata):
+    any_store.create_channel({"name": "notes"})
+    writes = {
+        "channel": lambda: any_store.create_channel(
+            {"name": "other", "metadata": make_metadata()}
+        ),
+        "event": lambda: any_store.append_event(
+            {"channel": "notes", "metadata": make_metadata()}
+        ),
+        "snapshot": lambda: any_store.put_snapshot(
+            {"name": "latest", "value": 1, "metadata": make_metadata()}
+        ),
+        "subscription": lambda: any_store.create_subscription(
+            "notes", metadata=make_metadata()
+        ),
+        "artifact": lambda: any_store.write_artifact(b"x", metadata=make_metadata()),
+    }
+
+    for record, write in writes.items():
+        with pytest.raises(InvalidPayloadError, match=f"{record}.metadata must be"):
+            write()
+    with pytest.raises(InvalidPayloadError, match="snapshot.metadata must be"):
+        any_store.put_snapshot("latest", 1, metadata=make_metadata())
+
+    assert [channel.name for channel in any_store.list_channels()] == ["notes"]
+    assert any_store.query_events("notes") == ()
+    with pytest.raises(SnapshotNotFoundError):
+        any_store.get_snapshot("latest")
