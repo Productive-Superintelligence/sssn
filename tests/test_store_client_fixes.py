@@ -138,6 +138,18 @@ def make_store(kind: str, root: Path) -> Blocking:
     )
 
 
+@pytest.fixture
+def int_digit_limit():
+    """Pin Python's limit on the digits of an int that json parses."""
+
+    if not hasattr(sys, "set_int_max_str_digits"):  # Python 3.10.0 to 3.10.6
+        pytest.skip("this Python has no limit on int digits")
+    previous = sys.get_int_max_str_digits()
+    sys.set_int_max_str_digits(4300)
+    yield 4300
+    sys.set_int_max_str_digits(previous)
+
+
 @pytest.fixture(params=["local", "remote", "async"])
 def any_store(request, tmp_path):
     return make_store(request.param, tmp_path / "store")
@@ -2070,3 +2082,48 @@ def test_processor_outputs_holding_plain_nan_fail(tmp_path, make_output):
 
     assert store.get_subscription(processor.consumer).cursor == 0
     assert store.query_events("outputs") == ()
+
+
+# Round 5, item 1: model outputs take the same path as every other output
+
+
+@dataclasses.dataclass
+class FileNote:
+    name: str
+
+
+class NoteModel(BaseModel):
+    name: str
+
+
+class BigNumber(BaseModel):
+    n: int
+
+
+@pytest.mark.parametrize(
+    "make_output",
+    [
+        lambda: NoteModel(name=LONE_SURROGATE),
+        lambda: FileNote(LONE_SURROGATE),
+        lambda: {"name": LONE_SURROGATE},
+    ],
+    ids=["model", "dataclass", "dict"],
+)
+def test_processor_outputs_holding_lone_surrogates_are_stored_intact(
+    tmp_path, make_output
+):
+    store, processor = processed(tmp_path, make_output())
+
+    [event] = processor.process()
+
+    assert event.payload == {"name": LONE_SURROGATE}
+    assert store.get_event(event.id).payload == {"name": LONE_SURROGATE}
+
+
+def test_a_model_output_holding_a_huge_int_is_invalid(tmp_path, int_digit_limit):
+    store, processor = processed(tmp_path, BigNumber(n=10 ** (int_digit_limit + 700)))
+
+    with pytest.raises(InvalidPayloadError, match="not JSON serializable"):
+        processor.process()
+
+    assert store.get_subscription(processor.consumer).cursor == 0

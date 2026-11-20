@@ -13,16 +13,15 @@ It works with any store that speaks the channel API: a
 from __future__ import annotations
 
 import inspect
-import json
 from functools import lru_cache
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, TypeAdapter
+from pydantic import ConfigDict, TypeAdapter
 
 from lllm.protocol import CallContext, Tactic
 
-from .core import Event, Subscription, SubscriptionNotFoundError
-from .core.models import json_data, json_value
+from .core import Event, InvalidPayloadError, Subscription, SubscriptionNotFoundError
+from .core.models import json_text, json_value, parse_json
 
 
 class TacticProcessor:
@@ -283,18 +282,20 @@ def _default_consumer(tactic: Tactic[Any, Any], source: str, kind: str | None) -
 
 
 def _payload(value: Any) -> Any:
-    # The JSON form a store keeps. Output it cannot hold raises here, a
-    # failure of this event that errors="raise" or "record" handles.
-    if isinstance(value, BaseModel):
-        # A model's own JSON serialization, NaN as null included.
-        return json.loads(value.model_dump_json())
+    # The JSON form a store keeps, by the stores' rule: NaN outside a model
+    # raises, a model writes its own JSON, and a lone surrogate is kept.
+    # Output a store cannot hold raises InvalidPayloadError here, a failure
+    # of this event that errors="raise" or "record" handles.
     adapter = _output_adapter(type(value))
     if adapter is None:
         return json_value(value)
-    # The output type's own schema first, as 0.2.0 used it (Annotated
-    # serializers, a dataclass's config), by the stores' rule: NaN outside
-    # a model raises, and a model inside writes its own JSON.
-    return json_data(adapter, [value])[0]
+    # The output type's own schema first, as 0.2.0 used it (a model's own
+    # serializer, Annotated serializers, a dataclass's config).
+    try:
+        text = json_text(adapter, [value])
+    except Exception as exc:
+        raise InvalidPayloadError(f"Value is not JSON serializable: {exc}") from exc
+    return parse_json(text)[0]
 
 
 @lru_cache(maxsize=256)

@@ -143,7 +143,7 @@ Each output event carries the result and its lineage:
 | `channel` | The sink |
 | `source` | The consumer name |
 | `kind` | `output_kind`, `"result"` by default |
-| `payload` | The result as JSON: a Pydantic model as its own JSON (`model_dump_json()`), and any other result by its type's own Pydantic schema |
+| `payload` | The result as JSON, written by its type's own Pydantic schema, as a model by its own serializer |
 | `parent_ids` | `(input.id,)` |
 | `correlation_id` | The input's `correlation_id`, or the input's id |
 

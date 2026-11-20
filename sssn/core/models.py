@@ -192,32 +192,38 @@ def json_value(value: Any) -> Any:
     surrogate is kept, as a JSON escape, as sssn 0.2.0 kept it.
     """
 
-    return json_data(_VALUES, value)
+    try:
+        text = json_text(_VALUES, value)
+    except Exception as exc:
+        raise InvalidPayloadError(f"Value is not JSON serializable: {exc}") from exc
+    return parse_json(text)
 
 
-def json_data(adapter: TypeAdapter[Any], value: Any) -> Any:
-    """Return the JSON ``adapter`` writes for ``value``, parsed back.
+def json_text(adapter: TypeAdapter[Any], value: Any) -> str | bytes:
+    """Return the JSON text ``adapter`` writes for ``value``.
 
-    The rule of ``json_value``, for any adapter: NaN and Infinity in the
-    JSON raise ``InvalidPayloadError``, as does a value the adapter cannot
-    serialize.
+    A lone surrogate, which Pydantic's JSON refuses, is written as sssn 0.2.0
+    wrote it. Any other failure raises as serialization raised it.
     """
 
     try:
-        try:
-            text = adapter.dump_json(value)
-        except ValueError as exc:
-            if "UnicodeEncodeError" not in str(exc):
-                raise
-            # A lone surrogate, which UTF-8 cannot hold, as in a file name
-            # decoded with surrogateescape. Write the value as sssn 0.2.0
-            # did: Python's json escapes it. In this rare path a NaN inside
-            # a model is refused rather than written as null.
-            text = json.dumps(adapter.dump_python(value, mode="json"))
-        # Parsing can fail too, as for an int too long for Python's json.
-        # Refusing NaN raises InvalidPayloadError, which passes through.
+        return adapter.dump_json(value)
+    except ValueError as exc:
+        if "UnicodeEncodeError" not in str(exc):
+            raise
+        # A lone surrogate, which UTF-8 cannot hold, as in a file name
+        # decoded with surrogateescape: Python's json escapes it. In this
+        # rare path a NaN inside a model is refused rather than written as
+        # null.
+        return json.dumps(adapter.dump_python(value, mode="json"))
+
+
+def parse_json(text: str | bytes) -> Any:
+    """Parse JSON text, refusing NaN and Infinity with InvalidPayloadError."""
+
+    try:
         return json.loads(text, parse_constant=_refuse_non_finite)
-    except (TypeError, ValueError) as exc:
+    except ValueError as exc:  # such as an int too long for Python's json
         raise InvalidPayloadError(f"Value is not JSON serializable: {exc}") from exc
 
 

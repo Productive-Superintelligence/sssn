@@ -4,7 +4,6 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 from pydantic import BaseModel, field_serializer
-from pydantic_core import PydanticSerializationError
 
 from lllm import Resolver, Tactic, as_tactic
 
@@ -465,8 +464,9 @@ def test_processor_retries_outputs_that_cannot_become_sink_events(tmp_path, mode
     append(store, "hello")
     run = runner(TacticProcessor(Echo(), store, source="raw", sink="summaries"), mode)
 
+    # The processor's error for output a store cannot hold.
     for _ in range(2):
-        with pytest.raises(PydanticSerializationError, match="cannot serialize binary"):
+        with pytest.raises(InvalidPayloadError, match="cannot serialize binary"):
             run()
     assert store.get_subscription("echo-raw-processor").cursor == 0
     assert store.query_events("summaries") == ()
