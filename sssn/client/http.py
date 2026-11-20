@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import math
 from collections.abc import Iterable, Mapping
 from typing import Any
 from urllib.parse import quote, urlsplit
@@ -669,6 +670,7 @@ def _dump_channel(channel: Channel | dict[str, Any]) -> dict[str, Any]:
 
 def _dump_event(event: Event | dict[str, Any]) -> dict[str, Any]:
     if isinstance(event, Event):
+        _require_finite_timestamp("event.timestamp", event.timestamp)
         data = event.model_dump(
             mode="json", by_alias=True, exclude={"payload", "metadata"}
         )
@@ -676,6 +678,12 @@ def _dump_event(event: Event | dict[str, Any]) -> dict[str, Any]:
         data["metadata"] = json_value(event.metadata)
         return data
     return _mapping_payload("event", event)
+
+
+def _require_finite_timestamp(name: str, value: float) -> None:
+    # As LocalStore refuses one; a dict's timestamp meets json_value's check.
+    if not math.isfinite(value):
+        raise InvalidPayloadError(f"{name} must be a finite number.")
 
 
 def _subscription_body(
@@ -790,6 +798,7 @@ def _require_segments(field_name: str, values: Any) -> None:
 
 def _dump_snapshot(snapshot: Snapshot | Mapping[str, Any]) -> dict[str, Any]:
     if isinstance(snapshot, Snapshot):
+        _require_finite_timestamp("snapshot.timestamp", snapshot.timestamp)
         data = snapshot.model_dump(
             mode="json",
             by_alias=True,

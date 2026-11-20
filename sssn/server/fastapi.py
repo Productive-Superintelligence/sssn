@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import binascii
 import inspect
+import json
 import math
 import re
 from collections.abc import Callable, Sequence
@@ -139,7 +140,6 @@ def create_app(
 
     try:
         from fastapi import FastAPI, Query
-        from fastapi.encoders import jsonable_encoder
         from fastapi.exceptions import RequestValidationError
         from fastapi.responses import JSONResponse, Response
     except ImportError as exc:  # pragma: no cover
@@ -175,22 +175,21 @@ def create_app(
     @app.post("/channels")
     async def create_channel(channel: Channel) -> dict[str, Any]:
         try:
-            return jsonable_encoder(await _call(local_store.create_channel, channel))
+            return _records_response(await _call(local_store.create_channel, channel))
         except Exception as exc:
             raise _http_error(exc) from exc
 
     @app.get("/channels")
     async def list_channels() -> list[dict[str, Any]]:
         try:
-            channels = await _call(local_store.list_channels)
-            return [jsonable_encoder(channel) for channel in channels]
+            return _records_response(await _call(local_store.list_channels))
         except Exception as exc:
             raise _http_error(exc) from exc
 
     @app.get("/channels/{name}")
     async def get_channel(name: str) -> dict[str, Any]:
         try:
-            return jsonable_encoder(await _call(local_store.get_channel, name))
+            return _records_response(await _call(local_store.get_channel, name))
         except Exception as exc:
             raise _http_error(exc) from exc
 
@@ -201,7 +200,7 @@ def create_app(
             # infinite timestamp from sssn 0.2.0, so the check is here.
             if not math.isfinite(event.timestamp):
                 raise InvalidPayloadError("event.timestamp must be a finite number.")
-            return jsonable_encoder(await _call(local_store.append_event, event))
+            return _records_response(await _call(local_store.append_event, event))
         except Exception as exc:
             raise _http_error(exc) from exc
 
@@ -220,21 +219,21 @@ def create_app(
                 limit=limit,
                 kind=kind,
             )
-            return [jsonable_encoder(event) for event in events]
+            return _records_response(events)
         except Exception as exc:
             raise _http_error(exc) from exc
 
     @app.get("/events/{event_id}")
     async def get_event(event_id: str) -> dict[str, Any]:
         try:
-            return jsonable_encoder(await _call(local_store.get_event, event_id))
+            return _records_response(await _call(local_store.get_event, event_id))
         except Exception as exc:
             raise _http_error(exc) from exc
 
     @app.post("/subscriptions")
     async def create_subscription(request: SubscriptionRequest) -> dict[str, Any]:
         try:
-            return jsonable_encoder(
+            return _records_response(
                 await _call(
                     local_store.create_subscription,
                     request.channel,
@@ -253,7 +252,7 @@ def create_app(
     @app.get("/subscriptions/{subscription_id}")
     async def get_subscription(subscription_id: str) -> dict[str, Any]:
         try:
-            return jsonable_encoder(
+            return _records_response(
                 await _call(local_store.get_subscription, subscription_id)
             )
         except Exception as exc:
@@ -273,14 +272,14 @@ def create_app(
             events = await _call(
                 local_store.pull_subscription, subscription_id, limit=limit
             )
-            return [jsonable_encoder(event) for event in events]
+            return _records_response(events)
         except Exception as exc:
             raise _http_error(exc) from exc
 
     @app.post("/artifacts")
     async def write_artifact(request: ArtifactWriteRequest) -> dict[str, Any]:
         try:
-            return jsonable_encoder(
+            return _records_response(
                 await _call(
                     local_store.write_artifact,
                     request.bytes(),
@@ -305,7 +304,7 @@ def create_app(
     @app.get("/artifacts/{artifact_id}/metadata")
     async def get_artifact(artifact_id: str) -> dict[str, Any]:
         try:
-            return jsonable_encoder(await _call(local_store.get_artifact, artifact_id))
+            return _records_response(await _call(local_store.get_artifact, artifact_id))
         except Exception as exc:
             raise _http_error(exc) from exc
 
@@ -316,7 +315,7 @@ def create_app(
             # timestamp, as InvalidPayloadError.
             data = snapshot.model_dump(by_alias=True, exclude_none=True)
             snapshot_fields = {**data, "name": name}
-            return jsonable_encoder(
+            return _records_response(
                 await _call(local_store.put_snapshot, snapshot_fields)
             )
         except Exception as exc:
@@ -325,7 +324,7 @@ def create_app(
     @app.get("/snapshots/{name}")
     async def get_snapshot(name: str) -> dict[str, Any]:
         try:
-            return jsonable_encoder(await _call(local_store.get_snapshot, name))
+            return _records_response(await _call(local_store.get_snapshot, name))
         except Exception as exc:
             raise _http_error(exc) from exc
 
@@ -348,6 +347,45 @@ def create_app(
         _mount_custom_endpoint(app, local_store, spec, fn)
 
     return app
+
+
+def _records_response(records: Any) -> Any:
+    """Answer with the records a store returned, as JSON that cannot fail.
+
+    A store also holds what earlier versions wrote. A non-finite timestamp
+    goes out as "inf", "-inf", or "nan", which the clients' float fields
+    read back; a lone surrogate as a JSON escape; and any other non-finite
+    number, which only a row written before sssn 0.2.1 can hold, as the NaN
+    or Infinity that Python's json writes and SSSN's clients read.
+    """
+
+    from fastapi.encoders import jsonable_encoder
+    from fastapi.responses import Response
+
+    if isinstance(records, (list, tuple)):
+        content: Any = [_record_data(record) for record in records]
+    else:
+        content = _record_data(records)
+    text = json.dumps(
+        content,
+        ensure_ascii=True,
+        allow_nan=True,
+        separators=(",", ":"),
+        default=jsonable_encoder,  # anything a custom store's records hold
+    )
+    return Response(content=text, media_type="application/json")
+
+
+def _record_data(record: Any) -> Any:
+    if not isinstance(record, BaseModel):
+        return record
+    data = record.model_dump(by_alias=True)
+    timestamp = data.get("timestamp")
+    if isinstance(timestamp, float) and not math.isfinite(timestamp):
+        data["timestamp"] = (
+            "nan" if timestamp != timestamp else "inf" if timestamp > 0 else "-inf"
+        )
+    return data
 
 
 async def _call(function: Callable[..., Any], /, *args: Any, **kwargs: Any) -> Any:

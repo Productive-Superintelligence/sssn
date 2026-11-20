@@ -1866,3 +1866,64 @@ def test_workers_sharing_a_subscription_get_each_event_once_despite_failures(
 
     assert errors == []
     assert sorted(seen) == list(range(120))
+
+
+# Round 4, item 3: the server encodes what the store holds; clients check
+
+
+@pytest.mark.parametrize("client_cls", [RemoteStore, AsyncRemoteStore])
+def test_remote_stores_refuse_non_finite_timestamps_without_a_request(client_cls):
+    def handler(outgoing: httpx.Request) -> httpx.Response:
+        raise AssertionError(f"unexpected request: {outgoing.url}")
+
+    transport = httpx.MockTransport(handler)
+    store = Blocking(client_cls("http://testserver", transport=transport))
+
+    for number in NON_FINITE:
+        with pytest.raises(InvalidPayloadError, match="timestamp"):
+            store.append_event(Event(channel="readings", timestamp=number))
+        with pytest.raises(InvalidPayloadError, match="timestamp"):
+            store.put_snapshot(Snapshot(name="latest", timestamp=number))
+
+
+def legacy_rows_store(root):
+    """A store holding rows only sssn 0.2.0 could write."""
+
+    store = LocalStore(root)
+    store.create_channel({"name": "legacy"})
+    rows = [store.append_event({"channel": "legacy", "payload": n}) for n in range(3)]
+    store.create_subscription("legacy", subscription_id="reader")
+    db = sqlite3.connect(store.db_path)
+    with db:
+        db.execute(  # 0.2.0 kept a lone surrogate as a JSON escape
+            "update events set payload = ? where id = ?",
+            ('{"text": "caf\\ud800"}', rows[0].id),
+        )
+        db.execute("update events set timestamp = 9e999 where id = ?", (rows[1].id,))
+        db.execute(  # and wrote NaN as Python's json does
+            "update events set payload = ? where id = ?",
+            ('{"score": NaN}', rows[2].id),
+        )
+    db.close()
+    return store, rows
+
+
+@pytest.mark.parametrize("kind", ["remote", "async"])
+def test_served_stores_return_every_legacy_row(tmp_path, kind):
+    store, (surrogate, infinite, not_a_number) = legacy_rows_store(tmp_path / "s")
+    remote = make_store(kind, store.root)
+
+    pulled = remote.pull_subscription("reader")
+
+    assert [event.id for event in pulled] == [
+        surrogate.id,
+        infinite.id,
+        not_a_number.id,
+    ]
+    assert pulled[0].payload == {"text": "caf\ud800"}
+    assert pulled[1].timestamp == math.inf
+    assert math.isnan(pulled[2].payload["score"])
+    assert remote.get_event(surrogate.id).payload == {"text": "caf\ud800"}
+    assert remote.get_event(infinite.id).timestamp == math.inf
+    assert math.isnan(remote.get_event(not_a_number.id).payload["score"])
+    assert store.get_subscription("reader").cursor == not_a_number.cursor

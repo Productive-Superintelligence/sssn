@@ -34,8 +34,11 @@ Request bodies and query parameters:
 | `POST /artifacts` | `data`, `encoding` (`text` or `base64`), `channel`, `media_type`, `metadata`, `event_ids` |
 | `PUT /snapshots/{name}` | `value`, `channel`, `timestamp`, `schema`, `source_event_id`, `metadata`; replaces any previous value |
 
-An infinite timestamp, which only a store written by sssn 0.2.0 can hold,
-is sent as the string `"inf"` or `"-inf"`, since JSON has no infinity.
+A store written by sssn 0.2.0 can hold values JSON cannot carry, and the
+server still sends them: an infinite timestamp as the string `"inf"` or
+`"-inf"`, which a float field reads back; a lone surrogate in a string as a
+JSON escape; and another NaN or infinite number as the `NaN` or `Infinity`
+that Python's `json` module writes and reads.
 
 FastAPI also serves the OpenAPI schema at `/openapi.json` and interactive docs
 at `/docs`. The server has no authentication.
