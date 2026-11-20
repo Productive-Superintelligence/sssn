@@ -8,6 +8,7 @@ stores should behave alike.
 import asyncio
 import base64
 import dataclasses
+import enum
 import hashlib
 import inspect
 import json
@@ -18,6 +19,7 @@ import sqlite3
 import sys
 import threading
 import time
+import uuid
 from collections import deque
 from contextlib import contextmanager
 from datetime import date, timedelta
@@ -28,9 +30,16 @@ import httpx
 import pydantic
 import pytest
 from fastapi import FastAPI
+from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
-from pydantic import BaseModel, ConfigDict, PlainSerializer, field_serializer
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    PlainSerializer,
+    RootModel,
+    field_serializer,
+)
 from pydantic_core import core_schema
 
 from lllm import as_tactic
@@ -2341,3 +2350,66 @@ def test_dumps_json_output_is_unchanged(value):
 
     assert dumps_json(value, allow_nan=True) == reference
     assert json.loads(dumps_json(value, allow_nan=True)) == json.loads(reference)
+
+
+# Round 6, item 1: custom endpoints encode results as 0.2.0 did
+
+
+class Account(BaseModel):
+    user: str
+    token: str
+
+    @field_serializer("token", when_used="json")
+    def _redact(self, value):
+        return "***"
+
+
+class Tags(RootModel[list[str]]):
+    pass
+
+
+class DailyCounts(BaseModel):
+    counts: dict[date, int]
+
+
+class TicketStatus(enum.Enum):
+    OPEN = "open"
+
+
+@pytest.mark.parametrize(
+    "make_result",
+    [
+        lambda: Account(user="ada", token="s3cret"),
+        lambda: Tags(["a", "b"]),
+        lambda: DailyCounts(counts={date(2026, 11, 20): 3}),
+        lambda: {TicketStatus.OPEN: 2},
+        lambda: {uuid.UUID(int=1): "first"},
+    ],
+    ids=["json-only-redaction", "root-model-list", "date-keys", "enum-key", "uuid-key"],
+)
+def test_custom_endpoints_encode_results_as_0_2_0_did(tmp_path, make_result):
+    @endpoint.get("/result")
+    def result(store):
+        return make_result()
+
+    app = create_app(LocalStore(tmp_path / "store"), custom_endpoints=[result])
+
+    response = request(app, "GET", "/result")
+
+    assert response.status_code == 200
+    assert response.json() == jsonable_encoder(make_result())
+
+
+def test_custom_endpoints_return_records_by_the_record_rules(tmp_path):
+    store, first = legacy_store(tmp_path / "store")
+
+    @endpoint.get("/legacy")
+    def legacy(store):
+        return {"event": store.get_event(first.id), "all": store.query_events("legacy")}
+
+    app = create_app(store, custom_endpoints=[legacy])
+
+    body = strict_json(request(app, "GET", "/legacy").content)
+
+    assert body["event"]["timestamp"] == "inf"
+    assert [event["timestamp"] == "inf" for event in body["all"]] == [True, False]

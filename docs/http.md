@@ -288,8 +288,9 @@ print(json.dumps(resource["endpoints"][0], indent=2))
 
 1. Parameters are bound by name: `store` gets the store, `name` the path
    parameter, and `params` the query string as a dict of strings.
-2. The return value is the response body, encoded as JSON, with no
-   envelope.
+2. The return value is the response body, encoded as JSON by FastAPI's
+   `jsonable_encoder`, with no envelope. SSSN's records, such as events,
+   come out as the standard routes return them.
 3. Store errors map to statuses as they do on the standard routes:
    `query_events` raised `ChannelNotFoundError`, so the response is a 404.
    Raise `InvalidPayloadError` from a handler for a 400.

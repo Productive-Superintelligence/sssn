@@ -30,7 +30,7 @@ from ..core import (
     SubscriptionNotFoundError,
 )
 from ..client.http import RemoteStoreError
-from ..core.models import record_json
+from ..core.models import RECORD_CLASSES, dumps_json, record_data, record_json
 from ..stores import LocalStore
 from .endpoints import (
     StoreEndpointSpec,
@@ -387,8 +387,11 @@ def _mount_custom_endpoint(
     fn: Callable[..., Any],
 ) -> None:
     from fastapi import Request
+    from fastapi.encoders import jsonable_encoder
+    from fastapi.responses import Response
 
     parameters = _custom_parameters(fn, spec)
+    records = {record_class: record_data for record_class in RECORD_CLASSES}
 
     async def route(request: Request):
         try:
@@ -409,7 +412,13 @@ def _mount_custom_endpoint(
                     kwargs[name] = request.path_params[name]
                 elif name == "params":
                     kwargs[name] = dict(request.query_params)
-            return _records_response(await _call(fn, **kwargs))
+            result = await _call(fn, **kwargs)
+            # Encoded as 0.2.0 encoded a result, except SSSN's records, which
+            # follow the record rules. jsonable_encoder leaves text alone, so
+            # the writer still escapes a lone surrogate.
+            data = jsonable_encoder(result, custom_encoder=records)
+            text = dumps_json(data, allow_nan=True)
+            return Response(content=text, media_type="application/json")
         except Exception as exc:
             raise _http_error(exc) from exc
 

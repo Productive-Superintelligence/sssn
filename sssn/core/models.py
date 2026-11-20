@@ -177,6 +177,9 @@ class Subscription(BaseModel):
 # everything inside it.
 _VALUES = TypeAdapter(Any, config=ConfigDict(ser_json_inf_nan="constants"))
 
+# SSSN's own records, what a store returns.
+RECORD_CLASSES = (Channel, Event, Artifact, Snapshot, Subscription)
+
 
 def json_value(value: Any) -> Any:
     """Return ``value`` as JSON data: exactly the JSON Pydantic writes for it.
@@ -232,7 +235,7 @@ def parse_json(text: str | bytes) -> Any:
 
 
 def record_json(content: Any, *, default: Callable[[Any], Any] | None = None) -> str:
-    """Write records a store returned, or values, as JSON that cannot fail.
+    """Write records a store returned (one, or a list) as JSON that cannot fail.
 
     A store also holds what earlier versions wrote. A non-finite timestamp
     goes out as "inf", "-inf", or "nan", which a float field reads back; a
@@ -242,7 +245,7 @@ def record_json(content: Any, *, default: Callable[[Any], Any] | None = None) ->
     anything else, as for ``json.dumps``.
     """
 
-    return dumps_json(_record_data(content), allow_nan=True, default=default)
+    return dumps_json(_records(content), allow_nan=True, default=default)
 
 
 # The \uXXXX escapes of the lone surrogates, U+D800 to U+DFFF.
@@ -278,21 +281,29 @@ def dumps_json(
     return text
 
 
-def _record_data(content: Any) -> Any:
-    if isinstance(content, BaseModel):
-        data = content.model_dump(by_alias=True)
-        timestamp = data.get("timestamp")
-        if isinstance(timestamp, float) and (
-            timestamp != timestamp or abs(timestamp) == float("inf")
-        ):
-            data["timestamp"] = (
-                "nan" if timestamp != timestamp else "inf" if timestamp > 0 else "-inf"
-            )
-        return data
+def record_data(record: Any) -> dict[str, Any]:
+    """Return one of SSSN's records as data ``dumps_json`` writes as stored.
+
+    Its values are as the store holds them; a non-finite timestamp becomes
+    "inf", "-inf", or "nan".
+    """
+
+    data = record.model_dump(by_alias=True)
+    timestamp = data.get("timestamp")
+    if isinstance(timestamp, float) and (
+        timestamp != timestamp or abs(timestamp) == float("inf")
+    ):
+        data["timestamp"] = (
+            "nan" if timestamp != timestamp else "inf" if timestamp > 0 else "-inf"
+        )
+    return data
+
+
+def _records(content: Any) -> Any:
+    if isinstance(content, RECORD_CLASSES):
+        return record_data(content)
     if isinstance(content, (list, tuple)):
-        return [_record_data(item) for item in content]
-    if isinstance(content, dict):
-        return {key: _record_data(item) for key, item in content.items()}
+        return [_records(item) for item in content]
     return content
 
 
