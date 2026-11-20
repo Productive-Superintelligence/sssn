@@ -2607,3 +2607,27 @@ def test_a_record_inside_a_users_model_is_written_by_that_models_json(tmp_path):
     # Pydantic's JSON dump of the model, which writes the timestamp itself.
     assert response.status_code == 200
     assert response.json()["event"]["timestamp"] == math.inf
+
+
+# Round 7, item 2: remote stores encode payload, value, and metadata alone
+
+
+def test_a_lone_surrogate_elsewhere_leaves_a_models_nan_null_on_every_store(
+    any_store,
+):
+    message = Message(text="hi", score=math.nan)
+    stored = {"text": "hi", "score": None, "data": {}, "extra": None}
+    note = {"file": LONE_SURROGATE}
+
+    any_store.create_channel({"name": "notes"})
+    event = any_store.append_event(
+        {"channel": "notes", "payload": message, "metadata": note}
+    )
+    snapshot = any_store.put_snapshot(
+        {"name": "latest", "value": message, "metadata": note}
+    )
+    named = any_store.put_snapshot("named", message, metadata=note)
+
+    assert (event.payload, event.metadata) == (stored, note)
+    assert (snapshot.value, snapshot.metadata) == (stored, note)
+    assert (named.value, named.metadata) == (stored, note)

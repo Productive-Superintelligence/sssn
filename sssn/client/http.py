@@ -677,7 +677,7 @@ def _dump_channel(channel: Channel | dict[str, Any]) -> dict[str, Any]:
         data = channel.model_dump(mode="json", by_alias=True, exclude={"metadata"})
         data["metadata"] = json_value(channel.metadata)
         return data
-    return _mapping_payload("channel", channel)
+    return _encode_fields(_mapping_payload("channel", channel), "metadata")
 
 
 def _dump_event(event: Event | dict[str, Any]) -> dict[str, Any]:
@@ -689,7 +689,7 @@ def _dump_event(event: Event | dict[str, Any]) -> dict[str, Any]:
         data["payload"] = json_value(event.payload)
         data["metadata"] = json_value(event.metadata)
         return data
-    return _mapping_payload("event", event)
+    return _encode_fields(_mapping_payload("event", event), "payload", "metadata")
 
 
 def _require_finite_timestamp(name: str, value: float) -> None:
@@ -867,7 +867,21 @@ def _snapshot_payload(
         payload["source_event_id"] = source_event_id
     if metadata is not None:
         payload["metadata"] = _mapping_payload("snapshot.metadata", metadata)
-    return name, payload
+    return name, _encode_fields(payload, "value", "metadata")
+
+
+def _encode_fields(data: dict[str, Any], *names: str) -> dict[str, Any]:
+    """Encode free-form fields each on its own, as LocalStore stores them.
+
+    Encoded with the whole request, a lone surrogate anywhere in it would
+    send a model in these fields down json_text's fallback, which refuses
+    a NaN that the model's own JSON writes as null.
+    """
+
+    for name in names:
+        if name in data:
+            data[name] = json_value(data[name])
+    return data
 
 
 def _mapping_payload(field_name: str, value: Any) -> dict[str, Any]:
