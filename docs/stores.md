@@ -98,17 +98,17 @@ event = store.append_event(
         "metadata": {"day": date(2026, 11, 18), "tags": ("hot", "east")},
     }
 )
-print(type(event.payload).__name__)  # (1)!
-#> Reading
-stored = store.get_event(event.id)
-print(stored.payload)
+print(event.payload)  # (1)!
 #> {'celsius': 64.0, 'sensor': 'boiler'}
-print(stored.metadata)
+print(event.metadata)
 #> {'day': '2026-11-18', 'tags': ['hot', 'east']}
+print(store.get_event(event.id) == event)
+#> True
 ```
 
-1. The event that `append_event` returns holds the value you passed. Read
-   the event back to see what other processes will get.
+1. `append_event` returns the event as it was stored, which is what
+   `get_event` and other processes get. Every write returns its record
+   that way, a snapshot's value and every record's metadata included.
 
 A value that cannot become JSON raises `InvalidPayloadError` and nothing
 is written. That includes an arbitrary object, and NaN and infinite

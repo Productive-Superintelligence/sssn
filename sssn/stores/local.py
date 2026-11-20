@@ -54,6 +54,7 @@ class LocalStore:
                 "metadata": _optional_mapping("channel.metadata", channel["metadata"]),
             }
         value = _model(Channel, channel, "channel")
+        metadata_json = _json(value.metadata)
         try:
             with self._connect() as db:
                 db.execute(
@@ -66,12 +67,14 @@ class LocalStore:
                         value.schema,
                         value.form,
                         value.description,
-                        _json(value.metadata),
+                        metadata_json,
                     ),
                 )
+                # Return the stored form, the one readers get.
+                stored = _find_channel(db, value.name)
         except sqlite3.IntegrityError as exc:
             raise ChannelExistsError(f"Channel already exists: {value.name}") from exc
-        return value.model_copy(deep=True)
+        return stored
 
     def list_channels(self) -> tuple[Channel, ...]:
         with self._connect() as db:
@@ -83,13 +86,10 @@ class LocalStore:
     def get_channel(self, name: str) -> Channel:
         _require_segment("channel.name", name)
         with self._connect() as db:
-            row = db.execute(
-                "select name, schema_ref, form, description, metadata from channels where name = ?",
-                (name,),
-            ).fetchone()
-        if row is None:
+            channel = _find_channel(db, name)
+        if channel is None:
             raise ChannelNotFoundError(f"Channel not found: {name}")
-        return _channel(row)
+        return channel
 
     def append_event(self, event: Event | dict[str, Any]) -> Event:
         if isinstance(event, Mapping) and "metadata" in event:
@@ -100,6 +100,8 @@ class LocalStore:
         value = _model(Event, event, "event")
         self.get_channel(value.channel)
         self._require_events(value.parent_ids)
+        payload_json = _json(value.payload)
+        metadata_json = _json(value.metadata)
         try:
             with self._connect() as db:
                 db.execute(
@@ -116,21 +118,20 @@ class LocalStore:
                         value.timestamp,
                         value.source,
                         value.kind,
-                        _json(value.payload),
+                        payload_json,
                         value.schema,
-                        _json(value.metadata),
+                        metadata_json,
                         value.correlation_id,
                         _json(list(value.parent_ids)),
                     ),
                 )
+                # Return the stored form, the one readers get, with its cursor.
+                stored = _find_event(db, value.id)
         except sqlite3.IntegrityError as exc:
             if self._event_cursor(value.id):
                 raise EventExistsError(f"Event already exists: {value.id}") from exc
             raise
-        return value.model_copy(
-            update={"cursor": self._event_cursor(value.id)},
-            deep=True,
-        )
+        return stored
 
     def query_events(
         self,
@@ -153,18 +154,10 @@ class LocalStore:
     def get_event(self, event_id: str) -> Event:
         _require_segment("event.id", event_id)
         with self._connect() as db:
-            row = db.execute(
-                """
-                select rowid, id, channel, timestamp, source, kind, payload, schema_ref,
-                       metadata, correlation_id, parent_ids
-                from events
-                where id = ?
-                """,
-                (event_id,),
-            ).fetchone()
-        if row is None:
+            event = _find_event(db, event_id)
+        if event is None:
             raise EventNotFoundError(f"Event not found: {event_id}")
-        return _event(row)
+        return event
 
     def create_subscription(
         self,
@@ -203,6 +196,8 @@ class LocalStore:
                         f"{sub.id}"
                     )
                 return existing
+        filters_json = _json(sub.filters)
+        metadata_json = _json(sub.metadata)
         with self._connect() as db:
             db.execute(
                 """
@@ -215,11 +210,12 @@ class LocalStore:
                     sub.cursor,
                     sub.consumer,
                     sub.batch_size,
-                    _json(sub.filters),
-                    _json(sub.metadata),
+                    filters_json,
+                    metadata_json,
                 ),
             )
-        return sub.model_copy(deep=True)
+            # Return the stored form, the one readers get.
+            return _find_subscription(db, sub.id)
 
     def pull_subscription(
         self,
@@ -307,7 +303,8 @@ class LocalStore:
                     _json(list(artifact.event_ids)),
                 ),
             )
-        return artifact.model_copy(deep=True)
+            # Return the stored form, the one readers get.
+            return _find_artifact(db, artifact.id)
 
     def read_artifact(self, artifact_id: str) -> bytes:
         _require_segment("artifact.id", artifact_id)
@@ -326,16 +323,10 @@ class LocalStore:
     def get_artifact(self, artifact_id: str) -> Artifact:
         _require_segment("artifact.id", artifact_id)
         with self._connect() as db:
-            row = db.execute(
-                """
-                select id, channel, path, media_type, size, sha256, metadata, event_ids
-                from artifacts where id = ?
-                """,
-                (artifact_id,),
-            ).fetchone()
-        if row is None:
+            artifact = _find_artifact(db, artifact_id)
+        if artifact is None:
             raise ArtifactNotFoundError(f"Artifact not found: {artifact_id}")
-        return _artifact(row)
+        return artifact
 
     def put_snapshot(
         self,
@@ -381,6 +372,8 @@ class LocalStore:
             self.get_channel(record.channel)
         if record.source_event_id is not None:
             self._require_events((record.source_event_id,))
+        value_json = _json(record.value)
+        metadata_json = _json(record.metadata)
         with self._connect() as db:
             db.execute(
                 """
@@ -398,35 +391,22 @@ class LocalStore:
                     record.name,
                     record.channel,
                     record.timestamp,
-                    _json(record.value),
+                    value_json,
                     record.schema,
                     record.source_event_id,
-                    _json(record.metadata),
+                    metadata_json,
                 ),
             )
-        return record.model_copy(deep=True)
+            # Return the stored form, the one readers get.
+            return _find_snapshot(db, record.name)
 
     def get_snapshot(self, name: str) -> Snapshot:
         _require_segment("snapshot.name", name)
         with self._connect() as db:
-            row = db.execute(
-                """
-                select name, channel, timestamp, value, schema_ref, source_event_id, metadata
-                from snapshots where name = ?
-                """,
-                (name,),
-            ).fetchone()
-        if row is None:
+            snapshot = _find_snapshot(db, name)
+        if snapshot is None:
             raise SnapshotNotFoundError(f"Snapshot not found: {name}")
-        return Snapshot(
-            name=row["name"],
-            channel=row["channel"],
-            timestamp=row["timestamp"],
-            value=_loads(row["value"]),
-            schema=row["schema_ref"],
-            source_event_id=row["source_event_id"],
-            metadata=_loads(row["metadata"]),
-        )
+        return snapshot
 
     def _event_cursor(self, event_id: str) -> int:
         with self._connect() as db:
@@ -541,6 +521,59 @@ def _event(row: sqlite3.Row) -> Event:
         metadata=_loads(row["metadata"]),
         correlation_id=row["correlation_id"],
         parent_ids=tuple(_loads(row["parent_ids"])),
+    )
+
+
+def _find_channel(db: sqlite3.Connection, name: str) -> Channel | None:
+    row = db.execute(
+        "select name, schema_ref, form, description, metadata from channels where name = ?",
+        (name,),
+    ).fetchone()
+    return None if row is None else _channel(row)
+
+
+def _find_event(db: sqlite3.Connection, event_id: str) -> Event | None:
+    row = db.execute(
+        """
+        select rowid, id, channel, timestamp, source, kind, payload, schema_ref,
+               metadata, correlation_id, parent_ids
+        from events
+        where id = ?
+        """,
+        (event_id,),
+    ).fetchone()
+    return None if row is None else _event(row)
+
+
+def _find_artifact(db: sqlite3.Connection, artifact_id: str) -> Artifact | None:
+    row = db.execute(
+        """
+        select id, channel, path, media_type, size, sha256, metadata, event_ids
+        from artifacts where id = ?
+        """,
+        (artifact_id,),
+    ).fetchone()
+    return None if row is None else _artifact(row)
+
+
+def _find_snapshot(db: sqlite3.Connection, name: str) -> Snapshot | None:
+    row = db.execute(
+        """
+        select name, channel, timestamp, value, schema_ref, source_event_id, metadata
+        from snapshots where name = ?
+        """,
+        (name,),
+    ).fetchone()
+    if row is None:
+        return None
+    return Snapshot(
+        name=row["name"],
+        channel=row["channel"],
+        timestamp=row["timestamp"],
+        value=_loads(row["value"]),
+        schema=row["schema_ref"],
+        source_event_id=row["source_event_id"],
+        metadata=_loads(row["metadata"]),
     )
 
 

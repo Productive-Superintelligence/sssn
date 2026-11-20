@@ -13,6 +13,7 @@ import math
 import pickle
 import sys
 import threading
+from datetime import date
 from pathlib import Path
 
 import httpx
@@ -649,3 +650,56 @@ def test_store_server_rejects_non_finite_numbers_in_bodies(
     assert response.status_code == 400
     assert response.json()["detail"]["error"]["type"] == "InvalidPayloadError"
     assert store.query_events("readings") == ()
+
+
+# 13: a write returns the record as stored, the same that readers get
+
+
+class Order(BaseModel):
+    id: str
+    total: float
+
+
+def test_append_event_returns_the_event_as_stored(any_store):
+    any_store.create_channel({"name": "orders"})
+
+    event = any_store.append_event(
+        {
+            "channel": "orders",
+            "payload": {"z": Order(id="A-1", total=9.5), "a": {3}},
+            "metadata": {"tags": ("new", "eu"), "day": date(2026, 11, 18)},
+        }
+    )
+
+    assert event == any_store.get_event(event.id)
+    assert event.payload == {"a": [3], "z": {"id": "A-1", "total": 9.5}}
+    assert list(event.payload) == ["a", "z"]
+    assert event.metadata == {"day": "2026-11-18", "tags": ["new", "eu"]}
+    model_event = any_store.append_event(
+        {"channel": "orders", "payload": Order(id="A-2", total=1.0)}
+    )
+    assert model_event.payload == {"id": "A-2", "total": 1.0}
+    assert model_event == any_store.get_event(model_event.id)
+
+
+def test_every_write_returns_the_record_as_stored(any_store):
+    unsorted = {"z": (1,), "a": date(2026, 1, 1)}
+    stored = {"a": "2026-01-01", "z": [1]}
+
+    channel = any_store.create_channel({"name": "orders", "metadata": unsorted})
+    subscription = any_store.create_subscription(
+        "orders", subscription_id="billing", metadata=unsorted
+    )
+    artifact = any_store.write_artifact(b"raw", metadata=unsorted)
+    snapshot = any_store.put_snapshot(
+        "latest", {"z": Order(id="A-1", total=9.5)}, metadata=unsorted
+    )
+
+    assert channel == any_store.get_channel("orders")
+    assert subscription == any_store.get_subscription("billing")
+    assert artifact == any_store.get_artifact(artifact.id)
+    assert snapshot == any_store.get_snapshot("latest")
+    for record in (channel, subscription, artifact, snapshot):
+        assert record.metadata == stored
+        assert list(record.metadata) == ["a", "z"]
+    assert snapshot.value == {"z": {"id": "A-1", "total": 9.5}}
