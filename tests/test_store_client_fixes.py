@@ -329,3 +329,30 @@ def test_store_server_reports_other_remote_store_failures_as_before(
 
     assert answer.status_code == status_code
     assert answer.json()["detail"]["error"]["type"] == "RemoteStoreError"
+
+
+# 5: RemoteStoreError.message comes from a plain FastAPI detail
+
+
+@pytest.mark.parametrize("client_cls", [RemoteStore, AsyncRemoteStore])
+def test_remote_error_message_comes_from_a_plain_detail(client_cls):
+    def unauthorized(outgoing: httpx.Request) -> httpx.Response:
+        return httpx.Response(401, json={"detail": "Invalid token."})
+
+    transport = httpx.MockTransport(unauthorized)
+    store = Blocking(client_cls("http://testserver", transport=transport))
+
+    with pytest.raises(RemoteStoreError) as exc_info:
+        store.list_channels()
+
+    assert exc_info.value.status_code == 401
+    assert exc_info.value.error_type is None
+    assert exc_info.value.message == "Invalid token."
+    assert exc_info.value.detail == {"detail": "Invalid token."}
+    assert str(exc_info.value) == "SSSN server returned HTTP 401: Invalid token."
+
+
+def test_remote_store_error_reads_a_plain_detail_it_is_given():
+    error = RemoteStoreError(403, detail={"detail": "Not allowed."})
+
+    assert error.message == "Not allowed."

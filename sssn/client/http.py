@@ -849,6 +849,9 @@ def _detail_message(detail: Any) -> str | None:
     if isinstance(detail, str):
         return detail
     if isinstance(detail, dict):
+        if isinstance(detail.get("detail"), str):
+            # A plain FastAPI error, such as {"detail": "Invalid token."}.
+            return detail["detail"]
         error = _error_detail(detail)
         if isinstance(error, dict) and isinstance(error.get("message"), str):
             return error["message"]
