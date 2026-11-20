@@ -25,6 +25,7 @@ from ..core import (
     NetworkError,
     Snapshot,
     SnapshotNotFoundError,
+    StoreBusyError,
     SubscriptionExistsError,
     SubscriptionNotFoundError,
 )
@@ -47,7 +48,12 @@ _NOT_FOUND_ERRORS = (
     SubscriptionNotFoundError,
 )
 _CONFLICT_ERRORS = (ChannelExistsError, EventExistsError, SubscriptionExistsError)
-_STORE_ERRORS = (*_NOT_FOUND_ERRORS, *_CONFLICT_ERRORS, InvalidPayloadError)
+_STORE_ERRORS = (
+    *_NOT_FOUND_ERRORS,
+    *_CONFLICT_ERRORS,
+    InvalidPayloadError,
+    StoreBusyError,
+)
 
 
 class ErrorDetail(BaseModel):
@@ -159,7 +165,10 @@ def create_app(
 
     @app.get("/channels")
     async def list_channels() -> list[dict[str, Any]]:
-        return [jsonable_encoder(channel) for channel in local_store.list_channels()]
+        try:
+            return [jsonable_encoder(channel) for channel in local_store.list_channels()]
+        except Exception as exc:
+            raise _http_error(exc) from exc
 
     @app.get("/channels/{name}")
     async def get_channel(name: str) -> dict[str, Any]:
@@ -421,6 +430,8 @@ def _http_error(exc: Exception):
         status_code = 404
     elif isinstance(exc, _CONFLICT_ERRORS):
         status_code = 409
+    elif isinstance(exc, StoreBusyError):
+        status_code = 503
     elif isinstance(exc, RemoteStoreError):
         # The server behind a RemoteStore chose the status: pass on a client
         # error as it is; anything else is this server's failure.

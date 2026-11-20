@@ -9,6 +9,7 @@ from .errors import (
     InvalidPayloadError,
     NetworkError,
     SnapshotNotFoundError,
+    StoreBusyError,
     SubscriptionExistsError,
     SubscriptionNotFoundError,
 )
@@ -28,6 +29,7 @@ __all__ = [
     "NetworkError",
     "Snapshot",
     "SnapshotNotFoundError",
+    "StoreBusyError",
     "Subscription",
     "SubscriptionExistsError",
     "SubscriptionNotFoundError",

@@ -154,6 +154,7 @@ message. The status says what kind of error it is:
 | 400 | `InvalidPayloadError` and other `NetworkError`s; a request body that does not validate is reported as `InvalidPayloadError` with the field, as in `channel: Field required` |
 | 404 | `ChannelNotFoundError`, `EventNotFoundError`, `SubscriptionNotFoundError`, `ArtifactNotFoundError`, `SnapshotNotFoundError` |
 | 409 | `ChannelExistsError`, `EventExistsError`, `SubscriptionExistsError` |
+| 503 | `StoreBusyError`: another process kept the store locked past SQLite's busy timeout; the request changed nothing, so retry it |
 | 500 | Anything else, with the exception's class name and message |
 
 A 409 is often not a failure. A producer that retries after a timeout and

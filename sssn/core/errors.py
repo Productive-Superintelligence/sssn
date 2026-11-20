@@ -41,3 +41,10 @@ class SubscriptionNotFoundError(NetworkError):
 
 class SubscriptionExistsError(NetworkError):
     """Raised when creating a conflicting duplicate subscription."""
+
+
+class StoreBusyError(NetworkError):
+    """Raised when another connection holds the store's lock for too long.
+
+    The call did nothing, so it is safe to try again.
+    """

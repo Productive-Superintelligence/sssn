@@ -57,6 +57,7 @@ Errors come back in one envelope, with the error class name as `type`:
 | 400 | `InvalidPayloadError`, other `NetworkError`s, and request bodies that fail validation (reported as `InvalidPayloadError`). |
 | 404 | `ChannelNotFoundError`, `EventNotFoundError`, `SubscriptionNotFoundError`, `ArtifactNotFoundError`, `SnapshotNotFoundError`. |
 | 409 | `ChannelExistsError`, `EventExistsError` (an event id that is taken), `SubscriptionExistsError`. |
+| 503 | `StoreBusyError`: another process kept the store locked past SQLite's busy timeout; retry the request. |
 | 500 | Anything else, with the exception's class name and message. |
 
 ## Custom endpoints

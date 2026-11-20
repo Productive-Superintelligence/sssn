@@ -77,3 +77,5 @@ Everything here is importable from `sssn`, as in `from sssn import LocalStore`. 
 ::: sssn.core.errors.SubscriptionNotFoundError
 
 ::: sssn.core.errors.InvalidPayloadError
+
+::: sssn.core.errors.StoreBusyError

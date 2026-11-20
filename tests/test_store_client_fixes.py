@@ -11,8 +11,10 @@ import hashlib
 import inspect
 import math
 import pickle
+import sqlite3
 import sys
 import threading
+from contextlib import contextmanager
 from datetime import date
 from pathlib import Path
 
@@ -22,6 +24,8 @@ from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 from pydantic import BaseModel, ValidationError
 
+import sssn
+import sssn.core as sssn_core
 import sssn.stores.local as local_module
 from sssn import (
     ArtifactNotFoundError,
@@ -39,6 +43,7 @@ from sssn import (
     RemoteStoreError,
     Snapshot,
     SnapshotNotFoundError,
+    StoreBusyError,
     SubscriptionExistsError,
     SubscriptionNotFoundError,
     create_app,
@@ -52,6 +57,7 @@ STORE_ERRORS = (
     EventNotFoundError,
     InvalidPayloadError,
     SnapshotNotFoundError,
+    StoreBusyError,
     SubscriptionExistsError,
     SubscriptionNotFoundError,
 )
@@ -786,3 +792,84 @@ def test_concurrent_creates_of_one_subscription_both_get_it(tmp_path, monkeypatc
 
     assert errors == []
     assert len(created) == 2 and created[0] == created[1]
+
+
+# 10: a SQLite lock timeout raises StoreBusyError, a NetworkError
+
+
+@contextmanager
+def locked(store, mode):
+    """Hold a lock on the store's database from another connection."""
+
+    holder = sqlite3.connect(store.db_path, isolation_level=None)
+    holder.execute(f"begin {mode}")
+    try:
+        yield
+    finally:
+        holder.rollback()
+        holder.close()
+
+
+def busy_store(root) -> LocalStore:
+    store = LocalStore(root)
+    store.create_channel({"name": "events"})
+    store._busy_timeout = 0.05  # SQLite waits 5 seconds by default
+    return store
+
+
+def test_store_busy_error_is_exported_like_other_network_errors():
+    assert issubclass(StoreBusyError, NetworkError)
+    assert sssn.StoreBusyError is sssn_core.StoreBusyError
+    assert "StoreBusyError" in sssn.__all__
+    assert "StoreBusyError" in sssn_core.__all__
+
+
+def test_a_locked_store_raises_store_busy_error(tmp_path):
+    store = busy_store(tmp_path / "store")
+    store.create_subscription("events", subscription_id="worker")
+
+    with locked(store, "immediate"):  # another writer holds the write lock
+        with pytest.raises(StoreBusyError, match="busy") as exc_info:
+            store.append_event({"channel": "events"})
+        with pytest.raises(StoreBusyError):
+            store.pull_subscription("worker")
+        assert store.get_channel("events").name == "events"  # reads still work
+    with locked(store, "exclusive"):  # another writer is committing
+        with pytest.raises(StoreBusyError):
+            store.get_channel("events")
+
+    assert isinstance(exc_info.value.__cause__, sqlite3.OperationalError)
+    assert store.append_event({"channel": "events"}).cursor == 1
+
+
+def test_store_server_answers_503_for_a_locked_store(tmp_path):
+    store = busy_store(tmp_path / "store")
+    app = create_app(store)
+
+    with locked(store, "exclusive"):
+        responses = [
+            request(app, "GET", "/channels"),
+            request(app, "GET", "/channels/events"),
+            request(app, "POST", "/events", json={"channel": "events"}),
+        ]
+
+    for response in responses:
+        assert response.status_code == 503
+        assert response.json()["detail"]["error"]["type"] == "StoreBusyError"
+
+
+@pytest.mark.parametrize("kind", ["remote", "async"])
+def test_remote_stores_raise_store_busy_error_for_a_locked_store(tmp_path, kind):
+    store = busy_store(tmp_path / "store")
+    app = create_app(store)
+    if kind == "remote":
+        client = RemoteStore("http://testserver", transport=sync_transport(app))
+    else:
+        transport = httpx.ASGITransport(app=app)
+        client = AsyncRemoteStore("http://testserver", transport=transport)
+
+    with locked(store, "exclusive"):
+        with pytest.raises(StoreBusyError) as exc_info:
+            Blocking(client).list_channels()
+
+    assert exc_info.value.status_code == 503

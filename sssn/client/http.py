@@ -22,6 +22,7 @@ from ..core import (
     NetworkError,
     Snapshot,
     SnapshotNotFoundError,
+    StoreBusyError,
     Subscription,
     SubscriptionExistsError,
     SubscriptionNotFoundError,
@@ -83,6 +84,7 @@ _REMOTE_ERRORS: dict[str, type[RemoteStoreError]] = {
         EventNotFoundError,
         InvalidPayloadError,
         SnapshotNotFoundError,
+        StoreBusyError,
         SubscriptionExistsError,
         SubscriptionNotFoundError,
     )

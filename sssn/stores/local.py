@@ -27,6 +27,7 @@ from ..core import (
     InvalidPayloadError,
     Snapshot,
     SnapshotNotFoundError,
+    StoreBusyError,
     Subscription,
     SubscriptionExistsError,
     SubscriptionNotFoundError,
@@ -38,6 +39,9 @@ ModelT = TypeVar("ModelT", bound=BaseModel)
 
 class LocalStore:
     """Boring local SQLite/filesystem backend."""
+
+    # Seconds a call waits for another connection's lock: SQLite's default.
+    _busy_timeout = 5.0
 
     def __init__(self, root: str | Path = ".lllm/network") -> None:
         self.root = Path(_path_value(root, "store root")).expanduser().resolve()
@@ -429,15 +433,24 @@ class LocalStore:
 
         With ``write=True`` the transaction takes the write lock before its
         first read, so no other connection can write between what the block
-        reads and what it writes. The connection is closed afterwards.
+        reads and what it writes. A lock that another connection holds past
+        the busy timeout raises ``StoreBusyError``. The connection is closed
+        afterwards.
         """
-        db = sqlite3.connect(self.db_path)
+        db = sqlite3.connect(self.db_path, timeout=self._busy_timeout)
         db.row_factory = sqlite3.Row
         try:
             with db:
                 if write:
                     db.execute("begin immediate")
                 yield db
+        except sqlite3.OperationalError as exc:
+            if not _is_locked(exc):
+                raise
+            raise StoreBusyError(
+                f"Store is busy: another connection kept {self.db_path} locked "
+                f"for more than {self._busy_timeout:g} seconds. Try again."
+            ) from exc
         finally:
             db.close()
 
@@ -806,6 +819,13 @@ def _subscription_kind(filters: dict[str, Any]) -> str | None:
         return None
     _require_token("subscription filter 'kind'", value)
     return value
+
+
+def _is_locked(exc: sqlite3.OperationalError) -> bool:
+    # SQLITE_BUSY or SQLITE_LOCKED. Python 3.10 has no error names, but both
+    # messages say "locked", as in "database is locked".
+    name = getattr(exc, "sqlite_errorname", None) or ""
+    return name.startswith(("SQLITE_BUSY", "SQLITE_LOCKED")) or "locked" in str(exc)
 
 
 def _json(value: Any) -> str:
