@@ -13,6 +13,7 @@ from pydantic import (
     Field,
     StrictStr,
     TypeAdapter,
+    field_serializer,
     model_validator,
 )
 
@@ -84,6 +85,10 @@ class Event(BaseModel):
         _set_model_attr(self, "payload", copy_boundary_value(self.payload))
         _set_model_attr(self, "metadata", copy_boundary_value(self.metadata))
 
+    @field_serializer("timestamp", when_used="json")
+    def _serialize_timestamp(self, value: float) -> float | str:
+        return _timestamp_json(value)
+
     @model_validator(mode="after")
     def _validate_identity(self) -> "Event":
         _validate_segment(self.id, "event.id")
@@ -138,6 +143,10 @@ class Snapshot(BaseModel):
     def model_post_init(self, __context: Any) -> None:
         _set_model_attr(self, "value", copy_boundary_value(self.value))
         _set_model_attr(self, "metadata", copy_boundary_value(self.metadata))
+
+    @field_serializer("timestamp", when_used="json")
+    def _serialize_timestamp(self, value: float) -> float | str:
+        return _timestamp_json(value)
 
     @model_validator(mode="after")
     def _validate_identity(self) -> "Snapshot":
@@ -201,6 +210,15 @@ def _refuse_non_finite(constant: str) -> Any:
     raise InvalidPayloadError(
         "Value holds NaN or infinity, which JSON cannot represent."
     )
+
+
+def _timestamp_json(value: float) -> float | str:
+    # Writes refuse a non-finite timestamp, but a store written by sssn 0.2.0
+    # can hold one. JSON has no infinity, so it travels as "inf" or "-inf",
+    # which a float field reads back.
+    if value == value and abs(value) != float("inf"):
+        return value
+    return "nan" if value != value else ("inf" if value > 0 else "-inf")
 
 
 def _validate_optional_segment(value: str | None, field_name: str) -> None:

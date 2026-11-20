@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import math
@@ -281,7 +282,19 @@ class LocalStore:
                     "update subscriptions set cursor = ? where id = ?",
                     (rows[-1]["rowid"], subscription_id),
                 )
-        return tuple(_event(row) for row in rows)
+        try:
+            return tuple(_event(row) for row in rows)
+        except BaseException:
+            # The batch never reached the caller: put the cursor back, unless
+            # another pull has moved it on since.
+            if rows:
+                with contextlib.suppress(Exception), self._connect() as db:
+                    db.execute(
+                        "update subscriptions set cursor = ? "
+                        "where id = ? and cursor = ?",
+                        (sub.cursor, subscription_id, rows[-1]["rowid"]),
+                    )
+            raise
 
     def get_subscription(self, subscription_id: str) -> Subscription:
         _require_segment("subscription.id", subscription_id)

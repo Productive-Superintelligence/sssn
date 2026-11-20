@@ -1350,19 +1350,25 @@ def test_processor_outputs_holding_nan_are_failures(tmp_path, output):
 # Review 5: timestamps must be finite to be written, not to be read
 
 
-def test_rows_with_an_infinite_timestamp_stay_readable(tmp_path):
-    store = LocalStore(tmp_path / "store")
+def legacy_store(root):
+    """A store holding infinite timestamps, which sssn 0.2.0 accepted."""
+
+    store = LocalStore(root)
     store.create_channel({"name": "legacy"})
     first = store.append_event({"channel": "legacy", "payload": 1})
     store.append_event({"channel": "legacy", "payload": 2})
     store.put_snapshot("latest", 1)
     store.create_subscription("legacy", subscription_id="reader")
-    # sssn 0.2.0 stored infinite timestamps, and SQLite keeps them.
-    db = sqlite3.connect(store.db_path)
+    db = sqlite3.connect(store.db_path)  # SQLite keeps an infinity as stored
     with db:
         db.execute("update events set timestamp = 9e999 where id = ?", (first.id,))
         db.execute("update snapshots set timestamp = -9e999")
     db.close()
+    return store, first
+
+
+def test_rows_with_an_infinite_timestamp_stay_readable(tmp_path):
+    store, first = legacy_store(tmp_path / "store")
 
     assert store.get_event(first.id).timestamp == math.inf
     assert [event.payload for event in store.query_events("legacy")] == [1, 2]
@@ -1628,3 +1634,61 @@ def test_store_server_resumes_a_subscription_with_a_large_batch_size(
     assert resumed.json()["batch_size"] == 50  # unchanged
     assert created.status_code == 200
     assert created.json()["batch_size"] == 3  # a new one gets at most the cap
+
+
+# Round 2, item 5: a pull keeps its batch, and infinite timestamps travel
+
+
+def test_a_pull_whose_events_fail_to_build_keeps_its_batch(tmp_path, monkeypatch):
+    store = LocalStore(tmp_path / "store")
+    store.create_channel({"name": "jobs"})
+    for n in range(2):
+        store.append_event({"channel": "jobs", "payload": n})
+    store.create_subscription("jobs", subscription_id="w")
+    build_event = local_module._event
+
+    def broken_build(row):
+        raise ValueError("cannot build")
+
+    monkeypatch.setattr(local_module, "_event", broken_build)
+    with pytest.raises(ValueError, match="cannot build"):
+        store.pull_subscription("w")
+    assert store.get_subscription("w").cursor == 0
+
+    monkeypatch.setattr(local_module, "_event", build_event)
+    assert [event.payload for event in store.pull_subscription("w")] == [0, 1]
+
+
+def test_a_failed_pull_leaves_a_cursor_another_pull_moved(tmp_path, monkeypatch):
+    store = LocalStore(tmp_path / "store")
+    store.create_channel({"name": "jobs"})
+    store.append_event({"channel": "jobs", "payload": 0})
+    store.create_subscription("jobs", subscription_id="w")
+
+    def build_while_another_pull_moves_on(row):
+        # Another worker moves the cursor on before this pull's events fail.
+        db = sqlite3.connect(store.db_path)
+        with db:
+            db.execute("update subscriptions set cursor = 5")
+        db.close()
+        raise ValueError("cannot build")
+
+    monkeypatch.setattr(local_module, "_event", build_while_another_pull_moves_on)
+    with pytest.raises(ValueError):
+        store.pull_subscription("w")
+
+    assert store.get_subscription("w").cursor == 5
+
+
+@pytest.mark.parametrize("kind", ["remote", "async"])
+def test_remote_stores_read_rows_with_an_infinite_timestamp(tmp_path, kind):
+    store, first = legacy_store(tmp_path / "store")
+    remote = make_store(kind, store.root)
+
+    pulled = remote.pull_subscription("reader")
+
+    assert remote.get_event(first.id).timestamp == math.inf
+    assert [event.payload for event in remote.query_events("legacy")] == [1, 2]
+    assert [event.timestamp == math.inf for event in pulled] == [True, False]
+    assert remote.get_snapshot("latest").timestamp == -math.inf
+    assert store.get_subscription("reader").cursor == 2
