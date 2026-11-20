@@ -219,12 +219,13 @@ class LocalStore:
             if existing is not None:
                 # An existing subscription comes back unchanged, so a worker can
                 # create it every time it starts, unless it delivers other
-                # events than asked for: another channel, or another kind
-                # filter when filters are given. batch_size, consumer, and
-                # metadata are not compared.
+                # events than asked for: another channel, or another kind when
+                # filters names one. Filters naming no kind (None or {}, which
+                # 0.2.0 clients send), batch_size, consumer, and metadata are
+                # not compared.
                 existing_kind = _subscription_kind(existing.filters)
                 if existing.channel != sub.channel or (
-                    filters is not None and existing_kind != kind
+                    kind is not None and existing_kind != kind
                 ):
                     raise SubscriptionExistsError(
                         f"Subscription already exists for other events: {sub.id} "

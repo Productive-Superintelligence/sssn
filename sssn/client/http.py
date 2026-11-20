@@ -686,18 +686,14 @@ def _subscription_body(
     filters: Any,
     metadata: Any,
 ) -> dict[str, Any]:
-    body = {
+    return {
         "id": subscription_id,
         "channel": channel,
         "consumer": consumer,
         "batch_size": batch_size,
+        "filters": _copy_mapping("subscription.filters", filters),
         "metadata": _copy_mapping("subscription.metadata", metadata),
     }
-    if filters is not None:
-        # Left out, the server keeps an existing subscription's filter (and
-        # an older server reads it as no filter, as before).
-        body["filters"] = _mapping_payload("subscription.filters", filters)
-    return body
 
 
 def _artifact_payload(data: Any) -> dict[str, str]:

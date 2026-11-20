@@ -48,7 +48,7 @@ print([event.payload for event in batch])
 | --- | --- | --- |
 | `channel` | required | The channel to read; it must exist |
 | `subscription_id` | a random UUID | The subscription's name; see below |
-| `filters` | `{}` | `{"kind": "..."}` to receive only events of one kind |
+| `filters` | `None` | `{"kind": "..."}` to receive only events of one kind; `None` or `{}` sets no kind filter |
 | `batch_size` | `100` | How many events a pull returns when it has no `limit` |
 | `consumer` | `None` | The name of the reader, for your records |
 | `metadata` | `{}` | A JSON object for anything else |
@@ -58,10 +58,10 @@ subscription whose id exists returns the existing one, unchanged, with its
 cursor, filter, and batch size, so a worker can call `create_subscription`
 every time it starts. It raises `SubscriptionExistsError` instead when the
 subscription would deliver other events than you asked for: when it reads
-another channel, or when you pass `filters` and its kind filter differs.
-Leave `filters` out to take the subscription with whatever filter it has;
-`batch_size`, `consumer`, and `metadata` are not compared. To change what a
-subscription delivers, use a new id. Without an id, every call makes a new
+another channel, or when `filters` names a kind other than its own.
+`filters` that name no kind (left out, or `{}`) take the subscription with
+whatever filter it has, and `batch_size`, `consumer`, and `metadata` are
+not compared. To change what a subscription delivers, use a new id. Without an id, every call makes a new
 subscription with a random id, which is right only for a reader that never
 restarts.
 

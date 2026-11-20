@@ -182,8 +182,8 @@ gets `EventExistsError` knows its event was written the first time, and a
 worker that creates its channels on every start can ignore
 `ChannelExistsError`. Creating a subscription with an id that exists is
 not a conflict either: the server returns the existing subscription, so a
-worker resumes where it stopped. Only another channel, or `filters` with
-another kind filter, is a 409 `SubscriptionExistsError`.
+worker resumes where it stopped. Only another channel, or `filters` that
+name another kind, is a 409 `SubscriptionExistsError`.
 
 ## Use a served store from Python
 

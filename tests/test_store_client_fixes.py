@@ -9,7 +9,6 @@ import asyncio
 import base64
 import hashlib
 import inspect
-import json
 import math
 import os
 import pickle
@@ -938,9 +937,8 @@ def test_create_subscription_raises_for_other_events_than_it_delivers(any_store)
 
     for channel, filters in [
         ("refunds", {"kind": "placed"}),
+        ("refunds", None),
         ("orders", {"kind": "paid"}),
-        ("orders", {}),
-        ("orders", {"kind": None}),
     ]:
         with pytest.raises(SubscriptionExistsError, match="billing"):
             any_store.create_subscription(
@@ -951,11 +949,13 @@ def test_create_subscription_raises_for_other_events_than_it_delivers(any_store)
 def test_create_subscription_resumes_whatever_else_differs(any_store):
     existing = billing_subscription(any_store)
 
-    # Leaving filters out keeps the subscription's filter, and batch_size,
-    # consumer, and metadata are not compared: the subscription comes back
-    # unchanged, cursor included, as in sssn 0.2.0.
+    # Filters that name no kind keep the subscription's filter, and
+    # batch_size, consumer, and metadata are not compared: the subscription
+    # comes back unchanged, cursor included, as in sssn 0.2.0.
     for kwargs in [
         {},
+        {"filters": {}},
+        {"filters": {"kind": None}},
         {"filters": {"kind": "placed"}},
         {"batch_size": 50, "consumer": "other", "metadata": {"x": 1}},
     ]:
@@ -966,24 +966,24 @@ def test_create_subscription_resumes_whatever_else_differs(any_store):
     assert existing.cursor == 1
 
 
-@pytest.mark.parametrize("client_cls", [RemoteStore, AsyncRemoteStore])
-def test_remote_create_subscription_leaves_out_filters_it_was_not_given(client_cls):
-    bodies = []
+def test_store_server_resumes_for_a_0_2_0_client_body(tmp_path):
+    # sssn 0.2.0's clients send "filters": {} when the caller gives none.
+    store = LocalStore(tmp_path / "store")
+    existing = billing_subscription(store)
+    app = create_app(store)
+    body = {
+        "id": "billing",
+        "channel": "orders",
+        "consumer": None,
+        "batch_size": 100,
+        "filters": {},
+        "metadata": {},
+    }
 
-    def handler(outgoing: httpx.Request) -> httpx.Response:
-        bodies.append(json.loads(outgoing.content))
-        return httpx.Response(200, json={"id": "w", "channel": "events"})
+    response = request(app, "POST", "/subscriptions", json=body)
 
-    store = Blocking(
-        client_cls("http://testserver", transport=httpx.MockTransport(handler))
-    )
-    store.create_subscription("events", subscription_id="w")
-    store.create_subscription("events", subscription_id="w", filters={})
-
-    # A server that predates the omitted-filters rule reads a missing
-    # filters as {}, so leaving it out works there too.
-    assert "filters" not in bodies[0]
-    assert bodies[1]["filters"] == {}
+    assert response.status_code == 200
+    assert response.json() == existing.model_dump(mode="json")
 
 
 def test_create_subscription_treats_a_none_kind_as_no_filter(any_store):
