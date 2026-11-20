@@ -28,6 +28,7 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 from pydantic import BaseModel, ConfigDict, field_serializer
+from pydantic_core import core_schema
 
 from lllm import as_tactic
 
@@ -1533,3 +1534,54 @@ def test_a_rejected_write_artifact_leaves_no_file(tmp_path):
             store.write_artifact(b"payload", metadata=metadata)
 
     assert list(store.artifacts_dir.iterdir()) == []
+
+
+# Round 2, item 2: processor outputs follow the same JSON rule as the stores
+
+
+class Celsius:
+    """An output type that only its own Pydantic schema can serialize."""
+
+    def __init__(self, degrees: float) -> None:
+        self.degrees = degrees
+
+    @classmethod
+    def __get_pydantic_core_schema__(cls, source, handler):
+        return core_schema.no_info_plain_validator_function(
+            lambda value: value if isinstance(value, cls) else cls(value),
+            serialization=core_schema.plain_serializer_function_ser_schema(
+                lambda value: {"celsius": value.degrees}
+            ),
+        )
+
+
+@pytest.mark.parametrize(
+    ("make_output", "stored"),
+    [
+        (
+            lambda: Reading(sensor="boiler", celsius=math.nan),
+            {"celsius": None, "sensor": "boiler"},
+        ),
+        (
+            lambda: {"n": 1, "reading": Reading(sensor="boiler", celsius=math.inf)},
+            {"n": 1, "reading": {"celsius": None, "sensor": "boiler"}},
+        ),
+        (lambda: Celsius(21.5), {"celsius": 21.5}),
+    ],
+    ids=["model-with-nan", "dict-holding-a-model", "custom-schema-type"],
+)
+def test_processor_stores_outputs_in_their_json_form(tmp_path, make_output, stored):
+    store = LocalStore(tmp_path / "store")
+    store.create_channel({"name": "inbox"})
+    store.create_channel({"name": "outputs"})
+    store.append_event({"channel": "inbox", "payload": {"text": "hi"}})
+
+    def produce(payload: dict) -> Any:
+        return make_output()
+
+    processor = TacticProcessor(
+        as_tactic(produce), store, source="inbox", sink="outputs"
+    )
+    [event] = processor.process()
+
+    assert (event.kind, event.payload) == ("result", stored)

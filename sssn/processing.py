@@ -13,13 +13,14 @@ It works with any store that speaks the channel API: a
 from __future__ import annotations
 
 import inspect
+import json
 from typing import Any, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, TypeAdapter
 
 from lllm.protocol import CallContext, Tactic
 
-from .core import Event, Subscription, SubscriptionNotFoundError
+from .core import Event, InvalidPayloadError, Subscription, SubscriptionNotFoundError
 from .core.models import json_value
 
 
@@ -281,12 +282,24 @@ def _default_consumer(tactic: Tactic[Any, Any], source: str, kind: str | None) -
 
 
 def _payload(value: Any) -> Any:
+    # The JSON form a store keeps. Output it cannot hold raises here, a
+    # failure of this event that errors="raise" or "record" handles.
     if isinstance(value, BaseModel):
-        return value.model_dump(mode="json")
-    # The JSON form the store keeps. Output it cannot hold, such as NaN or an
-    # arbitrary object, raises InvalidPayloadError here, a failure of this
-    # event that errors="raise" or "record" handles.
-    return json_value(value)
+        # A model's own JSON serialization, NaN as null included.
+        return json.loads(value.model_dump_json())
+    try:
+        return json_value(value)
+    except InvalidPayloadError as exc:
+        # json_value serializes from the value alone, as TypeAdapter(Any)
+        # does. When Pydantic could not (its error is the cause; NaN has
+        # none), the output's own type may know how, as 0.2.0 asked it.
+        if exc.__cause__ is None:
+            raise
+        try:
+            data = TypeAdapter(type(value)).dump_python(value, mode="json")
+        except Exception:
+            raise exc
+        return json_value(data)
 
 
 async def _maybe_await(value: Any) -> Any:
