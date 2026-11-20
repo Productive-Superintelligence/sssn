@@ -26,7 +26,7 @@ from .processing import TacticProcessor
 from .resources import channel_resource, snapshot_resource
 from .resolver import ChannelRef, ChannelRefError, ChannelResolver, ResolvedChannelRef
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 
 __all__ = [
     "Artifact",
