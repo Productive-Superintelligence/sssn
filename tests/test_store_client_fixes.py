@@ -2976,6 +2976,7 @@ def test_record_subclasses_are_written_by_their_own_json(tmp_path):
             channel="notes",
             timestamp=math.inf,
             payload={"score": math.nan},
+            schema="demo.Note",
             note="private",
             token="s3cret",
         )
@@ -3001,6 +3002,8 @@ def test_record_subclasses_are_written_by_their_own_json(tmp_path):
     assert body["token"] == "***"  # redacted in JSON
     assert body["timestamp"] == "inf"  # the record rules still apply
     assert body["payload"] == {"score": None}
+    assert body["schema"] == "demo.Note"  # by alias
+    assert "schema_ref" not in body
 
 
 # Round 8, item 4: remote stores encode filters and metadata alone, and
@@ -3179,3 +3182,29 @@ def test_a_record_subclass_written_as_no_dict_is_written_as_it_is(
     assert from_endpoint.status_code == from_route.status_code == 200
     assert strict_json(from_endpoint.content) == expected
     assert strict_json(from_route.content) == expected
+
+
+# Round 9, item 2: the writer's second pass writes with its default too
+
+
+def test_a_custom_result_holding_nan_and_a_plain_object_is_written_whole(tmp_path):
+    @endpoint.get("/summary")
+    def summary(store):
+        record = Event(
+            id="plain",
+            channel="notes",
+            timestamp=1.0,
+            payload={"at": Point(1.5, math.inf)},
+        )
+        return {"mean": math.nan, "record": record}
+
+    app = create_app(LocalStore(tmp_path / "store"), custom_endpoints=[summary])
+
+    response = request(app, "GET", "/summary")
+
+    # The NaN outside the record sends the writer to its second pass, which
+    # needs the default again to write the plain object.
+    assert response.status_code == 200
+    body = strict_json(response.content)
+    assert body["mean"] is None
+    assert body["record"]["payload"] == {"at": {"x": 1.5, "y": None}}
