@@ -2167,6 +2167,13 @@ class Tally:
     count: int
 
 
+@dataclasses.dataclass
+class OddCount:
+    """A field whose own serializer raises on a value of the wrong type."""
+
+    count: Annotated[int, PlainSerializer(lambda value: value * 2 - 1, return_type=int)]
+
+
 def shape_with_a_local_point():
     @dataclasses.dataclass
     class Point:
@@ -2179,15 +2186,25 @@ def shape_with_a_local_point():
     return Shape(Point(1))
 
 
-@pytest.mark.filterwarnings("ignore::UserWarning")  # the wrong-typed value
 @pytest.mark.parametrize(
     ("make_output", "stored"),
     [
-        (lambda: Invoice(amount=12), {"amount": 12}),
-        (shape_with_a_local_point, {"corner": {"x": 1}}),
-        (lambda: Tally(count="three"), {"count": "three"}),
+        pytest.param(
+            lambda: Invoice(amount=12), {"amount": 12}, id="type-checking-annotation"
+        ),
+        pytest.param(shape_with_a_local_point, {"corner": {"x": 1}}, id="local-class"),
+        # The schema's serializer raises, so the value is inferred instead.
+        pytest.param(
+            lambda: OddCount(count="three"), {"count": "three"}, id="serializer-raises"
+        ),
+        # Pydantic itself warns and infers a value of the wrong type.
+        pytest.param(
+            lambda: Tally(count="three"),
+            {"count": "three"},
+            id="wrong-typed-value-pydantic-infers",
+            marks=pytest.mark.filterwarnings("ignore::UserWarning"),
+        ),
     ],
-    ids=["type-checking-annotation", "local-class", "wrong-typed-value"],
 )
 def test_processor_infers_outputs_their_schema_cannot_write(
     tmp_path, make_output, stored

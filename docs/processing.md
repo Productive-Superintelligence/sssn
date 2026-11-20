@@ -143,7 +143,7 @@ Each output event carries the result and its lineage:
 | `channel` | The sink |
 | `source` | The consumer name |
 | `kind` | `output_kind`, `"result"` by default |
-| `payload` | The result as JSON, written by its type's own Pydantic schema, as a model by its own serializer |
+| `payload` | The result as JSON, written by its type's own Pydantic schema (a model by its own serializer). A result its schema cannot write, such as one whose annotations Pydantic cannot resolve, is written from its value, as a store infers it; a result that cannot become JSON raises `InvalidPayloadError` |
 | `parent_ids` | `(input.id,)` |
 | `correlation_id` | The input's `correlation_id`, or the input's id |
 
