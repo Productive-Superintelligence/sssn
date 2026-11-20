@@ -289,7 +289,7 @@ print(json.dumps(resource["endpoints"][0], indent=2))
 | `body` | The parsed JSON body; `None` for `GET` and `DELETE`, or a body that is not JSON |
 | A path parameter's name | That path parameter |
 | `params` | The query parameters as a dict of strings; for a repeated key, the last value wins |
-| Anything else | Its default; a parameter without one fails every request with a 500 `TypeError` |
+| Anything else | Its default; a parameter without one makes `create_app` raise `ValueError` |
 
 The decorators take
 `(path, *, name=None, scope="store", description="", tags=())`. `name`
@@ -302,9 +302,11 @@ do, so a slow handler does not hold up other requests. Handlers may also be
 `async`; those run on the event loop and should await rather than block.
 
 `create_app` checks the endpoints when it builds the app and raises
-`ValueError` if two share a name or a method and path, or if one would
-shadow a standard route such as `GET /channels/{name}`. A function without
-a decorator is skipped. `sssn serve` and
+`ValueError` if two share a name or a method and path, if one would shadow
+a standard route such as `GET /channels/{name}`, if a function has no
+endpoint decorator, or if a handler has a parameter it cannot bind (one
+with no default that is not `store`, `body`, `params`, or a path
+parameter). `sssn serve` and
 `lllm serve PACKAGE --resource channels.NAME` serve the standard routes
 only; serve custom endpoints from your own app module, as in
 [Serve a store](#serve-a-store), or from a package service

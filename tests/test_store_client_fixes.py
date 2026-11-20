@@ -27,6 +27,7 @@ from pydantic import BaseModel, ValidationError
 import sssn
 import sssn.core as sssn_core
 import sssn.stores.local as local_module
+from sssn import Channel, channel_resource
 from sssn import (
     ArtifactNotFoundError,
     AsyncRemoteStore,
@@ -945,3 +946,58 @@ def test_store_server_serves_an_async_store(tmp_path):
     assert snapshot.json()["value"] == 2
     assert missing.status_code == 404
     assert [channel.name for channel in backend.list_channels()] == ["events"]
+
+
+# 8: create_app checks custom endpoints when it builds the app
+
+
+def test_create_app_rejects_a_function_without_an_endpoint_decorator(tmp_path):
+    def channel_tail(store, name: str):
+        return []
+
+    with pytest.raises(ValueError, match=r"channel_tail.*@endpoint\.get"):
+        create_app(LocalStore(tmp_path / "store"), custom_endpoints=[channel_tail])
+    with pytest.raises(ValueError, match=r"channel_tail.*@endpoint\.get"):
+        channel_resource(Channel(name="events"), custom_endpoints=[channel_tail])
+
+
+def test_create_app_rejects_handler_parameters_it_cannot_bind(tmp_path):
+    @endpoint.get("/channels/{name}/tail")
+    def channel_tail(store, name: str, limit: int):
+        return []
+
+    @endpoint.get("/things/{thing_id}")
+    def positional(thing_id, /):
+        return thing_id
+
+    store = LocalStore(tmp_path / "store")
+    with pytest.raises(ValueError, match=r"channel_tail.*'limit'.*name"):
+        create_app(store, custom_endpoints=[channel_tail])
+    with pytest.raises(ValueError, match=r"positional.*'thing_id'"):
+        create_app(store, custom_endpoints=[positional])
+
+
+def test_custom_endpoints_bind_every_parameter_they_can(tmp_path):
+    @endpoint.post("/items/{item_id:int}/notes")
+    def note(store, item_id, body=None, params=None, limit=5, *args, **kwargs):
+        return {
+            "item_id": item_id,
+            "body": body,
+            "params": params,
+            "limit": limit,
+            "args": list(args),
+            "kwargs": kwargs,
+        }
+
+    app = create_app(LocalStore(tmp_path / "store"), custom_endpoints=[note])
+    response = request(app, "POST", "/items/7/notes?x=1", json={"text": "hi"})
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "item_id": 7,
+        "body": {"text": "hi"},
+        "params": {"x": "1"},
+        "limit": 5,
+        "args": [],
+        "kwargs": {},
+    }

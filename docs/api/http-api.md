@@ -62,7 +62,7 @@ Errors come back in one envelope, with the error class name as `type`:
 
 ## Custom endpoints
 
-Custom endpoints mounted with `create_app(..., custom_endpoints=...)` must use unique endpoint names and unique method/path pairs. They cannot shadow reserved SSSN service routes such as `/health`, `/channels/{name}`, `/events/{id}`, `/subscriptions/{id}/pull`, `/artifacts/{id}`, or `/snapshots/{name}`. Endpoint paths, names, and tags must avoid whitespace and percent escapes; paths must also avoid `//` network-path prefixes. Handler parameters are bound by name:
+Custom endpoints mounted with `create_app(..., custom_endpoints=...)` must be functions decorated with `@endpoint.get` (or `post`, `put`, `patch`, `delete`), with unique endpoint names and unique method/path pairs; `create_app` raises `ValueError` otherwise. They cannot shadow reserved SSSN service routes such as `/health`, `/channels/{name}`, `/events/{id}`, `/subscriptions/{id}/pull`, `/artifacts/{id}`, or `/snapshots/{name}`. Endpoint paths, names, and tags must avoid whitespace and percent escapes; paths must also avoid `//` network-path prefixes. Handler parameters are bound by name:
 
 | Parameter | Receives |
 | --- | --- |
@@ -70,7 +70,7 @@ Custom endpoints mounted with `create_app(..., custom_endpoints=...)` must use u
 | `body` | The parsed JSON body; `None` for `GET` and `DELETE`, or a body that is not JSON |
 | A path parameter's name | That path parameter |
 | `params` | The query parameters as a dict of strings; for a repeated key, the last value wins |
-| Anything else | Its default; a parameter without one fails every request with a 500 `TypeError` |
+| Anything else | Its default; a parameter without one makes `create_app` raise `ValueError` |
 
 The handler's return value is the response body, JSON-encoded. A
 `NetworkError` it raises maps to a status as on the portable routes. See

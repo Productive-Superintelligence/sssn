@@ -144,11 +144,18 @@ def endpoint_spec(fn: Callable[..., Any]) -> StoreEndpointSpec | None:
 def endpoint_specs(
     functions: Sequence[Callable[..., Any]],
 ) -> tuple[tuple[Callable[..., Any], StoreEndpointSpec], ...]:
-    endpoints = tuple(
-        (fn, spec) for fn in functions if (spec := endpoint_spec(fn)) is not None
-    )
+    endpoints: list[tuple[Callable[..., Any], StoreEndpointSpec]] = []
+    for fn in functions:
+        spec = endpoint_spec(fn)
+        if spec is None:
+            name = getattr(fn, "__qualname__", None) or repr(fn)
+            raise ValueError(
+                f"custom endpoint {name} has no route: decorate it with "
+                "@endpoint.get(path), or post, put, patch, or delete"
+            )
+        endpoints.append((fn, spec))
     _validate_endpoint_collection([spec for _, spec in endpoints])
-    return endpoints
+    return tuple(endpoints)
 
 
 def endpoint_route_key(spec: StoreEndpointSpec) -> tuple[str, str]:
