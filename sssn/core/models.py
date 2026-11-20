@@ -242,13 +242,34 @@ def record_json(content: Any, *, default: Callable[[Any], Any] | None = None) ->
     anything else, as for ``json.dumps``.
     """
 
-    return json.dumps(
-        _record_data(content),
-        ensure_ascii=True,
-        allow_nan=True,
+    return dumps_json(_record_data(content), allow_nan=True, default=default)
+
+
+# The \uXXXX escapes of the lone surrogates, U+D800 to U+DFFF.
+_SURROGATE_ESCAPES = {code: f"\\u{code:04x}" for code in range(0xD800, 0xE000)}
+
+
+def dumps_json(
+    value: Any,
+    *,
+    allow_nan: bool,
+    default: Callable[[Any], Any] | None = None,
+) -> str:
+    """Write ``value`` as compact JSON text that encodes to UTF-8.
+
+    Text stays readable: only a lone surrogate, which UTF-8 cannot encode,
+    is written as its ``\\uXXXX`` escape. A raw surrogate can only stand in
+    a string literal, so the escaped text is the same JSON.
+    """
+
+    text = json.dumps(
+        value,
+        ensure_ascii=False,
+        allow_nan=allow_nan,
         separators=(",", ":"),
         default=default,
     )
+    return text.translate(_SURROGATE_ESCAPES)
 
 
 def _record_data(content: Any) -> Any:

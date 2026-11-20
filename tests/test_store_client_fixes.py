@@ -2249,3 +2249,71 @@ def test_served_infinite_timestamps_are_strings_in_the_raw_json(tmp_path):
     assert event["timestamp"] == "inf"
     assert [item["timestamp"] == "inf" for item in pulled] == [True, False]
     assert snapshot["timestamp"] == "-inf"
+
+
+# Add-on: non-ASCII text stays readable; only lone surrogates are escaped
+
+READABLE = "中文 café"
+
+
+def test_cli_prints_non_ascii_text_as_is(tmp_path, capsys):
+    store = LocalStore(tmp_path / "store")
+    store.create_channel({"name": "notes"})
+    payload = {"text": READABLE, "file": LONE_SURROGATE}
+    event = store.append_event({"channel": "notes", "payload": payload})
+
+    assert cli_main(["--store", str(store.root), "get-event", event.id]) == 0
+    printed = capsys.readouterr().out
+
+    assert READABLE in printed
+    assert "\\ud800" in printed  # the lone surrogate, escaped
+    assert json.loads(printed)["payload"] == payload
+
+
+def test_server_responses_hold_non_ascii_text_as_utf8(tmp_path):
+    @endpoint.get("/note")
+    def note(store):
+        return {"text": READABLE, "file": LONE_SURROGATE}
+
+    store = LocalStore(tmp_path / "store")
+    store.create_channel({"name": "notes"})
+    payload = {"text": READABLE, "file": LONE_SURROGATE}
+    event = store.append_event({"channel": "notes", "payload": payload})
+    app = create_app(store, custom_endpoints=[note])
+
+    for response in (
+        request(app, "GET", f"/events/{event.id}"),
+        request(app, "GET", "/note"),
+    ):
+        assert READABLE.encode("utf-8") in response.content
+        assert b"\\ud800" in response.content
+    assert request(app, "GET", f"/events/{event.id}").json()["payload"] == payload
+
+
+@pytest.mark.parametrize("client_cls", [RemoteStore, AsyncRemoteStore])
+def test_client_request_bodies_hold_non_ascii_text_as_utf8(client_cls):
+    bodies = []
+
+    def handler(outgoing: httpx.Request) -> httpx.Response:
+        bodies.append(outgoing.content)
+        return httpx.Response(200, json={"id": "e1", "channel": "notes"})
+
+    transport = httpx.MockTransport(handler)
+    store = Blocking(client_cls("http://testserver", transport=transport))
+    payload = {"text": READABLE, "file": LONE_SURROGATE}
+
+    store.append_event({"channel": "notes", "payload": payload})
+
+    assert READABLE.encode("utf-8") in bodies[0]
+    assert b"\\ud800" in bodies[0]
+    assert json.loads(bodies[0])["payload"] == payload
+
+
+def test_non_ascii_text_and_lone_surrogates_round_trip_on_every_store(any_store):
+    any_store.create_channel({"name": "notes"})
+    payload = {"text": READABLE, "file": LONE_SURROGATE}
+
+    event = any_store.append_event({"channel": "notes", "payload": payload})
+
+    assert event.payload == payload
+    assert any_store.get_event(event.id).payload == payload

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import base64
-import json
 import math
 from collections.abc import Iterable, Mapping
 from typing import Any
@@ -29,7 +28,7 @@ from ..core import (
     SubscriptionExistsError,
     SubscriptionNotFoundError,
 )
-from ..core.models import json_value
+from ..core.models import dumps_json, json_value
 
 
 class RemoteStoreError(NetworkError):
@@ -642,16 +641,14 @@ class AsyncRemoteStore:
 def _encode_body(kwargs: dict[str, Any]) -> None:
     """Turn a ``json=`` body into content encoded here, as LocalStore stores it.
 
-    httpx writes JSON with ensure_ascii=False, which fails on a lone
-    surrogate; with JSON escapes every string arrives intact.
+    httpx writes JSON as UTF-8, which fails on a lone surrogate; written
+    here, a lone surrogate is escaped and every other character stays UTF-8.
     """
 
     if "json" not in kwargs:
         return
     body = json_value(kwargs.pop("json"))
-    kwargs["content"] = json.dumps(
-        body, ensure_ascii=True, allow_nan=False, separators=(",", ":")
-    )
+    kwargs["content"] = dumps_json(body, allow_nan=False)
     kwargs["headers"] = {"content-type": "application/json"}
 
 
