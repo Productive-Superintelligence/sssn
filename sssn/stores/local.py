@@ -39,6 +39,23 @@ from ..core.models import json_value
 ModelT = TypeVar("ModelT", bound=BaseModel)
 
 
+class _LocalStoreBusyError(StoreBusyError, sqlite3.OperationalError):
+    """A StoreBusyError from LocalStore, which is also the
+    sqlite3.OperationalError that sssn 0.2.0 raised for a lock timeout.
+
+    Its message leaves out where the store is, since servers send it to
+    clients; ``db_path`` holds the database file.
+    """
+
+    def __init__(self, message: str, db_path: Path | None = None) -> None:
+        super().__init__(message)
+        self.db_path = db_path
+
+
+# Reported, as in error responses, by the public name.
+_LocalStoreBusyError.__name__ = "StoreBusyError"
+
+
 class LocalStore:
     """Boring local SQLite/filesystem backend."""
 
@@ -454,11 +471,12 @@ class LocalStore:
                     db.execute("begin immediate")
                 yield db
         except sqlite3.OperationalError as exc:
-            if not _is_locked(exc):
+            if isinstance(exc, StoreBusyError) or not _is_locked(exc):
                 raise
-            raise StoreBusyError(
-                f"Store is busy: another connection kept {self.db_path} locked "
-                f"for more than {self._busy_timeout:g} seconds. Try again."
+            raise _LocalStoreBusyError(
+                "Store is busy: another connection kept its database locked for "
+                f"more than {self._busy_timeout:g} seconds. Try again.",
+                self.db_path,
             ) from exc
         finally:
             db.close()

@@ -201,7 +201,8 @@ one `LocalStore` object can also be shared between threads.
   each write is one short transaction. A call that waits more than
   SQLite's 5-second busy timeout for another process raises
   `StoreBusyError`, a `NetworkError`, and changes nothing, so it is safe to
-  retry. A served store answers it with a 503.
+  retry. From a `LocalStore` it is also the `sqlite3.OperationalError` that
+  earlier versions raised. A served store answers it with a 503.
 - **A pull is one transaction.** `pull_subscription` reads the events and
   moves the cursor in one step, so processes pulling the same subscription
   at once get different events. Reading ahead with `query_events` and

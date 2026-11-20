@@ -1344,3 +1344,36 @@ def test_store_server_caps_limits_at_ten_thousand(tmp_path):
         error = response.json()["detail"]["error"]
         assert error["type"] == "InvalidPayloadError"
         assert "10000" in error["message"]
+
+
+# Review 10: a busy store's error names no path and is still sqlite3's error
+
+
+def test_store_busy_errors_leave_out_the_database_path(tmp_path):
+    store = busy_store(tmp_path / "store")
+    app = create_app(store)
+
+    with locked(store, "exclusive"):
+        with pytest.raises(StoreBusyError) as exc_info:
+            store.get_channel("events")
+        response = request(app, "GET", "/channels/events")
+
+    assert str(store.root) not in str(exc_info.value)
+    assert str(store.root) not in response.text
+    assert response.json()["detail"]["error"]["type"] == "StoreBusyError"
+    assert exc_info.value.db_path == store.db_path
+    assert type(exc_info.value).__name__ == "StoreBusyError"
+
+
+def test_store_busy_errors_from_local_stores_are_sqlite_operational_errors(
+    tmp_path,
+):
+    # sssn 0.2.0 raised sqlite3.OperationalError for a lock timeout.
+    store = busy_store(tmp_path / "store")
+
+    with locked(store, "exclusive"):
+        with pytest.raises(sqlite3.OperationalError) as exc_info:
+            store.get_channel("events")
+
+    assert isinstance(exc_info.value, StoreBusyError)
+    assert pickle.loads(pickle.dumps(exc_info.value)).db_path == store.db_path
