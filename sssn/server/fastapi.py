@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import binascii
 import inspect
+import math
 import re
 from collections.abc import Callable, Sequence
 from typing import Any, Literal
@@ -106,7 +107,7 @@ class ArtifactWriteRequest(BaseModel):
 
 class SnapshotWriteRequest(BaseModel):
     channel: StrictStr | None = None
-    timestamp: float | None = None
+    timestamp: float | None = Field(default=None, allow_inf_nan=False)
     value: Any = None
     schema_ref: StrictStr | None = Field(default=None, alias="schema")
     source_event_id: StrictStr | None = None
@@ -182,6 +183,10 @@ def create_app(
     @app.post("/events")
     async def append_event(event: Event) -> dict[str, Any]:
         try:
+            # Event is also the model of stored events, which may hold an
+            # infinite timestamp from sssn 0.2.0, so the check is here.
+            if not math.isfinite(event.timestamp):
+                raise InvalidPayloadError("event.timestamp must be a finite number.")
             return jsonable_encoder(await _call(local_store.append_event, event))
         except Exception as exc:
             raise _http_error(exc) from exc

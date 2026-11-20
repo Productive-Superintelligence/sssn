@@ -66,7 +66,7 @@ class Event(BaseModel):
     id: StrictStr = Field(default_factory=lambda: str(uuid.uuid4()))
     cursor: int | None = None
     channel: StrictStr
-    timestamp: float = Field(default_factory=time.time, allow_inf_nan=False)
+    timestamp: float = Field(default_factory=time.time)
     source: StrictStr | None = None
     kind: StrictStr = "event"
     payload: Any = None
@@ -124,7 +124,7 @@ class Snapshot(BaseModel):
 
     name: StrictStr
     channel: StrictStr | None = None
-    timestamp: float = Field(default_factory=time.time, allow_inf_nan=False)
+    timestamp: float = Field(default_factory=time.time)
     value: Any = None
     schema_ref: StrictStr | None = Field(default=None, alias="schema")
     source_event_id: StrictStr | None = None

@@ -25,7 +25,7 @@ import httpx
 import pytest
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
-from pydantic import BaseModel, ConfigDict, ValidationError, field_serializer
+from pydantic import BaseModel, ConfigDict, field_serializer
 
 from lllm import as_tactic
 
@@ -734,12 +734,6 @@ def test_non_finite_numbers_raise_invalid_payload_error_on_every_store(
     assert [channel.name for channel in any_store.list_channels()] == ["readings"]
 
 
-@pytest.mark.parametrize("number", NON_FINITE)
-def test_models_reject_non_finite_timestamps(number):
-    with pytest.raises(ValidationError):
-        Event(channel="readings", timestamp=number)
-    with pytest.raises(ValidationError):
-        Snapshot(name="latest", timestamp=number)
 
 
 @pytest.mark.parametrize(
@@ -1180,3 +1174,28 @@ def test_processor_outputs_holding_nan_are_failures(tmp_path, output):
     [error] = recording.process()
     assert (error.kind, error.payload["type"]) == ("error", "InvalidPayloadError")
     assert store.query_events("scores") == (error,)
+
+
+# Review 5: timestamps must be finite to be written, not to be read
+
+
+def test_rows_with_an_infinite_timestamp_stay_readable(tmp_path):
+    store = LocalStore(tmp_path / "store")
+    store.create_channel({"name": "legacy"})
+    first = store.append_event({"channel": "legacy", "payload": 1})
+    store.append_event({"channel": "legacy", "payload": 2})
+    store.put_snapshot("latest", 1)
+    store.create_subscription("legacy", subscription_id="reader")
+    # sssn 0.2.0 stored infinite timestamps, and SQLite keeps them.
+    db = sqlite3.connect(store.db_path)
+    with db:
+        db.execute("update events set timestamp = 9e999 where id = ?", (first.id,))
+        db.execute("update snapshots set timestamp = -9e999")
+    db.close()
+
+    assert store.get_event(first.id).timestamp == math.inf
+    assert [event.payload for event in store.query_events("legacy")] == [1, 2]
+    assert [event.payload for event in store.pull_subscription("reader")] == [1, 2]
+    assert store.get_subscription("reader").cursor == 2
+    assert store.get_snapshot("latest").timestamp == -math.inf
+    assert Event(channel="legacy", timestamp=math.inf).timestamp == math.inf

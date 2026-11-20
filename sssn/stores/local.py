@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import sqlite3
 import uuid
@@ -103,6 +104,7 @@ class LocalStore:
                 "metadata": _optional_mapping("event.metadata", event["metadata"]),
             }
         value = _model(Event, event, "event")
+        _require_finite("event.timestamp", value.timestamp)
         self.get_channel(value.channel)
         self._require_events(value.parent_ids)
         payload_json = _json(value.payload)
@@ -376,6 +378,7 @@ class LocalStore:
                 ),
             }
         record = _model(Snapshot, snapshot, "snapshot")
+        _require_finite("snapshot.timestamp", record.timestamp)
         if record.channel is not None:
             self.get_channel(record.channel)
         if record.source_event_id is not None:
@@ -770,6 +773,13 @@ def _artifact_bytes(value: Any) -> bytes:
     raise InvalidPayloadError(
         "artifact data must be bytes, bytearray, memoryview, or str."
     )
+
+
+def _require_finite(name: str, value: float) -> None:
+    # Only writes check this: a store written by sssn 0.2.0 can hold an
+    # infinite timestamp, and reading it must keep working.
+    if not math.isfinite(value):
+        raise InvalidPayloadError(f"{name} must be a finite number.")
 
 
 def _non_negative_int(name: str, value: int) -> int:
