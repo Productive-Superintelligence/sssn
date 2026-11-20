@@ -147,6 +147,8 @@ def create_app(
 
     from .. import __version__
 
+    # Read once: a generator would be used up by the first pass.
+    custom_endpoints = tuple(custom_endpoints)
     local_store = LocalStore() if store is None else store
     app = FastAPI(title="SSSN Store", version=__version__)
     app.state.sssn_store = local_store

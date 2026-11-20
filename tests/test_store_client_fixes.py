@@ -1692,3 +1692,24 @@ def test_remote_stores_read_rows_with_an_infinite_timestamp(tmp_path, kind):
     assert [event.timestamp == math.inf for event in pulled] == [True, False]
     assert remote.get_snapshot("latest").timestamp == -math.inf
     assert store.get_subscription("reader").cursor == 2
+
+
+# Round 2, item 6: create_app reads custom_endpoints once
+
+
+def test_create_app_takes_custom_endpoints_from_a_generator(tmp_path):
+    @endpoint.get("/one")
+    def one(store):
+        return 1
+
+    @endpoint.get("/two")
+    def two(store):
+        return 2
+
+    app = create_app(
+        LocalStore(tmp_path / "store"),
+        custom_endpoints=(handler for handler in [one, two]),
+    )
+
+    assert request(app, "GET", "/one").json() == 1
+    assert request(app, "GET", "/two").json() == 2
