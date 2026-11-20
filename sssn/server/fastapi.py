@@ -30,7 +30,7 @@ from ..core import (
     SubscriptionNotFoundError,
 )
 from ..client.http import RemoteStoreError
-from ..core.models import RECORD_CLASSES, dumps_json, record_data, record_json
+from ..core.models import RECORD_CLASSES, record_data, record_json
 from ..stores import LocalStore
 from .endpoints import (
     StoreEndpointSpec,
@@ -350,8 +350,8 @@ def create_app(
 
 
 def _records_response(records: Any) -> Any:
-    """Answer with records a store returned, or a handler's result, as JSON
-    that cannot fail on what the store holds (see ``record_json``)."""
+    """Answer with records a store returned, as strict JSON that cannot fail
+    on what the store holds (see ``record_json``)."""
 
     from fastapi.encoders import jsonable_encoder
     from fastapi.responses import Response
@@ -414,10 +414,11 @@ def _mount_custom_endpoint(
                     kwargs[name] = dict(request.query_params)
             result = await _call(fn, **kwargs)
             # Encoded as 0.2.0 encoded a result, except SSSN's records, which
-            # follow the record rules. jsonable_encoder leaves text alone, so
-            # the writer still escapes a lone surrogate.
+            # follow the record rules, and then written by the same strict
+            # writer as the records: a NaN left is null. jsonable_encoder
+            # leaves text alone, so the writer still escapes a lone surrogate.
             data = jsonable_encoder(result, custom_encoder=records)
-            text = dumps_json(data, allow_nan=True, default=jsonable_encoder)
+            text = record_json(data, default=jsonable_encoder)
             return Response(content=text, media_type="application/json")
         except Exception as exc:
             raise _http_error(exc) from exc

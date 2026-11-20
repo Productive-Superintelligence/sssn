@@ -10,9 +10,10 @@ Records print as UTF-8, or as `\u` escapes when the output cannot encode
 them, such as a Windows code page in a pipe; there,
 `read-artifact --encoding text` stops with an error that suggests
 `--encoding base64`. A store written by sssn 0.2.0 can hold values JSON
-cannot carry, and the CLI prints them as the HTTP API sends them: an
-infinite timestamp as `"inf"` or `"-inf"`, other NaN or infinite numbers as
-`NaN` or `Infinity`, and a lone surrogate as an escape.
+cannot carry, and the CLI prints them as the HTTP API sends them: a
+non-finite timestamp as `"inf"`, `"-inf"`, or `"nan"`, any other NaN or
+infinite number as `null`, as 0.2.0 printed it, and a lone surrogate as an
+escape.
 `pull-subscription` moves the cursor before it prints, so output that is
 lost on the way, as to a closed pipe, is not pulled again.
 

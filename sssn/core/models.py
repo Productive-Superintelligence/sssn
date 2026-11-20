@@ -177,6 +177,10 @@ class Subscription(BaseModel):
 # everything inside it.
 _VALUES = TypeAdapter(Any, config=ConfigDict(ser_json_inf_nan="constants"))
 
+# What a record holds, written in JSON mode as sssn 0.2.0 wrote it: outside a
+# model's typed float fields, NaN and infinity become None.
+_RECORD_VALUES = TypeAdapter(Any, config=ConfigDict(ser_json_inf_nan="null"))
+
 # SSSN's own records, what a store returns.
 RECORD_CLASSES = (Channel, Event, Artifact, Snapshot, Subscription)
 
@@ -244,19 +248,37 @@ def record_json(
     default: Callable[[Any], Any] | None = None,
     ensure_ascii: bool = False,
 ) -> str:
-    """Write records a store returned (one, or a list) as JSON that cannot fail.
+    """Write records a store returned (one, or a list), or JSON data holding
+    them, as strict JSON that cannot fail on what a store holds.
 
-    A store also holds what earlier versions wrote. A non-finite timestamp
-    goes out as "inf", "-inf", or "nan", which a float field reads back; a
-    lone surrogate as a JSON escape; and any other non-finite number, which
-    only a row written before sssn 0.2.1 can hold, as the NaN or Infinity
-    that Python's json writes and SSSN's clients read. ``default`` writes
-    anything else, as for ``json.dumps``, and ``ensure_ascii`` writes all
-    non-ASCII text as escapes, for an output that cannot encode it.
+    Records are written by ``record_data``, so a non-finite timestamp goes
+    out as "inf", "-inf", or "nan", which a float field reads back. Any
+    other NaN or infinity, which only a row written before sssn 0.2.1 or a
+    value built in memory can hold, goes out as null, as 0.2.0 wrote it, and
+    a lone surrogate as a JSON escape. ``default`` writes anything else, as
+    for ``json.dumps``, and a NaN in what it returns is null too.
+    ``ensure_ascii`` writes all non-ASCII text as escapes, for an output that
+    cannot encode it.
     """
 
+    data = _records(content)
+    if default is not None:
+        default = _nulling(default)
+    try:
+        return dumps_json(
+            data, allow_nan=False, default=default, ensure_ascii=ensure_ascii
+        )
+    except ValueError as exc:
+        # Python's json, which refuses the number rather than write NaN.
+        if "Out of range float" not in str(exc):
+            raise
+    # Only now, since it is rare: a NaN in a model's typed float field, which
+    # JSON mode leaves a float, or in a value built in memory.
     return dumps_json(
-        _records(content), allow_nan=True, default=default, ensure_ascii=ensure_ascii
+        _null_non_finite(data),
+        allow_nan=False,
+        default=default,
+        ensure_ascii=ensure_ascii,
     )
 
 
@@ -298,29 +320,61 @@ def dumps_json(
 
 
 def record_data(record: Any) -> dict[str, Any]:
-    """Return one of SSSN's records as data ``dumps_json`` writes.
+    """Return one of SSSN's records as data ``record_json`` writes.
 
-    Strings and numbers stay as they are, so the writer escapes a lone
-    surrogate and writes a legacy NaN as NaN, and a non-finite timestamp
-    becomes "inf", "-inf", or "nan". Other values, such as the payload, are
-    written in Pydantic's JSON mode, as a store stores them: dates and sets
-    become strings and lists, keys strings, and a model takes its JSON
-    serializers.
+    A non-finite timestamp becomes "inf", "-inf", or "nan". Text stays as it
+    is, so the writer escapes a lone surrogate. Other values, such as the
+    payload, are written in Pydantic's JSON mode, as a store stores them:
+    dates and sets become strings and lists, keys strings, a model takes its
+    JSON serializers, and NaN outside a model's typed float fields becomes
+    None. A value Pydantic cannot write is left to the writer's ``default``.
     """
 
     data: dict[str, Any] = {}
     for name, field in type(record).model_fields.items():
         value = getattr(record, name)
-        if name == "timestamp" and isinstance(value, float):
-            if value != value or abs(value) == float("inf"):
-                value = "nan" if value != value else "inf" if value > 0 else "-inf"
-        elif not isinstance(value, (str, int, float, bool, type(None))):
+        if name == "timestamp":
+            value = _timestamp(value)
+        elif not isinstance(value, (str, int, type(None))):
             try:
-                value = _VALUES.dump_python(value, mode="json")
+                value = _RECORD_VALUES.dump_python(value, mode="json")
             except (TypeError, ValueError):
                 pass  # left to the writer's default, such as jsonable_encoder
         data[field.alias or name] = value
     return data
+
+
+def _timestamp(value: Any) -> Any:
+    # "inf", "-inf", or "nan", which a float field reads back, for a
+    # non-finite timestamp, which JSON cannot hold as a number.
+    if isinstance(value, float) and not _finite(value):
+        return "nan" if value != value else "inf" if value > 0 else "-inf"
+    return value
+
+
+def _finite(number: float) -> bool:
+    return number == number and abs(number) != float("inf")  # NaN != NaN
+
+
+def _null_non_finite(value: Any) -> Any:
+    """Return JSON data with each NaN or infinity in it replaced by None."""
+
+    if isinstance(value, float):
+        return value if _finite(value) else None
+    if isinstance(value, dict):
+        return {key: _null_non_finite(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_null_non_finite(item) for item in value]
+    return value  # text, an int, or a value left to the writer's default
+
+
+def _nulling(default: Callable[[Any], Any]) -> Callable[[Any], Any]:
+    # A writer's default whose NaN is null too, as jsonable_encoder leaves a
+    # float as it is.
+    def write(value: Any) -> Any:
+        return _null_non_finite(default(value))
+
+    return write
 
 
 def _records(content: Any) -> Any:

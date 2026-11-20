@@ -1969,6 +1969,7 @@ def legacy_rows_store(root):
 def test_served_stores_return_every_legacy_row(tmp_path, kind):
     store, (surrogate, infinite, not_a_number) = legacy_rows_store(tmp_path / "s")
     remote = make_store(kind, store.root)
+    sent = request(create_app(store), "GET", "/events?channel=legacy")
 
     pulled = remote.pull_subscription("reader")
 
@@ -1979,11 +1980,17 @@ def test_served_stores_return_every_legacy_row(tmp_path, kind):
     ]
     assert pulled[0].payload == {"text": "caf\ud800"}
     assert pulled[1].timestamp == math.inf
-    assert math.isnan(pulled[2].payload["score"])
+    assert pulled[2].payload == {"score": None}  # null, as 0.2.0 sent it
     assert remote.get_event(surrogate.id).payload == {"text": "caf\ud800"}
     assert remote.get_event(infinite.id).timestamp == math.inf
-    assert math.isnan(remote.get_event(not_a_number.id).payload["score"])
+    assert remote.get_event(not_a_number.id).payload == {"score": None}
     assert store.get_subscription("reader").cursor == not_a_number.cursor
+    # What the server sends is strict JSON, which any client can parse.
+    assert [event["payload"] for event in strict_json(sent.content)] == [
+        {"text": "caf\ud800"},
+        1,
+        {"score": None},
+    ]
 
 
 # Round 4, item 2: lone surrogates round-trip, as in sssn 0.2.0
@@ -2238,11 +2245,11 @@ def test_cli_prints_rows_only_older_versions_could_write(tmp_path, capsys):
     root = str(store.root)
 
     assert cli_main(["--store", root, "pull-subscription", "reader"]) == 0
-    pulled = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    pulled = [strict_json(line) for line in capsys.readouterr().out.splitlines()]
     assert cli_main(["--store", root, "get-event", surrogate.id]) == 0
-    surrogate_event = json.loads(capsys.readouterr().out)
+    surrogate_event = strict_json(capsys.readouterr().out)
     assert cli_main(["--store", root, "get-event", infinite.id]) == 0
-    infinite_event = json.loads(capsys.readouterr().out)
+    infinite_event = strict_json(capsys.readouterr().out)
 
     assert [event["id"] for event in pulled] == [
         surrogate.id,
@@ -2250,6 +2257,7 @@ def test_cli_prints_rows_only_older_versions_could_write(tmp_path, capsys):
         not_a_number.id,
     ]
     assert pulled[1]["timestamp"] == "inf"
+    assert pulled[2]["payload"] == {"score": None}
     assert surrogate_event["payload"] == {"text": LONE_SURROGATE}
     assert infinite_event["timestamp"] == "inf"
 
@@ -2538,7 +2546,7 @@ def test_a_surrogate_pair_comes_back_as_its_character_on_every_store(any_store):
 
 
 def test_custom_endpoints_return_legacy_rows_by_the_record_rules(tmp_path):
-    store, (surrogate, infinite, not_a_number) = legacy_rows_store(tmp_path / "s")
+    store, _ = legacy_rows_store(tmp_path / "s")
 
     @endpoint.get("/rows")
     def rows(store):
@@ -2551,10 +2559,9 @@ def test_custom_endpoints_return_legacy_rows_by_the_record_rules(tmp_path):
     assert response.status_code == 200
     assert '"timestamp":"inf"' in response.text
     assert "\\ud800" in response.text  # the escape
-    assert "NaN" in response.text  # strict parsers reject it; 0.2.0 was a 500
-    found = response.json()["rows"]
+    found = strict_json(response.content)["rows"]
     assert found[0]["payload"] == {"text": LONE_SURROGATE}
-    assert math.isnan(found[2]["payload"]["score"])
+    assert found[2]["payload"] == {"score": None}  # null, as 0.2.0 wrote it
 
 
 def record_holding_python_values():
@@ -2609,9 +2616,10 @@ def test_a_record_inside_a_users_model_is_written_by_that_models_json(tmp_path):
 
     response = request(app, "GET", "/box")
 
-    # Pydantic's JSON dump of the model, which writes the timestamp itself.
+    # Pydantic's JSON dump of the model writes the timestamp itself, as the
+    # float infinity, which strict JSON writes as null.
     assert response.status_code == 200
-    assert response.json()["event"]["timestamp"] == math.inf
+    assert strict_json(response.content)["event"]["timestamp"] is None
 
 
 # Round 7, item 2: remote stores encode payload, value, and metadata alone
@@ -2734,3 +2742,110 @@ def test_a_model_output_taking_the_surrogate_fallback_stays_json(tmp_path):
     [event] = processor.process()
 
     assert event.payload == {"name": LONE_SURROGATE, "day": "2026-11-20"}
+
+
+# Round 8, item 1: the writer writes strict JSON; other non-finite numbers
+# are null, as sssn 0.2.0 wrote them
+
+
+def legacy_numbers_store(root):
+    """A store whose JSON columns hold NaN and infinity, as 0.2.0 could."""
+
+    store = LocalStore(root)
+    store.create_channel({"name": "legacy"})
+    event = store.append_event({"channel": "legacy", "payload": 1})
+    store.put_snapshot("latest", 1)
+    artifact = store.write_artifact(b"x", channel="legacy")
+    store.create_subscription("legacy", subscription_id="reader")
+    db = sqlite3.connect(store.db_path)
+    with db:
+        db.execute("update channels set metadata = ?", ('{"m": NaN}',))
+        db.execute(
+            "update events set payload = ?, metadata = ?",
+            ("[NaN, Infinity, -Infinity, 1.5]", '{"m": Infinity}'),
+        )
+        db.execute(
+            "update snapshots set value = ?, metadata = ?", ("NaN", '{"m": NaN}')
+        )
+        db.execute("update artifacts set metadata = ?", ('{"m": -Infinity}',))
+        db.execute("update subscriptions set metadata = ?", ('{"m": Infinity}',))
+    db.close()
+    return store, event, artifact
+
+
+LEGACY_NUMBERS_PAYLOAD = [None, None, None, 1.5]
+
+
+def test_served_legacy_non_finite_numbers_are_null(tmp_path):
+    store, event, artifact = legacy_numbers_store(tmp_path / "store")
+    app = create_app(store)
+
+    def served(method, path):
+        response = request(app, method, path)
+        assert response.status_code == 200
+        return strict_json(response.content)
+
+    channel = served("GET", "/channels/legacy")
+    [listed] = served("GET", "/channels")
+    found = served("GET", f"/events/{event.id}")
+    [queried] = served("GET", "/events?channel=legacy")
+    snapshot = served("GET", "/snapshots/latest")
+    stored = served("GET", f"/artifacts/{artifact.id}/metadata")
+    subscription = served("GET", "/subscriptions/reader")
+    [pulled] = served("POST", "/subscriptions/reader/pull")
+
+    assert channel["metadata"] == listed["metadata"] == {"m": None}
+    assert (found["payload"], found["metadata"]) == (
+        LEGACY_NUMBERS_PAYLOAD,
+        {"m": None},
+    )
+    assert queried["payload"] == pulled["payload"] == LEGACY_NUMBERS_PAYLOAD
+    assert (snapshot["value"], snapshot["metadata"]) == (None, {"m": None})
+    assert stored["metadata"] == {"m": None}
+    assert subscription["metadata"] == {"m": None}
+
+
+def test_cli_prints_legacy_non_finite_numbers_as_null(tmp_path, capsys):
+    store, event, artifact = legacy_numbers_store(tmp_path / "store")
+
+    def printed(*args):
+        assert cli_main(["--store", str(store.root), *args]) == 0
+        return [strict_json(line) for line in capsys.readouterr().out.splitlines()]
+
+    [channel] = printed("get-channel", "legacy")
+    [found] = printed("get-event", event.id)
+    [snapshot] = printed("get-snapshot", "latest")
+    [stored] = printed("get-artifact", artifact.id)
+    [subscription] = printed("get-subscription", "reader")
+    [pulled] = printed("pull-subscription", "reader")
+
+    assert channel["metadata"] == {"m": None}
+    assert (found["payload"], found["metadata"]) == (
+        LEGACY_NUMBERS_PAYLOAD,
+        {"m": None},
+    )
+    assert pulled["payload"] == LEGACY_NUMBERS_PAYLOAD
+    assert (snapshot["value"], snapshot["metadata"]) == (None, {"m": None})
+    assert stored["metadata"] == {"m": None}
+    assert subscription["metadata"] == {"m": None}
+
+
+def test_custom_endpoints_write_non_finite_numbers_as_null(tmp_path):
+    @endpoint.get("/numbers")
+    def numbers(store):
+        return {
+            "plain": [math.nan, math.inf, -math.inf, 1.5],
+            "model": Message(text="hi", score=math.nan, extra=[math.inf]),
+            "record": Event(id="e", channel="c", timestamp=1.0, payload=math.nan),
+        }
+
+    app = create_app(LocalStore(tmp_path / "store"), custom_endpoints=[numbers])
+
+    response = request(app, "GET", "/numbers")
+
+    # 0.2.0 answered such a result with a 500.
+    assert response.status_code == 200
+    body = strict_json(response.content)
+    assert body["plain"] == [None, None, None, 1.5]
+    assert body["model"] == {"text": "hi", "score": None, "data": {}, "extra": [None]}
+    assert body["record"]["payload"] is None
