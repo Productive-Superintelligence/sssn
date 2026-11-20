@@ -324,10 +324,11 @@ def record_data(record: Any) -> dict[str, Any]:
 
     A non-finite timestamp becomes "inf", "-inf", or "nan". Text stays as it
     is, so the writer escapes a lone surrogate. Other values, such as the
-    payload, are written in Pydantic's JSON mode, as a store stores them:
-    dates and sets become strings and lists, keys strings, a model takes its
-    JSON serializers, and NaN outside a model's typed float fields becomes
-    None. A value Pydantic cannot write is left to the writer's ``default``.
+    payload, are written in Pydantic's JSON mode, by alias, as a store
+    stores them: dates and sets become strings and lists, keys strings, a
+    model takes its JSON serializers, and NaN outside a model's typed float
+    fields becomes None. A value Pydantic cannot write is left to the
+    writer's ``default``.
     """
 
     data: dict[str, Any] = {}
@@ -337,7 +338,7 @@ def record_data(record: Any) -> dict[str, Any]:
             value = _timestamp(value)
         elif not isinstance(value, (str, int, type(None))):
             try:
-                value = _RECORD_VALUES.dump_python(value, mode="json")
+                value = _RECORD_VALUES.dump_python(value, mode="json", by_alias=True)
             except (TypeError, ValueError):
                 pass  # left to the writer's default, such as jsonable_encoder
         data[field.alias or name] = value

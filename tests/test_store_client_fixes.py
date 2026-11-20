@@ -42,6 +42,7 @@ from pydantic import (
     RootModel,
     field_serializer,
 )
+from pydantic.alias_generators import to_camel
 from pydantic_core import core_schema
 
 from lllm import as_tactic
@@ -2564,6 +2565,12 @@ def test_custom_endpoints_return_legacy_rows_by_the_record_rules(tmp_path):
     assert found[2]["payload"] == {"score": None}  # null, as 0.2.0 wrote it
 
 
+class CamelOrder(BaseModel):
+    model_config = ConfigDict(alias_generator=to_camel)
+
+    order_id: str
+
+
 def record_holding_python_values():
     return Event(
         id="built",
@@ -2575,6 +2582,10 @@ def record_holding_python_values():
             "tags": {"a"},
             "account": Account(user="ada", token="s3cret"),
             "by_status": {TicketStatus.OPEN: 2},
+            "order": CamelOrder(orderId="1"),
+            "inner": Event(
+                id="inner", channel="notes", timestamp=2.0, schema="demo.Note"
+            ),
         },
     )
 
@@ -2599,6 +2610,8 @@ def test_records_holding_python_values_are_written_as_0_2_0_did(tmp_path):
     assert from_route.status_code == 200
     assert from_route.json() == expected
     assert expected["payload"]["account"]["token"] == "***"
+    assert expected["payload"]["order"] == {"orderId": "1"}  # by alias
+    assert expected["payload"]["inner"]["schema"] == "demo.Note"
 
 
 class EventBox(BaseModel):
