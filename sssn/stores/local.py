@@ -183,22 +183,26 @@ class LocalStore:
         if subscription_id is not None:
             payload["id"] = subscription_id
         sub = _model(Subscription, payload, "subscription")
-        _subscription_kind(sub.filters)
-        if subscription_id is not None:
-            try:
-                existing = self.get_subscription(sub.id)
-            except SubscriptionNotFoundError:
-                pass
-            else:
-                if existing.channel != channel:
-                    raise SubscriptionExistsError(
-                        "Subscription already exists for a different channel: "
-                        f"{sub.id}"
-                    )
-                return existing
+        settings = (sub.channel, _subscription_kind(sub.filters), sub.batch_size)
         filters_json = _json(sub.filters)
         metadata_json = _json(sub.metadata)
-        with self._connect() as db:
+        # Look the id up and insert in one write transaction, so two workers
+        # creating the same subscription at once both get it.
+        with self._connect(write=True) as db:
+            existing = (
+                _find_subscription(db, sub.id) if subscription_id is not None else None
+            )
+            if existing is not None:
+                # The same settings resume the subscription; other settings
+                # would quietly deliver other events than the caller asked for.
+                kind = _subscription_kind(existing.filters)
+                if (existing.channel, kind, existing.batch_size) != settings:
+                    raise SubscriptionExistsError(
+                        f"Subscription already exists with other settings: {sub.id} "
+                        f"reads channel {existing.channel!r} with kind filter "
+                        f"{kind!r} and batch size {existing.batch_size}."
+                    )
+                return existing
             db.execute(
                 """
                 insert into subscriptions(id, channel, cursor, consumer, batch_size, filters, metadata)

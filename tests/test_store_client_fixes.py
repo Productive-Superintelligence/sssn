@@ -703,3 +703,86 @@ def test_every_write_returns_the_record_as_stored(any_store):
         assert record.metadata == stored
         assert list(record.metadata) == ["a", "z"]
     assert snapshot.value == {"z": {"id": "A-1", "total": 9.5}}
+
+
+# 11: create_subscription with a taken id and other settings raises
+
+
+def test_create_subscription_with_other_settings_raises(any_store):
+    any_store.create_channel({"name": "orders"})
+    any_store.create_channel({"name": "refunds"})
+    settings = {"filters": {"kind": "placed"}, "batch_size": 10}
+    any_store.create_subscription(
+        "orders",
+        subscription_id="billing",
+        consumer="billing",
+        metadata={"team": "finance"},
+        **settings,
+    )
+    any_store.append_event({"channel": "orders", "kind": "placed"})
+    any_store.pull_subscription("billing")
+
+    for channel, changes in [
+        ("refunds", {}),
+        ("orders", {"filters": {"kind": "paid"}}),
+        ("orders", {"filters": None}),
+        ("orders", {"batch_size": 50}),
+    ]:
+        with pytest.raises(SubscriptionExistsError, match="billing"):
+            any_store.create_subscription(
+                channel, subscription_id="billing", **{**settings, **changes}
+            )
+
+    # The same settings resume the subscription; consumer and metadata are
+    # not settings, and the subscription keeps its own.
+    again = any_store.create_subscription(
+        "orders", subscription_id="billing", consumer="other", **settings
+    )
+    assert again == any_store.get_subscription("billing")
+    assert again.cursor == 1
+    assert (again.consumer, again.metadata) == ("billing", {"team": "finance"})
+
+
+def test_create_subscription_treats_a_none_kind_as_no_filter(any_store):
+    any_store.create_channel({"name": "orders"})
+    created = any_store.create_subscription("orders", subscription_id="all")
+
+    assert any_store.create_subscription(
+        "orders", subscription_id="all", filters={"kind": None}
+    ) == created
+
+
+def test_concurrent_creates_of_one_subscription_both_get_it(tmp_path, monkeypatch):
+    root = tmp_path / "store"
+    first, second = LocalStore(root), LocalStore(root)
+    first.create_channel({"name": "jobs"})
+
+    # Each create waits inside its lookup until the other looks too (or a
+    # second passes), so both look before either inserts if they can.
+    barrier = threading.Barrier(2, timeout=1.0)
+    find = local_module._find_subscription
+
+    def overlapping_find(db, subscription_id):
+        try:
+            barrier.wait()
+        except threading.BrokenBarrierError:
+            pass
+        return find(db, subscription_id)
+
+    monkeypatch.setattr(local_module, "_find_subscription", overlapping_find)
+    created, errors = [], []
+
+    def create(store):
+        try:
+            created.append(store.create_subscription("jobs", subscription_id="w"))
+        except Exception as exc:
+            errors.append(exc)
+
+    threads = [threading.Thread(target=create, args=(store,)) for store in (first, second)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert errors == []
+    assert len(created) == 2 and created[0] == created[1]
