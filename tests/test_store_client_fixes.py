@@ -1124,12 +1124,23 @@ def test_rewriting_stored_bytes_never_truncates_a_read(tmp_path):
     store = LocalStore(tmp_path / "store")
     payload = os.urandom(4 * 1024 * 1024)
     artifact = store.write_artifact(payload)
+    payload_file = store.root / artifact.path
+
+    class LooksMissing(type(payload_file)):
+        """The artifact's path, whose stat() says no file is there yet."""
+
+        def stat(self, *, follow_symlinks=True):
+            raise FileNotFoundError(self)
+
+    # Seen as missing, the file is written again on every call, as when a
+    # damaged file is replaced, while readers read it.
+    target = LooksMissing(payload_file)
     short_reads, errors = [], []
 
     def write():
         try:
             for _ in range(20):
-                store.write_artifact(payload)
+                store._write_payload(target, payload)
         except Exception as exc:  # pragma: no cover - reported below
             errors.append(exc)
 
@@ -1631,32 +1642,32 @@ def test_store_server_caps_a_pull_without_a_limit(tmp_path, monkeypatch):
         store.append_event({"channel": "jobs", "payload": n})
     # Created through LocalStore, so its batch_size is above the cap.
     store.create_subscription("jobs", subscription_id="big", batch_size=50)
+    store.create_subscription("jobs", subscription_id="small", batch_size=2)
     app = create_app(store)
 
     first = request(app, "POST", "/subscriptions/big/pull")
     second = request(app, "POST", "/subscriptions/big/pull")
+    small = request(app, "POST", "/subscriptions/small/pull")
 
     assert [event["payload"] for event in first.json()] == [0, 1, 2]
     assert [event["payload"] for event in second.json()] == [3, 4]
+    assert [event["payload"] for event in small.json()] == [0, 1]
 
 
-def test_store_server_resumes_a_subscription_with_a_large_batch_size(
-    tmp_path, monkeypatch
-):
-    monkeypatch.setattr(fastapi_module, "_MAX_LIMIT", 3)
+def test_store_server_resumes_a_subscription_with_a_large_batch_size(tmp_path):
     store = LocalStore(tmp_path / "store")
     store.create_channel({"name": "jobs"})
-    store.create_subscription("jobs", subscription_id="big", batch_size=50)
+    big = store.create_subscription("jobs", subscription_id="big", batch_size=20_000)
     app = create_app(store)
-    body = {"channel": "jobs", "batch_size": 50}
+    body = {"channel": "jobs", "batch_size": 20_000}
 
     resumed = request(app, "POST", "/subscriptions", json={**body, "id": "big"})
     created = request(app, "POST", "/subscriptions", json={**body, "id": "new"})
 
     assert resumed.status_code == 200
-    assert resumed.json()["batch_size"] == 50  # unchanged
+    assert resumed.json() == big.model_dump(mode="json")  # unchanged
     assert created.status_code == 200
-    assert created.json()["batch_size"] == 3  # a new one gets at most the cap
+    assert created.json()["batch_size"] == 10_000  # a new one gets the cap
 
 
 # Round 2, item 5: a pull keeps its batch, and infinite timestamps travel
