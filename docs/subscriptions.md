@@ -61,9 +61,9 @@ subscription would deliver other events than you asked for: when it reads
 another channel, or when `filters` names a kind other than its own.
 `filters` that name no kind (left out, or `{}`) take the subscription with
 whatever filter it has, and `batch_size`, `consumer`, and `metadata` are
-not compared. To change what a subscription delivers, use a new id. Without an id, every call makes a new
-subscription with a random id, which is right only for a reader that never
-restarts.
+not compared. To change what a subscription delivers, use a new id.
+Without an id, every call makes a new subscription with a random id, which
+is right only for a reader that never restarts.
 
 `get_subscription(subscription_id)` returns a subscription, with its
 current `cursor`, and raises `SubscriptionNotFoundError` for an unknown id.
