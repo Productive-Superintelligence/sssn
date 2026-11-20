@@ -189,8 +189,11 @@ def json_value(value: Any) -> Any:
     Pydantic versions that can serialize them), dates become strings, and a
     NaN or an infinity raises ``InvalidPayloadError``, since JSON cannot
     represent it. A value Pydantic cannot serialize raises
-    ``InvalidPayloadError`` from Pydantic's error. A string with a lone
-    surrogate is kept, as a JSON escape, as sssn 0.2.0 kept it.
+    ``InvalidPayloadError`` from Pydantic's error. A string value with a lone
+    surrogate is kept, as a JSON escape, as sssn 0.2.0 kept it, except that
+    a dict key holding one is refused (as in 0.2.0), Pydantic replaces one
+    in a model's typed dict keys with U+FFFD, and in a value holding one a
+    NaN inside a model is refused instead of written as null.
     """
 
     try:

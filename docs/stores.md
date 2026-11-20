@@ -118,8 +118,12 @@ set, since JSON cannot represent it. Inside a Pydantic model, the model's
 own JSON serialization decides: Pydantic writes NaN and infinity as
 `null` by default, and a model can choose otherwise with
 `ser_json_inf_nan="strings"` (Pydantic 2.8+), a validator, or a
-serializer. A string holding a lone surrogate, such as a file name decoded
-with `surrogateescape`, is stored as a JSON escape and read back intact.
+serializer. A string value holding a lone surrogate, such as a file name
+decoded with `surrogateescape`, is stored as a JSON escape and read back
+intact, with three exceptions. A dict key holding one is refused, as in
+sssn 0.2.0. Pydantic replaces one in a model's typed dict keys with
+U+FFFD. And a value holding one is written the way 0.2.0 wrote it, in
+which a NaN inside a model is refused instead of written as `null`.
 Remote stores send values in the same JSON form and raise the same error
 before sending. Readers get plain JSON data, so validate it back into your
 model where you need one, as a
@@ -215,8 +219,11 @@ one `LocalStore` object can also be shared between threads.
 - **Pulls never share or skip events.** `pull_subscription` reads and
   builds its events, then moves the cursor past them only if no other pull
   has moved it meanwhile, and reads again if one has. Processes pulling the
-  same subscription at once get different events, and a pull that fails
-  before it returns leaves its events pending. Reading ahead with
+  same subscription at once get different events. On a `LocalStore`, a
+  pull that fails before it returns leaves its events pending. Over HTTP
+  the server moves the cursor before the response arrives, so a pull
+  whose response is lost does not: plain pulls are at most once. Reading
+  ahead with
   `query_events` and acknowledging with a pull are two steps, so a worker
   that does that needs a subscription of its own
   ([Several consumers](subscriptions.md#several-consumers-on-one-channel)).
