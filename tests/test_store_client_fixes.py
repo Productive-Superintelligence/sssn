@@ -17,14 +17,14 @@ import sys
 import threading
 from collections import deque
 from contextlib import contextmanager
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 import httpx
 import pytest
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
-from pydantic import BaseModel, ValidationError, field_serializer
+from pydantic import BaseModel, ConfigDict, ValidationError, field_serializer
 
 import sssn
 import sssn.core as sssn_core
@@ -1104,3 +1104,45 @@ def test_iterator_payloads_are_stored_whole_on_every_store(any_store):
     event = any_store.append_event({"channel": "readings", "payload": iter([1, 2])})
 
     assert event.payload == [1, 2]
+
+
+# Review 2: remote stores send a model's free-form fields in their JSON form
+
+
+class Measurement(BaseModel):
+    """A payload whose JSON form differs from its Python form."""
+
+    model_config = ConfigDict(ser_json_bytes="base64", ser_json_timedelta="float")
+
+    raw: bytes
+    took: timedelta
+    label: str
+
+    @field_serializer("label", when_used="json")
+    def _upper(self, value):
+        return value.upper()
+
+
+def test_payload_models_are_stored_in_their_json_form_on_every_store(any_store):
+    measurement = Measurement(
+        raw=b"\xff\x00", took=timedelta(seconds=1.5), label="ok"
+    )
+    stored = measurement.model_dump(mode="json")
+    tagged = {"m": measurement}
+
+    channel = any_store.create_channel(Channel(name="m", metadata=tagged))
+    from_model = any_store.append_event(
+        Event(channel="m", payload=measurement, metadata=tagged)
+    )
+    from_dict = any_store.append_event({"channel": "m", "payload": measurement})
+    snapshot = any_store.put_snapshot(
+        Snapshot(name="s", value=measurement, metadata=tagged)
+    )
+    named = any_store.put_snapshot("n", Snapshot(name="x", value=measurement))
+
+    assert stored == {"raw": "_wA=", "took": 1.5, "label": "OK"}
+    assert channel.metadata == {"m": stored}
+    assert (from_model.payload, from_model.metadata) == (stored, {"m": stored})
+    assert from_dict.payload == stored
+    assert (snapshot.value, snapshot.metadata) == (stored, {"m": stored})
+    assert named.value == stored

@@ -713,7 +713,8 @@ def _snapshot_fields(
     }
     if snapshot is None:
         if isinstance(value, Snapshot):
-            fields = value.model_dump(by_alias=True, exclude={"name"})
+            fields = _snapshot_values(value)
+            del fields["name"]
         else:
             fields = {"value": value}
     else:
@@ -722,13 +723,26 @@ def _snapshot_fields(
         if isinstance(snapshot, Snapshot):
             if not overrides:
                 return snapshot
-            fields = snapshot.model_dump(by_alias=True)
+            fields = _snapshot_values(snapshot)
         else:
             fields = snapshot
     return {
         key: item
         for key, item in {**fields, **overrides}.items()
         if item is not None
+    }
+
+
+def _snapshot_values(snapshot: Snapshot) -> dict[str, Any]:
+    """A snapshot's fields, keyed as put_snapshot takes them, values not dumped.
+
+    A model in ``value`` or ``metadata`` stays a model, so it is stored in its
+    own JSON form, as when the snapshot itself is stored.
+    """
+
+    return {
+        field.alias or name: getattr(snapshot, name)
+        for name, field in Snapshot.model_fields.items()
     }
 
 

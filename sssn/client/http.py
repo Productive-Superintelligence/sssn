@@ -670,19 +670,28 @@ def _httpx() -> Any:
     return httpx
 
 
-# Models are dumped in Python mode: _request turns the body into JSON with
-# json_value, which rejects NaN where Pydantic's JSON mode would send null.
+# A model's free-form fields (payload, value, metadata) are encoded with
+# json_value, as LocalStore stores them: a model in them keeps its JSON
+# serializers, and NaN is refused rather than sent as null. The other fields
+# are dumped in JSON mode.
 
 
 def _dump_channel(channel: Channel | dict[str, Any]) -> dict[str, Any]:
     if isinstance(channel, Channel):
-        return copy_boundary_value(channel.model_dump(by_alias=True))
+        data = channel.model_dump(mode="json", by_alias=True, exclude={"metadata"})
+        data["metadata"] = json_value(channel.metadata)
+        return data
     return _mapping_payload("channel", channel)
 
 
 def _dump_event(event: Event | dict[str, Any]) -> dict[str, Any]:
     if isinstance(event, Event):
-        return copy_boundary_value(event.model_dump(by_alias=True))
+        data = event.model_dump(
+            mode="json", by_alias=True, exclude={"payload", "metadata"}
+        )
+        data["payload"] = json_value(event.payload)
+        data["metadata"] = json_value(event.metadata)
+        return data
     return _mapping_payload("event", event)
 
 
@@ -780,9 +789,16 @@ def _require_segments(field_name: str, values: Any) -> None:
 
 def _dump_snapshot(snapshot: Snapshot | Mapping[str, Any]) -> dict[str, Any]:
     if isinstance(snapshot, Snapshot):
-        return copy_boundary_value(
-            snapshot.model_dump(by_alias=True, exclude_none=True)
+        data = snapshot.model_dump(
+            mode="json",
+            by_alias=True,
+            exclude_none=True,
+            exclude={"value", "metadata"},
         )
+        if snapshot.value is not None:
+            data["value"] = json_value(snapshot.value)
+        data["metadata"] = json_value(snapshot.metadata)
+        return data
     return {
         key: item
         for key, item in _mapping_payload("snapshot", snapshot).items()
