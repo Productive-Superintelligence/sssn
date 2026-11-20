@@ -120,10 +120,13 @@ own JSON serialization decides: Pydantic writes NaN and infinity as
 `ser_json_inf_nan="strings"` (Pydantic 2.8+), a validator, or a
 serializer. A string value holding a lone surrogate, such as a file name
 decoded with `surrogateescape`, is stored as a JSON escape and read back
-intact, with three exceptions. A dict key holding one is refused, as in
-sssn 0.2.0. Pydantic replaces one in a model's typed dict keys with
-U+FFFD. And a value holding one is written the way 0.2.0 wrote it, in
-which a NaN inside a model is refused instead of written as `null`.
+intact, with four exceptions. A dict key holding one is refused, as in
+sssn 0.2.0. Pydantic replaces each one in a model's typed dict key with
+three U+FFFD characters, one per UTF-8 byte. A high surrogate directly
+followed by a low one comes back as the single character the pair encodes
+(U+D83D U+DE00 becomes U+1F600), as in 0.2.0. And a value holding one is
+written the way 0.2.0 wrote it, in which a NaN or infinity inside a model
+is refused instead of written as `null`.
 Remote stores send values in the same JSON form and raise the same error
 before sending. Readers get plain JSON data, so validate it back into your
 model where you need one, as a

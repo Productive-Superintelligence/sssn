@@ -193,10 +193,13 @@ def json_value(value: Any) -> Any:
     NaN or an infinity raises ``InvalidPayloadError``, since JSON cannot
     represent it. A value Pydantic cannot serialize raises
     ``InvalidPayloadError`` from Pydantic's error. A string value with a lone
-    surrogate is kept, as a JSON escape, as sssn 0.2.0 kept it, except that
-    a dict key holding one is refused (as in 0.2.0), Pydantic replaces one
-    in a model's typed dict keys with U+FFFD, and in a value holding one a
-    NaN inside a model is refused instead of written as null.
+    surrogate is kept, as a JSON escape, as sssn 0.2.0 kept it, with four
+    exceptions: a dict key holding one is refused (as in 0.2.0); Pydantic
+    replaces each one in a model's typed dict key with three U+FFFD, one per
+    UTF-8 byte; a high surrogate directly followed by a low one comes back
+    as the character the pair encodes (U+D83D U+DE00 becomes U+1F600), as in
+    0.2.0; and in a value holding one, a NaN or infinity inside a model is
+    refused instead of written as null.
     """
 
     try:

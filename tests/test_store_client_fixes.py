@@ -1978,6 +1978,9 @@ def test_served_stores_return_every_legacy_row(tmp_path, kind):
 # Round 4, item 2: lone surrogates round-trip, as in sssn 0.2.0
 
 LONE_SURROGATE = "caf\ud800"  # as from a file name decoded with surrogateescape
+# Two code points, a high and a low surrogate, rather than the one character
+# they encode.
+SURROGATE_PAIR = chr(0xD83D) + chr(0xDE00)
 
 
 def test_lone_surrogates_round_trip_on_every_store(any_store):
@@ -2355,7 +2358,8 @@ def test_non_ascii_text_and_lone_surrogates_round_trip_on_every_store(any_store)
         {"text": "plain ascii"},
         {"text": READABLE, "list": ["中文", "naïve"]},
         {"file": LONE_SURROGATE, "text": READABLE},
-        {"pair": "😀", "high": "\udbff", "low": "\udc00"},
+        {"emoji": "😀", "high": "\udbff", "low": "\udc00"},
+        {"pair": SURROGATE_PAIR},
         ["😀", math.nan],
     ],
 )
@@ -2506,3 +2510,14 @@ def test_model_outputs_can_write_nan_as_strings(tmp_path):
     [event] = processor.process()
 
     assert event.payload == {"score": "NaN", "data": {"x": "-Infinity"}}
+
+
+# Round 6, item 6: a surrogate pair comes back as the character it encodes
+
+
+def test_a_surrogate_pair_comes_back_as_its_character_on_every_store(any_store):
+    any_store.create_channel({"name": "notes"})
+
+    event = any_store.append_event({"channel": "notes", "payload": SURROGATE_PAIR})
+
+    assert any_store.get_event(event.id).payload == chr(0x1F600)
