@@ -1,4 +1,4 @@
-"""Regression tests for the store, client, and server fixes of SSSN 0.2.1.
+"""Regression tests for store, client, and server bugs found in the docs rewrite.
 
 Each section names the bug it covers. Tests that take ``any_store`` run on a
 ``LocalStore``, a ``RemoteStore``, and an ``AsyncRemoteStore``, since the
@@ -27,10 +27,10 @@ from pydantic import BaseModel, ValidationError
 import sssn
 import sssn.core as sssn_core
 import sssn.stores.local as local_module
-from sssn import Channel, channel_resource
 from sssn import (
     ArtifactNotFoundError,
     AsyncRemoteStore,
+    Channel,
     ChannelExistsError,
     ChannelNotFoundError,
     ChannelResolver,
@@ -47,6 +47,7 @@ from sssn import (
     StoreBusyError,
     SubscriptionExistsError,
     SubscriptionNotFoundError,
+    channel_resource,
     create_app,
     endpoint,
 )
@@ -201,6 +202,148 @@ def test_many_workers_pulling_one_subscription_get_each_event_once(tmp_path):
 
     assert errors == []
     assert sorted(seen) == list(range(40))
+
+
+# 2: remote stores percent-encode the names in URL paths
+
+
+@pytest.mark.parametrize("name", ["what?", "a#b", "café", "q&a=1+[x]"])
+def test_remote_stores_reach_resources_named_with_url_characters(
+    remote_store, name
+):
+    channel = remote_store.create_channel({"name": name})
+    event = remote_store.append_event({"id": f"{name}-1", "channel": name})
+    remote_store.create_subscription(name, subscription_id=f"{name}-sub")
+    snapshot = remote_store.put_snapshot(f"{name}-snap", {"n": 1}, channel=name)
+
+    assert remote_store.get_channel(name) == channel
+    assert remote_store.get_event(f"{name}-1") == event
+    assert remote_store.query_events(name) == (event,)
+    assert remote_store.get_subscription(f"{name}-sub").channel == name
+    assert remote_store.pull_subscription(f"{name}-sub") == (event,)
+    assert remote_store.get_snapshot(f"{name}-snap") == snapshot
+
+
+@pytest.mark.parametrize("client_cls", [RemoteStore, AsyncRemoteStore])
+def test_remote_stores_percent_encode_each_path_segment(client_cls):
+    paths = []
+
+    def handler(outgoing: httpx.Request) -> httpx.Response:
+        paths.append((outgoing.method, outgoing.url.raw_path.decode("ascii")))
+        return httpx.Response(404, json={"detail": "Not Found"})
+
+    transport = httpx.MockTransport(handler)
+    store = Blocking(client_cls("http://testserver/base", transport=transport))
+    name = "a?b#c"
+    for method, arguments in [
+        (store.get_channel, (name,)),
+        (store.get_event, (name,)),
+        (store.get_subscription, (name,)),
+        (store.pull_subscription, (name,)),
+        (store.get_artifact, (name,)),
+        (store.read_artifact, (name,)),
+        (store.get_snapshot, (name,)),
+        (store.put_snapshot, (name, 1)),
+    ]:
+        with pytest.raises(RemoteStoreError):
+            method(*arguments)
+
+    assert paths == [
+        ("GET", "/base/channels/a%3Fb%23c"),
+        ("GET", "/base/events/a%3Fb%23c"),
+        ("GET", "/base/subscriptions/a%3Fb%23c"),
+        ("POST", "/base/subscriptions/a%3Fb%23c/pull"),
+        ("GET", "/base/artifacts/a%3Fb%23c/metadata"),
+        ("GET", "/base/artifacts/a%3Fb%23c"),
+        ("GET", "/base/snapshots/a%3Fb%23c"),
+        ("PUT", "/base/snapshots/a%3Fb%23c"),
+    ]
+
+
+# 3: remote stores send headers, such as a bearer token
+
+
+def answer_with_no_channels(seen):
+    def handler(outgoing: httpx.Request) -> httpx.Response:
+        seen.append(outgoing.headers)
+        return httpx.Response(200, json=[])
+
+    return httpx.MockTransport(handler)
+
+
+@pytest.mark.parametrize("client_cls", [RemoteStore, AsyncRemoteStore])
+def test_remote_stores_send_the_headers_they_are_given(client_cls):
+    seen = []
+    headers = {"Authorization": "Bearer s3cret", "X-Team": "ops"}
+    store = client_cls(
+        "http://testserver",
+        headers=headers,
+        transport=answer_with_no_channels(seen),
+    )
+    headers["X-Team"] = "changed"  # the store keeps its own copy
+
+    Blocking(store).list_channels()
+    Blocking(store).query_events("events")
+
+    assert store.headers == {"Authorization": "Bearer s3cret", "X-Team": "ops"}
+    assert [(sent["authorization"], sent["x-team"]) for sent in seen] == [
+        ("Bearer s3cret", "ops"),
+        ("Bearer s3cret", "ops"),
+    ]
+
+
+@pytest.mark.parametrize("client_cls", [RemoteStore, AsyncRemoteStore])
+def test_remote_stores_take_an_httpx_auth(client_cls):
+    seen = []
+    store = client_cls(
+        "http://testserver",
+        auth=httpx.BasicAuth("ada", "pw"),
+        transport=answer_with_no_channels(seen),
+    )
+
+    Blocking(store).list_channels()
+
+    assert seen[0]["authorization"] == "Basic " + base64.b64encode(b"ada:pw").decode()
+
+
+def test_remote_store_reaches_a_store_behind_a_token_check(tmp_path):
+    app = create_app(LocalStore(tmp_path / "store"))
+
+    @app.middleware("http")
+    async def require_token(request, call_next):
+        if request.headers.get("authorization") != "Bearer s3cret":
+            return JSONResponse({"detail": "Invalid token."}, status_code=401)
+        return await call_next(request)
+
+    transport = httpx.ASGITransport(app=app)
+    token = {"Authorization": "Bearer s3cret"}
+    allowed = Blocking(
+        AsyncRemoteStore("http://testserver", headers=token, transport=transport)
+    )
+    anonymous = Blocking(AsyncRemoteStore("http://testserver", transport=transport))
+
+    allowed.create_channel({"name": "events"})
+    with pytest.raises(RemoteStoreError) as exc_info:
+        anonymous.list_channels()
+
+    assert [channel.name for channel in allowed.list_channels()] == ["events"]
+    assert exc_info.value.status_code == 401
+    assert exc_info.value.message == "Invalid token."
+
+
+def test_channel_resolver_clients_take_headers_and_auth():
+    resolver = ChannelResolver()
+    ref = "lllm://demo/events/channels/raw"
+    resolver.bind(ref, url="http://store.internal:7700")
+    token = {"Authorization": "Bearer s3cret"}
+    auth = httpx.BasicAuth("ada", "pw")
+
+    client = resolver.client(ref, headers=token, auth=auth)
+    async_client = resolver.async_client(ref, headers=token, auth=auth)
+
+    for store in (client, async_client):
+        assert store.headers == token
+        assert store.auth is auth
 
 
 # 4: remote stores raise the same error classes as LocalStore
@@ -376,172 +519,6 @@ def test_remote_store_error_reads_a_plain_detail_it_is_given():
     assert error.message == "Not allowed."
 
 
-# 2: remote stores percent-encode the names in URL paths
-
-
-@pytest.mark.parametrize("name", ["what?", "a#b", "café", "q&a=1+[x]"])
-def test_remote_stores_reach_resources_named_with_url_characters(
-    remote_store, name
-):
-    channel = remote_store.create_channel({"name": name})
-    event = remote_store.append_event({"id": f"{name}-1", "channel": name})
-    remote_store.create_subscription(name, subscription_id=f"{name}-sub")
-    snapshot = remote_store.put_snapshot(f"{name}-snap", {"n": 1}, channel=name)
-
-    assert remote_store.get_channel(name) == channel
-    assert remote_store.get_event(f"{name}-1") == event
-    assert remote_store.query_events(name) == (event,)
-    assert remote_store.get_subscription(f"{name}-sub").channel == name
-    assert remote_store.pull_subscription(f"{name}-sub") == (event,)
-    assert remote_store.get_snapshot(f"{name}-snap") == snapshot
-
-
-@pytest.mark.parametrize("client_cls", [RemoteStore, AsyncRemoteStore])
-def test_remote_stores_percent_encode_each_path_segment(client_cls):
-    paths = []
-
-    def handler(outgoing: httpx.Request) -> httpx.Response:
-        paths.append((outgoing.method, outgoing.url.raw_path.decode("ascii")))
-        return httpx.Response(404, json={"detail": "Not Found"})
-
-    transport = httpx.MockTransport(handler)
-    store = Blocking(client_cls("http://testserver/base", transport=transport))
-    name = "a?b#c"
-    for method, arguments in [
-        (store.get_channel, (name,)),
-        (store.get_event, (name,)),
-        (store.get_subscription, (name,)),
-        (store.pull_subscription, (name,)),
-        (store.get_artifact, (name,)),
-        (store.read_artifact, (name,)),
-        (store.get_snapshot, (name,)),
-        (store.put_snapshot, (name, 1)),
-    ]:
-        with pytest.raises(RemoteStoreError):
-            method(*arguments)
-
-    assert paths == [
-        ("GET", "/base/channels/a%3Fb%23c"),
-        ("GET", "/base/events/a%3Fb%23c"),
-        ("GET", "/base/subscriptions/a%3Fb%23c"),
-        ("POST", "/base/subscriptions/a%3Fb%23c/pull"),
-        ("GET", "/base/artifacts/a%3Fb%23c/metadata"),
-        ("GET", "/base/artifacts/a%3Fb%23c"),
-        ("GET", "/base/snapshots/a%3Fb%23c"),
-        ("PUT", "/base/snapshots/a%3Fb%23c"),
-    ]
-
-
-# 3: remote stores send headers, such as a bearer token
-
-
-def answer_with_no_channels(seen):
-    def handler(outgoing: httpx.Request) -> httpx.Response:
-        seen.append(outgoing.headers)
-        return httpx.Response(200, json=[])
-
-    return httpx.MockTransport(handler)
-
-
-@pytest.mark.parametrize("client_cls", [RemoteStore, AsyncRemoteStore])
-def test_remote_stores_send_the_headers_they_are_given(client_cls):
-    seen = []
-    headers = {"Authorization": "Bearer s3cret", "X-Team": "ops"}
-    store = client_cls(
-        "http://testserver",
-        headers=headers,
-        transport=answer_with_no_channels(seen),
-    )
-    headers["X-Team"] = "changed"  # the store keeps its own copy
-
-    Blocking(store).list_channels()
-    Blocking(store).query_events("events")
-
-    assert store.headers == {"Authorization": "Bearer s3cret", "X-Team": "ops"}
-    assert [(sent["authorization"], sent["x-team"]) for sent in seen] == [
-        ("Bearer s3cret", "ops"),
-        ("Bearer s3cret", "ops"),
-    ]
-
-
-@pytest.mark.parametrize("client_cls", [RemoteStore, AsyncRemoteStore])
-def test_remote_stores_take_an_httpx_auth(client_cls):
-    seen = []
-    store = client_cls(
-        "http://testserver",
-        auth=httpx.BasicAuth("ada", "pw"),
-        transport=answer_with_no_channels(seen),
-    )
-
-    Blocking(store).list_channels()
-
-    assert seen[0]["authorization"] == "Basic " + base64.b64encode(b"ada:pw").decode()
-
-
-def test_remote_store_reaches_a_store_behind_a_token_check(tmp_path):
-    app = create_app(LocalStore(tmp_path / "store"))
-
-    @app.middleware("http")
-    async def require_token(request, call_next):
-        if request.headers.get("authorization") != "Bearer s3cret":
-            return JSONResponse({"detail": "Invalid token."}, status_code=401)
-        return await call_next(request)
-
-    transport = httpx.ASGITransport(app=app)
-    token = {"Authorization": "Bearer s3cret"}
-    allowed = Blocking(
-        AsyncRemoteStore("http://testserver", headers=token, transport=transport)
-    )
-    anonymous = Blocking(AsyncRemoteStore("http://testserver", transport=transport))
-
-    allowed.create_channel({"name": "events"})
-    with pytest.raises(RemoteStoreError) as exc_info:
-        anonymous.list_channels()
-
-    assert [channel.name for channel in allowed.list_channels()] == ["events"]
-    assert exc_info.value.status_code == 401
-    assert exc_info.value.message == "Invalid token."
-
-
-def test_channel_resolver_clients_take_headers_and_auth():
-    resolver = ChannelResolver()
-    ref = "lllm://demo/events/channels/raw"
-    resolver.bind(ref, url="http://store.internal:7700")
-    token = {"Authorization": "Bearer s3cret"}
-    auth = httpx.BasicAuth("ada", "pw")
-
-    client = resolver.client(ref, headers=token, auth=auth)
-    async_client = resolver.async_client(ref, headers=token, auth=auth)
-
-    for store in (client, async_client):
-        assert store.headers == token
-        assert store.auth is auth
-
-
-# 12: remote stores without httpx name the client extra
-
-CLIENT_EXTRA = r'pip install "sssn\[client\]"'
-
-
-@pytest.mark.parametrize("client_cls", [RemoteStore, AsyncRemoteStore])
-def test_remote_stores_without_httpx_name_the_client_extra(client_cls, monkeypatch):
-    monkeypatch.setitem(sys.modules, "httpx", None)
-
-    with pytest.raises(ImportError, match=CLIENT_EXTRA):
-        client_cls("http://testserver")
-
-
-@pytest.mark.parametrize("client_cls", [RemoteStore, AsyncRemoteStore])
-def test_remote_store_calls_without_httpx_name_the_client_extra(
-    client_cls, monkeypatch
-):
-    store = Blocking(client_cls("http://testserver"))
-    monkeypatch.setitem(sys.modules, "httpx", None)
-
-    with pytest.raises(ImportError, match=CLIENT_EXTRA):
-        store.list_channels()
-
-
 # 6: every store takes the same artifact data; text is stored as UTF-8
 
 
@@ -573,308 +550,6 @@ def test_write_artifact_has_the_same_signature_on_every_store():
 
     assert inspect.signature(RemoteStore.write_artifact) == signature
     assert inspect.signature(AsyncRemoteStore.write_artifact) == signature
-
-
-# 9: NaN and infinity raise InvalidPayloadError instead of becoming null
-
-NON_FINITE = [math.nan, math.inf, -math.inf]
-
-
-class Reading(BaseModel):
-    sensor: str
-    celsius: float
-
-
-@pytest.mark.parametrize("number", NON_FINITE)
-def test_non_finite_numbers_raise_invalid_payload_error_on_every_store(
-    any_store, number
-):
-    any_store.create_channel({"name": "readings"})
-    reading = Reading(sensor="boiler", celsius=number)
-    events = [
-        {"channel": "readings", "payload": {"celsius": number}},
-        {"channel": "readings", "payload": [1, [number]]},
-        {"channel": "readings", "payload": reading},
-        Event(channel="readings", payload={"celsius": number}),
-        {"channel": "readings", "metadata": {"celsius": number}},
-        {"channel": "readings", "timestamp": number},
-    ]
-    for event in events:
-        with pytest.raises(InvalidPayloadError):
-            any_store.append_event(event)
-    snapshots = [
-        (("latest", {"celsius": number}), {}),
-        (("latest", reading), {}),
-        (("latest", 1), {"timestamp": number}),
-        (({"name": "latest", "value": 1, "timestamp": number},), {}),
-        (("latest", 1), {"metadata": {"celsius": number}}),
-    ]
-    for args, kwargs in snapshots:
-        with pytest.raises(InvalidPayloadError):
-            any_store.put_snapshot(*args, **kwargs)
-    with pytest.raises(InvalidPayloadError):
-        any_store.create_channel({"name": "other", "metadata": {"n": number}})
-    with pytest.raises(InvalidPayloadError):
-        any_store.create_subscription("readings", metadata={"n": number})
-    with pytest.raises(InvalidPayloadError):
-        any_store.write_artifact(b"raw", metadata={"n": number})
-
-    assert any_store.query_events("readings") == ()
-    with pytest.raises(SnapshotNotFoundError):
-        any_store.get_snapshot("latest")
-    assert [channel.name for channel in any_store.list_channels()] == ["readings"]
-
-
-@pytest.mark.parametrize("number", NON_FINITE)
-def test_models_reject_non_finite_timestamps(number):
-    with pytest.raises(ValidationError):
-        Event(channel="readings", timestamp=number)
-    with pytest.raises(ValidationError):
-        Snapshot(name="latest", timestamp=number)
-
-
-@pytest.mark.parametrize(
-    ("method", "path", "body"),
-    [
-        ("POST", "/events", '{"channel": "readings", "payload": {"c": NaN}}'),
-        ("POST", "/events", '{"channel": "readings", "timestamp": Infinity}'),
-        ("PUT", "/snapshots/latest", '{"value": [-Infinity]}'),
-        ("PUT", "/snapshots/latest", '{"value": 1, "timestamp": NaN}'),
-    ],
-)
-def test_store_server_rejects_non_finite_numbers_in_bodies(
-    tmp_path, method, path, body
-):
-    # Python's json module, which the server parses bodies with, reads the
-    # NaN and Infinity that some clients write.
-    store = LocalStore(tmp_path / "store")
-    store.create_channel({"name": "readings"})
-    app = create_app(store)
-
-    response = request(
-        app, method, path, content=body, headers={"content-type": "application/json"}
-    )
-
-    assert response.status_code == 400
-    assert response.json()["detail"]["error"]["type"] == "InvalidPayloadError"
-    assert store.query_events("readings") == ()
-
-
-# 13: a write returns the record as stored, the same that readers get
-
-
-class Order(BaseModel):
-    id: str
-    total: float
-
-
-def test_append_event_returns_the_event_as_stored(any_store):
-    any_store.create_channel({"name": "orders"})
-
-    event = any_store.append_event(
-        {
-            "channel": "orders",
-            "payload": {"z": Order(id="A-1", total=9.5), "a": {3}},
-            "metadata": {"tags": ("new", "eu"), "day": date(2026, 11, 18)},
-        }
-    )
-
-    assert event == any_store.get_event(event.id)
-    assert event.payload == {"a": [3], "z": {"id": "A-1", "total": 9.5}}
-    assert list(event.payload) == ["a", "z"]
-    assert event.metadata == {"day": "2026-11-18", "tags": ["new", "eu"]}
-    model_event = any_store.append_event(
-        {"channel": "orders", "payload": Order(id="A-2", total=1.0)}
-    )
-    assert model_event.payload == {"id": "A-2", "total": 1.0}
-    assert model_event == any_store.get_event(model_event.id)
-
-
-def test_every_write_returns_the_record_as_stored(any_store):
-    unsorted = {"z": (1,), "a": date(2026, 1, 1)}
-    stored = {"a": "2026-01-01", "z": [1]}
-
-    channel = any_store.create_channel({"name": "orders", "metadata": unsorted})
-    subscription = any_store.create_subscription(
-        "orders", subscription_id="billing", metadata=unsorted
-    )
-    artifact = any_store.write_artifact(b"raw", metadata=unsorted)
-    snapshot = any_store.put_snapshot(
-        "latest", {"z": Order(id="A-1", total=9.5)}, metadata=unsorted
-    )
-
-    assert channel == any_store.get_channel("orders")
-    assert subscription == any_store.get_subscription("billing")
-    assert artifact == any_store.get_artifact(artifact.id)
-    assert snapshot == any_store.get_snapshot("latest")
-    for record in (channel, subscription, artifact, snapshot):
-        assert record.metadata == stored
-        assert list(record.metadata) == ["a", "z"]
-    assert snapshot.value == {"z": {"id": "A-1", "total": 9.5}}
-
-
-# 11: create_subscription with a taken id and other settings raises
-
-
-def test_create_subscription_with_other_settings_raises(any_store):
-    any_store.create_channel({"name": "orders"})
-    any_store.create_channel({"name": "refunds"})
-    settings = {"filters": {"kind": "placed"}, "batch_size": 10}
-    any_store.create_subscription(
-        "orders",
-        subscription_id="billing",
-        consumer="billing",
-        metadata={"team": "finance"},
-        **settings,
-    )
-    any_store.append_event({"channel": "orders", "kind": "placed"})
-    any_store.pull_subscription("billing")
-
-    for channel, changes in [
-        ("refunds", {}),
-        ("orders", {"filters": {"kind": "paid"}}),
-        ("orders", {"filters": None}),
-        ("orders", {"batch_size": 50}),
-    ]:
-        with pytest.raises(SubscriptionExistsError, match="billing"):
-            any_store.create_subscription(
-                channel, subscription_id="billing", **{**settings, **changes}
-            )
-
-    # The same settings resume the subscription; consumer and metadata are
-    # not settings, and the subscription keeps its own.
-    again = any_store.create_subscription(
-        "orders", subscription_id="billing", consumer="other", **settings
-    )
-    assert again == any_store.get_subscription("billing")
-    assert again.cursor == 1
-    assert (again.consumer, again.metadata) == ("billing", {"team": "finance"})
-
-
-def test_create_subscription_treats_a_none_kind_as_no_filter(any_store):
-    any_store.create_channel({"name": "orders"})
-    created = any_store.create_subscription("orders", subscription_id="all")
-
-    assert any_store.create_subscription(
-        "orders", subscription_id="all", filters={"kind": None}
-    ) == created
-
-
-def test_concurrent_creates_of_one_subscription_both_get_it(tmp_path, monkeypatch):
-    root = tmp_path / "store"
-    first, second = LocalStore(root), LocalStore(root)
-    first.create_channel({"name": "jobs"})
-
-    # Each create waits inside its lookup until the other looks too (or a
-    # second passes), so both look before either inserts if they can.
-    barrier = threading.Barrier(2, timeout=1.0)
-    find = local_module._find_subscription
-
-    def overlapping_find(db, subscription_id):
-        try:
-            barrier.wait()
-        except threading.BrokenBarrierError:
-            pass
-        return find(db, subscription_id)
-
-    monkeypatch.setattr(local_module, "_find_subscription", overlapping_find)
-    created, errors = [], []
-
-    def create(store):
-        try:
-            created.append(store.create_subscription("jobs", subscription_id="w"))
-        except Exception as exc:
-            errors.append(exc)
-
-    threads = [threading.Thread(target=create, args=(store,)) for store in (first, second)]
-    for thread in threads:
-        thread.start()
-    for thread in threads:
-        thread.join()
-
-    assert errors == []
-    assert len(created) == 2 and created[0] == created[1]
-
-
-# 10: a SQLite lock timeout raises StoreBusyError, a NetworkError
-
-
-@contextmanager
-def locked(store, mode):
-    """Hold a lock on the store's database from another connection."""
-
-    holder = sqlite3.connect(store.db_path, isolation_level=None)
-    holder.execute(f"begin {mode}")
-    try:
-        yield
-    finally:
-        holder.rollback()
-        holder.close()
-
-
-def busy_store(root) -> LocalStore:
-    store = LocalStore(root)
-    store.create_channel({"name": "events"})
-    store._busy_timeout = 0.05  # SQLite waits 5 seconds by default
-    return store
-
-
-def test_store_busy_error_is_exported_like_other_network_errors():
-    assert issubclass(StoreBusyError, NetworkError)
-    assert sssn.StoreBusyError is sssn_core.StoreBusyError
-    assert "StoreBusyError" in sssn.__all__
-    assert "StoreBusyError" in sssn_core.__all__
-
-
-def test_a_locked_store_raises_store_busy_error(tmp_path):
-    store = busy_store(tmp_path / "store")
-    store.create_subscription("events", subscription_id="worker")
-
-    with locked(store, "immediate"):  # another writer holds the write lock
-        with pytest.raises(StoreBusyError, match="busy") as exc_info:
-            store.append_event({"channel": "events"})
-        with pytest.raises(StoreBusyError):
-            store.pull_subscription("worker")
-        assert store.get_channel("events").name == "events"  # reads still work
-    with locked(store, "exclusive"):  # another writer is committing
-        with pytest.raises(StoreBusyError):
-            store.get_channel("events")
-
-    assert isinstance(exc_info.value.__cause__, sqlite3.OperationalError)
-    assert store.append_event({"channel": "events"}).cursor == 1
-
-
-def test_store_server_answers_503_for_a_locked_store(tmp_path):
-    store = busy_store(tmp_path / "store")
-    app = create_app(store)
-
-    with locked(store, "exclusive"):
-        responses = [
-            request(app, "GET", "/channels"),
-            request(app, "GET", "/channels/events"),
-            request(app, "POST", "/events", json={"channel": "events"}),
-        ]
-
-    for response in responses:
-        assert response.status_code == 503
-        assert response.json()["detail"]["error"]["type"] == "StoreBusyError"
-
-
-@pytest.mark.parametrize("kind", ["remote", "async"])
-def test_remote_stores_raise_store_busy_error_for_a_locked_store(tmp_path, kind):
-    store = busy_store(tmp_path / "store")
-    app = create_app(store)
-    if kind == "remote":
-        client = RemoteStore("http://testserver", transport=sync_transport(app))
-    else:
-        transport = httpx.ASGITransport(app=app)
-        client = AsyncRemoteStore("http://testserver", transport=transport)
-
-    with locked(store, "exclusive"):
-        with pytest.raises(StoreBusyError) as exc_info:
-            Blocking(client).list_channels()
-
-    assert exc_info.value.status_code == 503
 
 
 # 7: the store server runs blocking store calls off the event loop
@@ -1001,3 +676,329 @@ def test_custom_endpoints_bind_every_parameter_they_can(tmp_path):
         "args": [],
         "kwargs": {},
     }
+
+
+# 9: NaN and infinity raise InvalidPayloadError instead of becoming null
+
+NON_FINITE = [math.nan, math.inf, -math.inf]
+
+
+class Reading(BaseModel):
+    sensor: str
+    celsius: float
+
+
+@pytest.mark.parametrize("number", NON_FINITE)
+def test_non_finite_numbers_raise_invalid_payload_error_on_every_store(
+    any_store, number
+):
+    any_store.create_channel({"name": "readings"})
+    reading = Reading(sensor="boiler", celsius=number)
+    events = [
+        {"channel": "readings", "payload": {"celsius": number}},
+        {"channel": "readings", "payload": [1, [number]]},
+        {"channel": "readings", "payload": reading},
+        Event(channel="readings", payload={"celsius": number}),
+        {"channel": "readings", "metadata": {"celsius": number}},
+        {"channel": "readings", "timestamp": number},
+    ]
+    for event in events:
+        with pytest.raises(InvalidPayloadError):
+            any_store.append_event(event)
+    snapshots = [
+        (("latest", {"celsius": number}), {}),
+        (("latest", reading), {}),
+        (("latest", 1), {"timestamp": number}),
+        (({"name": "latest", "value": 1, "timestamp": number},), {}),
+        (("latest", 1), {"metadata": {"celsius": number}}),
+    ]
+    for args, kwargs in snapshots:
+        with pytest.raises(InvalidPayloadError):
+            any_store.put_snapshot(*args, **kwargs)
+    with pytest.raises(InvalidPayloadError):
+        any_store.create_channel({"name": "other", "metadata": {"n": number}})
+    with pytest.raises(InvalidPayloadError):
+        any_store.create_subscription("readings", metadata={"n": number})
+    with pytest.raises(InvalidPayloadError):
+        any_store.write_artifact(b"raw", metadata={"n": number})
+
+    assert any_store.query_events("readings") == ()
+    with pytest.raises(SnapshotNotFoundError):
+        any_store.get_snapshot("latest")
+    assert [channel.name for channel in any_store.list_channels()] == ["readings"]
+
+
+@pytest.mark.parametrize("number", NON_FINITE)
+def test_models_reject_non_finite_timestamps(number):
+    with pytest.raises(ValidationError):
+        Event(channel="readings", timestamp=number)
+    with pytest.raises(ValidationError):
+        Snapshot(name="latest", timestamp=number)
+
+
+@pytest.mark.parametrize(
+    ("method", "path", "body"),
+    [
+        ("POST", "/events", '{"channel": "readings", "payload": {"c": NaN}}'),
+        ("POST", "/events", '{"channel": "readings", "timestamp": Infinity}'),
+        ("PUT", "/snapshots/latest", '{"value": [-Infinity]}'),
+        ("PUT", "/snapshots/latest", '{"value": 1, "timestamp": NaN}'),
+    ],
+)
+def test_store_server_rejects_non_finite_numbers_in_bodies(
+    tmp_path, method, path, body
+):
+    # Python's json module, which the server parses bodies with, reads the
+    # NaN and Infinity that some clients write.
+    store = LocalStore(tmp_path / "store")
+    store.create_channel({"name": "readings"})
+    app = create_app(store)
+
+    response = request(
+        app, method, path, content=body, headers={"content-type": "application/json"}
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"]["error"]["type"] == "InvalidPayloadError"
+    assert store.query_events("readings") == ()
+
+
+# 10: a SQLite lock timeout raises StoreBusyError, a NetworkError
+
+
+@contextmanager
+def locked(store, mode):
+    """Hold a lock on the store's database from another connection."""
+
+    holder = sqlite3.connect(store.db_path, isolation_level=None)
+    holder.execute(f"begin {mode}")
+    try:
+        yield
+    finally:
+        holder.rollback()
+        holder.close()
+
+
+def busy_store(root) -> LocalStore:
+    store = LocalStore(root)
+    store.create_channel({"name": "events"})
+    store._busy_timeout = 0.05  # SQLite waits 5 seconds by default
+    return store
+
+
+def test_store_busy_error_is_exported_like_other_network_errors():
+    assert issubclass(StoreBusyError, NetworkError)
+    assert sssn.StoreBusyError is sssn_core.StoreBusyError
+    assert "StoreBusyError" in sssn.__all__
+    assert "StoreBusyError" in sssn_core.__all__
+
+
+def test_a_locked_store_raises_store_busy_error(tmp_path):
+    store = busy_store(tmp_path / "store")
+    store.create_subscription("events", subscription_id="worker")
+
+    with locked(store, "immediate"):  # another writer holds the write lock
+        with pytest.raises(StoreBusyError, match="busy") as exc_info:
+            store.append_event({"channel": "events"})
+        with pytest.raises(StoreBusyError):
+            store.pull_subscription("worker")
+        assert store.get_channel("events").name == "events"  # reads still work
+    with locked(store, "exclusive"):  # another writer is committing
+        with pytest.raises(StoreBusyError):
+            store.get_channel("events")
+
+    assert isinstance(exc_info.value.__cause__, sqlite3.OperationalError)
+    assert store.append_event({"channel": "events"}).cursor == 1
+
+
+def test_store_server_answers_503_for_a_locked_store(tmp_path):
+    store = busy_store(tmp_path / "store")
+    app = create_app(store)
+
+    with locked(store, "exclusive"):
+        responses = [
+            request(app, "GET", "/channels"),
+            request(app, "GET", "/channels/events"),
+            request(app, "POST", "/events", json={"channel": "events"}),
+        ]
+
+    for response in responses:
+        assert response.status_code == 503
+        assert response.json()["detail"]["error"]["type"] == "StoreBusyError"
+
+
+@pytest.mark.parametrize("kind", ["remote", "async"])
+def test_remote_stores_raise_store_busy_error_for_a_locked_store(tmp_path, kind):
+    store = busy_store(tmp_path / "store")
+    app = create_app(store)
+    if kind == "remote":
+        client = RemoteStore("http://testserver", transport=sync_transport(app))
+    else:
+        transport = httpx.ASGITransport(app=app)
+        client = AsyncRemoteStore("http://testserver", transport=transport)
+
+    with locked(store, "exclusive"):
+        with pytest.raises(StoreBusyError) as exc_info:
+            Blocking(client).list_channels()
+
+    assert exc_info.value.status_code == 503
+
+
+# 11: create_subscription with a taken id and other settings raises
+
+
+def test_create_subscription_with_other_settings_raises(any_store):
+    any_store.create_channel({"name": "orders"})
+    any_store.create_channel({"name": "refunds"})
+    settings = {"filters": {"kind": "placed"}, "batch_size": 10}
+    any_store.create_subscription(
+        "orders",
+        subscription_id="billing",
+        consumer="billing",
+        metadata={"team": "finance"},
+        **settings,
+    )
+    any_store.append_event({"channel": "orders", "kind": "placed"})
+    any_store.pull_subscription("billing")
+
+    for channel, changes in [
+        ("refunds", {}),
+        ("orders", {"filters": {"kind": "paid"}}),
+        ("orders", {"filters": None}),
+        ("orders", {"batch_size": 50}),
+    ]:
+        with pytest.raises(SubscriptionExistsError, match="billing"):
+            any_store.create_subscription(
+                channel, subscription_id="billing", **{**settings, **changes}
+            )
+
+    # The same settings resume the subscription; consumer and metadata are
+    # not settings, and the subscription keeps its own.
+    again = any_store.create_subscription(
+        "orders", subscription_id="billing", consumer="other", **settings
+    )
+    assert again == any_store.get_subscription("billing")
+    assert again.cursor == 1
+    assert (again.consumer, again.metadata) == ("billing", {"team": "finance"})
+
+
+def test_create_subscription_treats_a_none_kind_as_no_filter(any_store):
+    any_store.create_channel({"name": "orders"})
+    created = any_store.create_subscription("orders", subscription_id="all")
+
+    assert any_store.create_subscription(
+        "orders", subscription_id="all", filters={"kind": None}
+    ) == created
+
+
+def test_concurrent_creates_of_one_subscription_both_get_it(tmp_path, monkeypatch):
+    root = tmp_path / "store"
+    first, second = LocalStore(root), LocalStore(root)
+    first.create_channel({"name": "jobs"})
+
+    # Each create waits inside its lookup until the other looks too (or a
+    # second passes), so both look before either inserts if they can.
+    barrier = threading.Barrier(2, timeout=1.0)
+    find = local_module._find_subscription
+
+    def overlapping_find(db, subscription_id):
+        try:
+            barrier.wait()
+        except threading.BrokenBarrierError:
+            pass
+        return find(db, subscription_id)
+
+    monkeypatch.setattr(local_module, "_find_subscription", overlapping_find)
+    created, errors = [], []
+
+    def create(store):
+        try:
+            created.append(store.create_subscription("jobs", subscription_id="w"))
+        except Exception as exc:
+            errors.append(exc)
+
+    threads = [threading.Thread(target=create, args=(store,)) for store in (first, second)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert errors == []
+    assert len(created) == 2 and created[0] == created[1]
+
+
+# 12: remote stores without httpx name the client extra
+
+CLIENT_EXTRA = r'pip install "sssn\[client\]"'
+
+
+@pytest.mark.parametrize("client_cls", [RemoteStore, AsyncRemoteStore])
+def test_remote_stores_without_httpx_name_the_client_extra(client_cls, monkeypatch):
+    monkeypatch.setitem(sys.modules, "httpx", None)
+
+    with pytest.raises(ImportError, match=CLIENT_EXTRA):
+        client_cls("http://testserver")
+
+
+@pytest.mark.parametrize("client_cls", [RemoteStore, AsyncRemoteStore])
+def test_remote_store_calls_without_httpx_name_the_client_extra(
+    client_cls, monkeypatch
+):
+    store = Blocking(client_cls("http://testserver"))
+    monkeypatch.setitem(sys.modules, "httpx", None)
+
+    with pytest.raises(ImportError, match=CLIENT_EXTRA):
+        store.list_channels()
+
+
+# 13: a write returns the record as stored, the same that readers get
+
+
+class Order(BaseModel):
+    id: str
+    total: float
+
+
+def test_append_event_returns_the_event_as_stored(any_store):
+    any_store.create_channel({"name": "orders"})
+
+    event = any_store.append_event(
+        {
+            "channel": "orders",
+            "payload": {"z": Order(id="A-1", total=9.5), "a": {3}},
+            "metadata": {"tags": ("new", "eu"), "day": date(2026, 11, 18)},
+        }
+    )
+
+    assert event == any_store.get_event(event.id)
+    assert event.payload == {"a": [3], "z": {"id": "A-1", "total": 9.5}}
+    assert list(event.payload) == ["a", "z"]
+    assert event.metadata == {"day": "2026-11-18", "tags": ["new", "eu"]}
+    model_event = any_store.append_event(
+        {"channel": "orders", "payload": Order(id="A-2", total=1.0)}
+    )
+    assert model_event.payload == {"id": "A-2", "total": 1.0}
+    assert model_event == any_store.get_event(model_event.id)
+
+
+def test_every_write_returns_the_record_as_stored(any_store):
+    unsorted = {"z": (1,), "a": date(2026, 1, 1)}
+    stored = {"a": "2026-01-01", "z": [1]}
+
+    channel = any_store.create_channel({"name": "orders", "metadata": unsorted})
+    subscription = any_store.create_subscription(
+        "orders", subscription_id="billing", metadata=unsorted
+    )
+    artifact = any_store.write_artifact(b"raw", metadata=unsorted)
+    snapshot = any_store.put_snapshot(
+        "latest", {"z": Order(id="A-1", total=9.5)}, metadata=unsorted
+    )
+
+    assert channel == any_store.get_channel("orders")
+    assert subscription == any_store.get_subscription("billing")
+    assert artifact == any_store.get_artifact(artifact.id)
+    assert snapshot == any_store.get_snapshot("latest")
+    for record in (channel, subscription, artifact, snapshot):
+        assert record.metadata == stored
+        assert list(record.metadata) == ["a", "z"]
+    assert snapshot.value == {"z": {"id": "A-1", "total": 9.5}}
