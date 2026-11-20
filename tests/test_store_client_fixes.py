@@ -34,6 +34,7 @@ from lllm import as_tactic
 
 import sssn
 import sssn.core as sssn_core
+import sssn.server.fastapi as fastapi_module
 import sssn.stores.local as local_module
 from sssn import (
     ArtifactNotFoundError,
@@ -1445,15 +1446,18 @@ def test_store_server_caps_limits_at_ten_thousand(tmp_path):
     allowed = [
         request(app, "GET", "/events", params={**events, "limit": 10_000}),
         request(app, "POST", "/subscriptions/w/pull", params={"limit": 10_000}),
-        request(app, "POST", "/subscriptions", json={**events, "batch_size": 10_000}),
     ]
     too_large = [
         request(app, "GET", "/events", params={**events, "limit": 10_001}),
         request(app, "POST", "/subscriptions/w/pull", params={"limit": 10_001}),
-        request(app, "POST", "/subscriptions", json={**events, "batch_size": 10_001}),
     ]
+    clamped = request(
+        app, "POST", "/subscriptions", json={**events, "batch_size": 10_001}
+    )
 
-    assert [response.status_code for response in allowed] == [200, 200, 200]
+    assert [response.status_code for response in allowed] == [200, 200]
+    assert clamped.status_code == 200
+    assert clamped.json()["batch_size"] == 10_000
     for response in too_large:
         assert response.status_code == 400
         error = response.json()["detail"]["error"]
@@ -1585,3 +1589,42 @@ def test_processor_stores_outputs_in_their_json_form(tmp_path, make_output, stor
     [event] = processor.process()
 
     assert (event.kind, event.payload) == ("result", stored)
+
+
+# Round 2, item 3: no HTTP pull returns more than the cap
+
+
+def test_store_server_caps_a_pull_without_a_limit(tmp_path, monkeypatch):
+    monkeypatch.setattr(fastapi_module, "_MAX_LIMIT", 3)
+    store = LocalStore(tmp_path / "store")
+    store.create_channel({"name": "jobs"})
+    for n in range(5):
+        store.append_event({"channel": "jobs", "payload": n})
+    # Created through LocalStore, so its batch_size is above the cap.
+    store.create_subscription("jobs", subscription_id="big", batch_size=50)
+    app = create_app(store)
+
+    first = request(app, "POST", "/subscriptions/big/pull")
+    second = request(app, "POST", "/subscriptions/big/pull")
+
+    assert [event["payload"] for event in first.json()] == [0, 1, 2]
+    assert [event["payload"] for event in second.json()] == [3, 4]
+
+
+def test_store_server_resumes_a_subscription_with_a_large_batch_size(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(fastapi_module, "_MAX_LIMIT", 3)
+    store = LocalStore(tmp_path / "store")
+    store.create_channel({"name": "jobs"})
+    store.create_subscription("jobs", subscription_id="big", batch_size=50)
+    app = create_app(store)
+    body = {"channel": "jobs", "batch_size": 50}
+
+    resumed = request(app, "POST", "/subscriptions", json={**body, "id": "big"})
+    created = request(app, "POST", "/subscriptions", json={**body, "id": "new"})
+
+    assert resumed.status_code == 200
+    assert resumed.json()["batch_size"] == 50  # unchanged
+    assert created.status_code == 200
+    assert created.json()["batch_size"] == 3  # a new one gets at most the cap

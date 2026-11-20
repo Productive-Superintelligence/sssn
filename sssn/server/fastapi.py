@@ -41,7 +41,8 @@ from .endpoints import (
 
 
 _CUSTOM_ROUTE_METHODS = {"GET", "POST", "PUT", "PATCH", "DELETE"}
-# The most events one request may ask for: a limit, or a batch_size.
+# The most events one request returns: a larger limit is refused, and a
+# larger batch_size is capped.
 _MAX_LIMIT = 10_000
 # The name in a route parameter, as in {name} or {name:int}.
 _PATH_PARAMETER_RE = re.compile(r"\{([^{}:]+)")
@@ -79,7 +80,7 @@ class SubscriptionRequest(BaseModel):
     id: StrictStr | None = None
     channel: StrictStr
     consumer: StrictStr | None = None
-    batch_size: int = Field(default=100, le=_MAX_LIMIT)
+    batch_size: int = 100
     # Left out, an existing subscription keeps its filter; a new one has none.
     filters: dict[str, Any] | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
@@ -239,7 +240,9 @@ def create_app(
                     request.channel,
                     subscription_id=request.id,
                     consumer=request.consumer,
-                    batch_size=request.batch_size,
+                    # Capped, not refused: an existing subscription comes
+                    # back unchanged, since batch_size is not compared.
+                    batch_size=min(request.batch_size, _MAX_LIMIT),
                     filters=request.filters,
                     metadata=request.metadata,
                 )
@@ -262,6 +265,11 @@ def create_app(
         limit: int | None = Query(None, le=_MAX_LIMIT),
     ) -> list[dict[str, Any]]:
         try:
+            if limit is None:
+                # The subscription's batch_size, which a LocalStore, the CLI,
+                # or an older server may have set above the cap.
+                subscription = await _call(local_store.get_subscription, subscription_id)
+                limit = min(subscription.batch_size, _MAX_LIMIT)
             events = await _call(
                 local_store.pull_subscription, subscription_id, limit=limit
             )
