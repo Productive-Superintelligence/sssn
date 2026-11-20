@@ -287,7 +287,7 @@ print(json.dumps(resource["endpoints"][0], indent=2))
 | --- | --- |
 | `store` | The store the app serves |
 | `body` | The parsed JSON body; `None` for `GET` and `DELETE`, or a body that is not JSON |
-| A path parameter's name | That path parameter |
+| A path parameter's name | That path parameter, also one from the path of an enclosing mount, such as `/tenants/{tenant}/network` (give such a parameter a default) |
 | `params` | The query parameters as a dict of strings; for a repeated key, the last value wins |
 | Anything else | Its default; a parameter without one makes `create_app` raise `ValueError` |
 
@@ -305,8 +305,9 @@ do, so a slow handler does not hold up other requests. Handlers may also be
 `ValueError` if two share a name or a method and path, if one would shadow
 a standard route such as `GET /channels/{name}`, if a function has no
 endpoint decorator, or if a handler has a parameter it cannot bind (one
-with no default that is not `store`, `body`, `params`, or a path
-parameter). `sssn serve` and
+with no default that is not `store`, `body`, `params`, or a path parameter
+of the route; a parameter that only an enclosing mount's path fills needs
+a default). `sssn serve` and
 `lllm serve PACKAGE --resource channels.NAME` serve the standard routes
 only; serve custom endpoints from your own app module, as in
 [Serve a store](#serve-a-store), or from a package service

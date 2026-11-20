@@ -351,7 +351,7 @@ def _mount_custom_endpoint(
     from fastapi import Request
     from fastapi.encoders import jsonable_encoder
 
-    bindings = _custom_bindings(fn, spec)
+    parameters = _custom_parameters(fn, spec)
 
     async def route(request: Request):
         try:
@@ -361,15 +361,17 @@ def _mount_custom_endpoint(
                     body = await request.json()
                 except Exception:
                     body = None
-            values = {
-                "store": store,
-                "body": body,
-                "params": dict(request.query_params),
-            }
-            kwargs = {
-                name: request.path_params[name] if source == "path" else values[source]
-                for name, source in bindings
-            }
+            kwargs: dict[str, Any] = {}
+            for name in parameters:
+                if name == "store":
+                    kwargs[name] = store
+                elif name == "body":
+                    kwargs[name] = body
+                elif name in request.path_params:
+                    # This route's path parameters, and an enclosing mount's.
+                    kwargs[name] = request.path_params[name]
+                elif name == "params":
+                    kwargs[name] = dict(request.query_params)
             return jsonable_encoder(await _call(fn, **kwargs))
         except Exception as exc:
             raise _http_error(exc) from exc
@@ -387,16 +389,18 @@ def _mount_custom_endpoint(
     )
 
 
-def _custom_bindings(
+def _custom_parameters(
     fn: Callable[..., Any],
     spec: StoreEndpointSpec,
-) -> tuple[tuple[str, str], ...]:
-    """Pair each handler parameter with what it receives, when the app is built.
+) -> tuple[str, ...]:
+    """Name the handler parameters to pass, checked when the app is built.
 
-    ``store`` gets the store, ``body`` the JSON body, a path parameter's name
-    that path parameter, and ``params`` the query parameters. Any other
-    parameter keeps its default, and one without a default raises
-    ``ValueError`` here rather than failing every request.
+    At each request ``store`` gets the store, ``body`` the JSON body, a
+    parameter named like a path parameter gets it (also one from the path of
+    an enclosing mount), and ``params`` the query parameters; any other keeps
+    its default. A parameter without a default that nothing here can fill
+    raises ``ValueError`` rather than failing every request; one that only a
+    mount's path fills needs a default, since the mount is not known yet.
     """
 
     path_names = set(_PATH_PARAMETER_RE.findall(spec.path))
@@ -406,7 +410,7 @@ def _custom_bindings(
         raise ValueError(
             f"custom endpoint {spec.name!r} has a handler without a signature"
         ) from exc
-    bindings: list[tuple[str, str]] = []
+    names: list[str] = []
     for parameter in parameters:
         name, has_default = parameter.name, parameter.default is not parameter.empty
         if parameter.kind in (parameter.VAR_POSITIONAL, parameter.VAR_KEYWORD):
@@ -419,19 +423,15 @@ def _custom_bindings(
                 "handler parameters are passed by name, so they cannot be "
                 "positional-only"
             )
-        if name in {"store", "body"}:
-            bindings.append((name, name))
-        elif name in path_names:
-            bindings.append((name, "path"))
-        elif name == "params":
-            bindings.append((name, "params"))
-        elif not has_default:
+        if not has_default and name not in {"store", "body", "params", *path_names}:
             raise ValueError(
                 f"custom endpoint {spec.name!r} cannot bind parameter {name!r}: "
                 "a handler receives store, body, params, and the path parameters "
-                f"of {spec.path!r} by name; give {name!r} a default"
+                f"of {spec.path!r} by name; give {name!r} a default (one filled "
+                "from the path of an enclosing mount needs a default too)"
             )
-    return tuple(bindings)
+        names.append(name)
+    return tuple(names)
 
 
 def _route_name(name: str) -> str:

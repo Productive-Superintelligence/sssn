@@ -68,7 +68,7 @@ Custom endpoints mounted with `create_app(..., custom_endpoints=...)` must be fu
 | --- | --- |
 | `store` | The served store |
 | `body` | The parsed JSON body; `None` for `GET` and `DELETE`, or a body that is not JSON |
-| A path parameter's name | That path parameter |
+| A path parameter's name | That path parameter, also one from the path of an enclosing mount, such as `/tenants/{tenant}/network` (give such a parameter a default) |
 | `params` | The query parameters as a dict of strings; for a repeated key, the last value wins |
 | Anything else | Its default; a parameter without one makes `create_app` raise `ValueError` |
 

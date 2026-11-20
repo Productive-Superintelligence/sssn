@@ -24,6 +24,7 @@ from typing import Any
 
 import httpx
 import pytest
+from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 from pydantic import BaseModel, ConfigDict, field_serializer
@@ -1234,3 +1235,35 @@ def test_rows_with_an_infinite_timestamp_stay_readable(tmp_path):
     assert store.get_subscription("reader").cursor == 2
     assert store.get_snapshot("latest").timestamp == -math.inf
     assert Event(channel="legacy", timestamp=math.inf).timestamp == math.inf
+
+
+# Review 7: custom endpoints get the path parameters of an enclosing mount
+
+
+def test_custom_endpoints_get_path_parameters_of_an_enclosing_mount(tmp_path):
+    @endpoint.get("/channels/{name}/owner")
+    def owner(store, name: str, tenant=None, params=None, region="eu"):
+        return {"tenant": tenant, "name": name, "params": params, "region": region}
+
+    store_app = create_app(LocalStore(tmp_path / "store"), custom_endpoints=[owner])
+    outer = FastAPI()
+    outer.mount("/tenants/{tenant}/network", store_app)
+
+    response = request(outer, "GET", "/tenants/acme/network/channels/raw/owner?x=1")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "tenant": "acme",
+        "name": "raw",
+        "params": {"x": "1"},
+        "region": "eu",
+    }
+
+
+def test_mount_path_parameters_need_a_default(tmp_path):
+    @endpoint.get("/owner")
+    def owner(store, tenant):
+        return tenant
+
+    with pytest.raises(ValueError, match=r"'tenant'.*default.*mount"):
+        create_app(LocalStore(tmp_path / "store"), custom_endpoints=[owner])
