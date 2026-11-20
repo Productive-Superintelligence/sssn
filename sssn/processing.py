@@ -20,7 +20,7 @@ from pydantic import ConfigDict, TypeAdapter
 
 from lllm.protocol import CallContext, Tactic
 
-from .core import Event, InvalidPayloadError, Subscription, SubscriptionNotFoundError
+from .core import Event, Subscription, SubscriptionNotFoundError
 from .core.models import json_text, json_value, parse_json
 
 
@@ -287,15 +287,19 @@ def _payload(value: Any) -> Any:
     # Output a store cannot hold raises InvalidPayloadError here, a failure
     # of this event that errors="raise" or "record" handles.
     adapter = _output_adapter(type(value))
-    if adapter is None:
-        return json_value(value)
-    # The output type's own schema first, as 0.2.0 used it (a model's own
-    # serializer, Annotated serializers, a dataclass's config).
-    try:
-        text = json_text(adapter, [value])
-    except Exception as exc:
-        raise InvalidPayloadError(f"Value is not JSON serializable: {exc}") from exc
-    return parse_json(text)[0]
+    if adapter is not None:
+        # The output type's own schema first, as 0.2.0 used it (a model's own
+        # serializer, Annotated serializers, a dataclass's config).
+        try:
+            text = json_text(adapter, [value])
+        except Exception:
+            # The schema could not write it, as for a value of the wrong
+            # type: infer it from the value, as 0.2.0 fell back to.
+            pass
+        else:
+            # NaN outside a model is refused here, with no second try.
+            return parse_json(text)[0]
+    return json_value(value)
 
 
 @lru_cache(maxsize=256)
@@ -307,12 +311,18 @@ def _output_adapter(output_type: type) -> TypeAdapter[Any] | None:
     """
 
     try:
-        return TypeAdapter(
+        adapter = TypeAdapter(
             list[output_type],  # type: ignore[valid-type]
             config=ConfigDict(ser_json_inf_nan="constants"),
         )
     except Exception:
         return None
+    # Since Pydantic 2.10, a type with annotations it cannot resolve (a name
+    # imported only for type checkers, a local class) still gives an
+    # adapter, which fails when it is used.
+    if getattr(adapter, "pydantic_complete", True) is False:
+        return None
+    return adapter
 
 
 async def _maybe_await(value: Any) -> Any:

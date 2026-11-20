@@ -20,7 +20,7 @@ from collections import deque
 from contextlib import contextmanager
 from datetime import date, timedelta
 from pathlib import Path
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 import httpx
 import pydantic
@@ -2127,3 +2127,51 @@ def test_a_model_output_holding_a_huge_int_is_invalid(tmp_path, int_digit_limit)
         processor.process()
 
     assert store.get_subscription(processor.consumer).cursor == 0
+
+
+# Round 5, item 2: outputs their type's schema cannot write are inferred
+
+if TYPE_CHECKING:  # never imported when the tests run
+    from decimal import Decimal as OnlyForTypeCheckers
+
+
+@dataclasses.dataclass
+class Invoice:
+    amount: "OnlyForTypeCheckers"  # as `from __future__ import annotations` writes it
+
+
+@dataclasses.dataclass
+class Tally:
+    count: int
+
+
+def shape_with_a_local_point():
+    @dataclasses.dataclass
+    class Point:
+        x: int
+
+    @dataclasses.dataclass
+    class Shape:
+        corner: "Point"  # a local class, which Pydantic cannot resolve
+
+    return Shape(Point(1))
+
+
+@pytest.mark.filterwarnings("ignore::UserWarning")  # the wrong-typed value
+@pytest.mark.parametrize(
+    ("make_output", "stored"),
+    [
+        (lambda: Invoice(amount=12), {"amount": 12}),
+        (shape_with_a_local_point, {"corner": {"x": 1}}),
+        (lambda: Tally(count="three"), {"count": "three"}),
+    ],
+    ids=["type-checking-annotation", "local-class", "wrong-typed-value"],
+)
+def test_processor_infers_outputs_their_schema_cannot_write(
+    tmp_path, make_output, stored
+):
+    _, processor = processed(tmp_path, make_output())
+
+    [event] = processor.process()
+
+    assert event.payload == stored
