@@ -110,13 +110,18 @@ print(store.get_event(event.id) == event)
    `get_event` and other processes get. Every write returns its record
    that way, a snapshot's value and every record's metadata included.
 
-A value that cannot become JSON raises `InvalidPayloadError` and nothing
-is written. That includes an arbitrary object, and NaN and infinite
-numbers, which JSON cannot represent (Pydantic would write them as
-`null`). Remote stores send values in the same JSON form and raise the same
-error before sending. Readers get plain JSON data, so validate it back
-into your model where you need one, as a
-[tactic](processing.md#what-the-tactic-sees) does with its input model.
+What is stored is exactly the JSON that Pydantic writes for the value. A
+value Pydantic cannot write, such as an arbitrary object, raises
+`InvalidPayloadError` and nothing is written. So does a NaN or an infinite
+number in a plain value, at the top level or in a dict, list, tuple, or
+set, since JSON cannot represent it. Inside a Pydantic model, the model's
+own JSON serialization decides: Pydantic writes NaN and infinity as
+`null` by default, and a model can choose otherwise with
+`ser_json_inf_nan="strings"`, a validator, or a serializer. Remote stores
+send values in the same JSON form and raise the same error before sending.
+Readers get plain JSON data, so validate it back into your model where you
+need one, as a [tactic](processing.md#what-the-tactic-sees) does with its
+input model.
 
 ## The store interface
 

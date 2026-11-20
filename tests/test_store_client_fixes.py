@@ -770,11 +770,9 @@ def test_non_finite_numbers_raise_invalid_payload_error_on_every_store(
     any_store, number
 ):
     any_store.create_channel({"name": "readings"})
-    reading = Reading(sensor="boiler", celsius=number)
     events = [
         {"channel": "readings", "payload": {"celsius": number}},
         {"channel": "readings", "payload": [1, [number]]},
-        {"channel": "readings", "payload": reading},
         Event(channel="readings", payload={"celsius": number}),
         {"channel": "readings", "metadata": {"celsius": number}},
         {"channel": "readings", "timestamp": number},
@@ -784,7 +782,6 @@ def test_non_finite_numbers_raise_invalid_payload_error_on_every_store(
             any_store.append_event(event)
     snapshots = [
         (("latest", {"celsius": number}), {}),
-        (("latest", reading), {}),
         (("latest", 1), {"timestamp": number}),
         (({"name": "latest", "value": 1, "timestamp": number},), {}),
         (("latest", 1), {"metadata": {"celsius": number}}),
@@ -803,8 +800,6 @@ def test_non_finite_numbers_raise_invalid_payload_error_on_every_store(
     with pytest.raises(SnapshotNotFoundError):
         any_store.get_snapshot("latest")
     assert [channel.name for channel in any_store.list_channels()] == ["readings"]
-
-
 
 
 @pytest.mark.parametrize(
@@ -1181,17 +1176,82 @@ class NullWhenNaN(BaseModel):
 
 
 @pytest.mark.parametrize(
-    "payload",
-    [(1.0, math.nan), {math.nan}, deque([math.nan]), iter([1.0, math.nan])],
-    ids=["tuple", "set", "deque", "iterator"],
+    "make_payload",
+    [
+        lambda: math.nan,
+        lambda: {"score": math.inf},
+        lambda: [1.0, -math.inf],
+        lambda: (1.0, math.nan),
+        lambda: {math.nan},
+    ],
+    ids=["top-level", "dict", "list", "tuple", "set"],
 )
-def test_nan_in_any_container_raises_on_every_store(any_store, payload):
+def test_nan_in_a_plain_value_raises_on_every_store(any_store, make_payload):
     any_store.create_channel({"name": "readings"})
 
     with pytest.raises(InvalidPayloadError, match="NaN"):
-        any_store.append_event({"channel": "readings", "payload": payload})
+        any_store.append_event({"channel": "readings", "payload": make_payload()})
 
     assert any_store.query_events("readings") == ()
+
+
+@pytest.mark.parametrize(
+    "make_payload",
+    [lambda: deque([1.0, math.nan]), lambda: iter([1.0, math.nan])],
+    ids=["deque", "iterator"],
+)
+def test_nan_in_a_deque_or_iterator_raises_on_every_store(any_store, make_payload):
+    # Pydantic before 2.12 cannot serialize a deque at all, which raises
+    # InvalidPayloadError too ("not JSON serializable").
+    any_store.create_channel({"name": "readings"})
+
+    with pytest.raises(InvalidPayloadError):
+        any_store.append_event({"channel": "readings", "payload": make_payload()})
+
+    assert any_store.query_events("readings") == ()
+
+
+class Message(BaseModel):
+    """A default-config model: Pydantic writes its NaN as null."""
+
+    text: str
+    score: float
+    data: dict[str, Any] = {}
+    extra: Any = None
+
+
+class StringsForNaN(BaseModel):
+    """A model that writes NaN and infinity as strings."""
+
+    model_config = ConfigDict(ser_json_inf_nan="strings")
+
+    score: float
+    data: dict[str, Any] = {}
+
+
+def test_nan_in_a_model_is_stored_as_the_model_writes_it_on_every_store(
+    any_store,
+):
+    any_store.create_channel({"name": "messages"})
+    message = Message(
+        text="hi", score=math.nan, data={"score": math.nan}, extra=[math.inf]
+    )
+
+    event = any_store.append_event({"channel": "messages", "payload": message})
+    snapshot = any_store.put_snapshot("latest", {"message": message})
+    strings = any_store.append_event(
+        {
+            "channel": "messages",
+            "payload": StringsForNaN(score=math.nan, data={"x": -math.inf}),
+        }
+    )
+
+    # Typed and untyped fields alike, as Pydantic's JSON for the model.
+    stored = {"text": "hi", "score": None, "data": {"score": None}, "extra": [None]}
+    assert event.payload == stored
+    assert snapshot.value == {"message": stored}
+    assert any_store.get_event(event.id) == event
+    assert strings.payload == {"score": "NaN", "data": {"x": "-Infinity"}}
 
 
 def test_a_model_may_write_nan_as_null_on_every_store(any_store):

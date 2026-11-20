@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import time
 import uuid
 from typing import Any, Literal
@@ -170,41 +171,36 @@ class Subscription(BaseModel):
         return self
 
 
-# "constants" keeps NaN and infinity in JSON-mode output as floats, where the
-# default would write null, so json_value can find and refuse them.
+# Outside any model, "constants" writes NaN and infinity as the literals NaN
+# and Infinity, which json_value then refuses. A model's own config governs
+# everything inside it.
 _VALUES = TypeAdapter(Any, config=ConfigDict(ser_json_inf_nan="constants"))
 
 
 def json_value(value: Any) -> Any:
-    """Return ``value`` as JSON data, the form that stores keep and send.
+    """Return ``value`` as JSON data: exactly the JSON Pydantic writes for it.
 
-    Pydantic models become dicts (with their JSON serializers), tuples, sets,
-    and other iterables become lists, and dates become strings. A value with
-    no JSON form, or whose JSON form holds NaN or an infinity (which JSON
-    cannot represent), raises ``InvalidPayloadError``.
+    A Pydantic model is written by its own JSON serialization, which writes
+    NaN and infinity as null unless the model chooses otherwise, such as
+    ``ser_json_inf_nan="strings"``, a validator, or a serializer. Outside any
+    model, tuples and sets become lists (deques and iterators too, on
+    Pydantic versions that can serialize them), dates become strings, and a
+    NaN or an infinity raises ``InvalidPayloadError``, since JSON cannot
+    represent it. A value Pydantic cannot serialize raises
+    ``InvalidPayloadError`` from Pydantic's error.
     """
 
     try:
-        data = _VALUES.dump_python(value, mode="json")
+        text = _VALUES.dump_json(value)
     except (TypeError, ValueError) as exc:
         raise InvalidPayloadError(f"Value is not JSON serializable: {exc}") from exc
-    if not _finite(data):
-        raise InvalidPayloadError(
-            "Value holds NaN or infinity, which JSON cannot represent."
-        )
-    return data
+    return json.loads(text, parse_constant=_refuse_non_finite)
 
 
-def _finite(data: Any) -> bool:
-    """Whether JSON data holds no NaN or infinite number, at any depth."""
-
-    if isinstance(data, float):
-        return data == data and abs(data) != float("inf")
-    if isinstance(data, dict):
-        return all(_finite(item) for item in data.values())
-    if isinstance(data, list):
-        return all(_finite(item) for item in data)
-    return True
+def _refuse_non_finite(constant: str) -> Any:
+    raise InvalidPayloadError(
+        "Value holds NaN or infinity, which JSON cannot represent."
+    )
 
 
 def _validate_optional_segment(value: str | None, field_name: str) -> None:

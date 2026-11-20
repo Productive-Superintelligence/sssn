@@ -27,6 +27,7 @@ ALLOWED_CORE_IMPORTS = {
     "__future__",
     "collections.abc",
     "copy",
+    "json",
     "lllm.protocol.validation",
     "pydantic",
     "sssn.core.errors",
