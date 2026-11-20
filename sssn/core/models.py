@@ -202,11 +202,13 @@ def json_value(value: Any) -> Any:
     replaces each one in a model's typed dict key with three U+FFFD, one per
     UTF-8 byte; a high surrogate directly followed by a low one comes back
     as the character the pair encodes (U+D83D U+DE00 becomes U+1F600), as in
-    0.2.0; and in a value holding one, a NaN or infinity that Pydantic
-    writes as a float (a float field, or the values of ``list[float]`` or
-    ``dict[str, float]``) is refused, while one Pydantic infers (an ``Any``
-    field, or an untyped dict or list) is written as null; in a model that
-    writes NaN as strings, both are refused.
+    0.2.0; and in a value holding one, inside a model, a NaN or infinity
+    that Pydantic writes as a float (a float field, or the values of a
+    ``list[float]`` or ``dict[str, float]`` field) is refused, while one it
+    infers (an ``Any`` field, or a field typed as a bare dict or list or
+    with ``Any`` values) is written as null, and in a model that writes NaN
+    as strings both are refused; a NaN in a plain value is refused as
+    always.
     """
 
     try:
@@ -230,10 +232,12 @@ def json_text(adapter: TypeAdapter[Any], value: Any) -> str | bytes:
             raise
         # A lone surrogate, which UTF-8 cannot hold, as in a file name
         # decoded with surrogateescape: Python's json escapes it. In this
-        # rare path, a NaN that Pydantic writes as a float (a float field,
-        # or the values of list[float] or dict[str, float]) is refused,
-        # while one it infers (an Any field, an untyped dict or list) is
-        # written as null, unless the model writes NaN as strings.
+        # rare path, inside a model, a NaN that Pydantic writes as a float
+        # (a float field, or the values of a list[float] or dict[str, float]
+        # field) is refused, while one it infers (an Any field, or a field
+        # typed as a bare dict or list or with Any values) is written as
+        # null, unless the model writes NaN as strings. A NaN in a plain
+        # value is refused as always.
         return json.dumps(adapter.dump_python(value, mode="json"))
 
 
@@ -252,17 +256,19 @@ def record_json(
     default: Callable[[Any], Any] | None = None,
     ensure_ascii: bool = False,
 ) -> str:
-    """Write records a store returned (one, or a list), or JSON data holding
-    them, as strict JSON that cannot fail on what a store holds.
+    """Write what a store returned, a record or a list or tuple of them, or
+    JSON data, as strict JSON that cannot fail on what a store holds.
 
-    Records are written by ``record_data``, so a non-finite timestamp goes
-    out as "inf", "-inf", or "nan", which a float field reads back. Any
-    other NaN or infinity, which only a row written before sssn 0.2.1 or a
-    value built in memory can hold, goes out as null, as 0.2.0 wrote it, and
-    a lone surrogate as a JSON escape. ``default`` writes anything else, as
-    for ``json.dumps``, and a NaN in what it returns is null too.
-    ``ensure_ascii`` writes all non-ASCII text as escapes, for an output that
-    cannot encode it.
+    Those records are written by ``record_data``, so a non-finite timestamp
+    goes out as "inf", "-inf", or "nan", which a float field reads back.
+    Records deeper in the content are not looked for: a custom endpoint's
+    result reaches this already encoded by jsonable_encoder, whose record
+    encoder applies ``record_data``. Any other NaN or infinity, which only a
+    row written before sssn 0.2.1 or a value built in memory can hold, goes
+    out as null, as 0.2.0 wrote it, and a lone surrogate as a JSON escape.
+    ``default`` writes anything else, as for ``json.dumps``, and a NaN in
+    what it returns is null too. ``ensure_ascii`` writes all non-ASCII text
+    as escapes, for an output that cannot encode it.
     """
 
     data = _records(content)
@@ -328,14 +334,17 @@ def record_data(record: Any) -> Any:
 
     A non-finite timestamp becomes "inf", "-inf", or "nan". Text stays as it
     is, so the writer escapes a lone surrogate. Other values, such as the
-    payload, are written in Pydantic's JSON mode, by alias, as a store
-    stores them: dates and sets become strings and lists, keys strings, a
-    model takes its JSON serializers, and NaN outside a model's typed float
-    fields becomes None. A value Pydantic cannot write is left to the
-    writer's ``default``. An instance of a subclass, such as a custom
-    store's record, is written by its own JSON dump, which skips its
-    excluded fields and adds its computed ones, and then by the timestamp
-    rule.
+    payload, are written in Pydantic's JSON mode, by alias, as sssn 0.2.0's
+    jsonable_encoder wrote them: dates and sets become strings and lists,
+    keys strings, a model takes its JSON serializers, and NaN outside a
+    model's typed float fields becomes None. A value Pydantic cannot write
+    is left to the writer's ``default``.
+
+    An instance of a subclass, such as a custom store's record, is written
+    by its own JSON dump, which skips its excluded fields, adds its computed
+    ones, and may be any JSON data its serializer returns; a timestamp in a
+    dict it returns takes the same rule. That dump has no fallback to
+    ``default``: a value it cannot write raises.
     """
 
     fields = type(record).model_fields

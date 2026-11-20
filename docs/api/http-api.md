@@ -34,13 +34,16 @@ Request bodies and query parameters:
 | `POST /artifacts` | `data`, `encoding` (`text` or `base64`), `channel`, `media_type`, `metadata`, `event_ids` |
 | `PUT /snapshots/{name}` | `value`, `channel`, `timestamp`, `schema`, `source_event_id`, `metadata`; replaces any previous value |
 
-Responses are strict JSON, which any JSON parser reads. Any store can
-hold a string with a lone surrogate, sent as a JSON escape. A store written
-by sssn 0.2.0 can also hold numbers JSON cannot carry: a non-finite
-timestamp is sent as `"inf"`, `"-inf"`, or `"nan"`, which SSSN's clients
-read back as the float, and any other NaN or infinite number as `null`, as
-0.2.0 sent it. A record of a subclass, such as a custom store's own event
-class, is written by that class's JSON dump, by alias, under the same rules.
+Responses never hold `NaN` or `Infinity` literals; `GET /artifacts/{id}`
+returns the artifact's raw bytes rather than JSON. Any store can hold a
+string with a lone surrogate, sent as a `\uXXXX` escape, which some JSON
+parsers refuse (Rust's serde_json) or replace with U+FFFD (Go), and a pull
+moves the cursor before the client parses the response. A store written by
+sssn 0.2.0 can also hold numbers JSON cannot carry: a non-finite timestamp
+is sent as `"inf"`, `"-inf"`, or `"nan"`, which SSSN's clients read back as
+the float, and any other NaN or infinite number as `null`, as 0.2.0 sent
+it. A record of a subclass, such as a custom store's own event class, is
+written by that class's JSON dump, by alias, under the same rules.
 
 FastAPI also serves the OpenAPI schema at `/openapi.json` and interactive docs
 at `/docs`. The server has no authentication.
@@ -85,6 +88,6 @@ Custom endpoints mounted with `create_app(..., custom_endpoints=...)` must be fu
 | `params` | The query parameters as a dict of strings; for a repeated key, the last value wins |
 | Anything else | Its default; a parameter without one makes `create_app` raise `ValueError` |
 
-The handler's return value is the response body, JSON-encoded by FastAPI's `jsonable_encoder`. SSSN's records returned directly or inside lists, tuples, dicts, or dataclasses come out as the portable routes return them, a non-finite timestamp as `"inf"`, `"-inf"`, or `"nan"`. Anything else is converted as `jsonable_encoder` converts it: a Pydantic model, a record inside one included, by `model_dump(mode="json")`, which writes a NaN that Pydantic infers as `null`. Any NaN or infinity left is then written as `null` (0.2.0 answered with a 500), and a lone surrogate as an escape. A
+The handler's return value is the response body, JSON-encoded by FastAPI's `jsonable_encoder`. SSSN's records returned directly or inside lists, tuples, dicts, or dataclasses come out as the portable routes return them, a non-finite timestamp as `"inf"`, `"-inf"`, or `"nan"`. Anything else is converted as `jsonable_encoder` converts it: a Pydantic model, a record inside one included, by `model_dump(mode="json", by_alias=True)`, which writes a NaN that Pydantic infers as `null`. Any NaN or infinity left is then written as `null` (0.2.0 answered with a 500), and a lone surrogate as an escape. A
 `NetworkError` it raises maps to a status as on the portable routes. See
 [Custom endpoints](../http.md#custom-endpoints) for an example.

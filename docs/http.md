@@ -294,9 +294,10 @@ print(json.dumps(resource["endpoints"][0], indent=2))
    out as the standard routes return them, a non-finite timestamp as
    `"inf"`, `"-inf"`, or `"nan"`. Anything else is converted as
    `jsonable_encoder` converts it: a Pydantic model, a record inside one
-   included, by `model_dump(mode="json")`, which writes a NaN that
-   Pydantic infers as `null`. Any NaN or infinity left is then written as
-   `null` (0.2.0 answered with a 500), and a lone surrogate as an escape.
+   included, by `model_dump(mode="json", by_alias=True)`, which writes a
+   NaN that Pydantic infers as `null`. Any NaN or infinity left is then
+   written as `null` (0.2.0 answered with a 500), and a lone surrogate as
+   an escape.
 3. Store errors map to statuses as they do on the standard routes:
    `query_events` raised `ChannelNotFoundError`, so the response is a 404.
    Raise `InvalidPayloadError` from a handler for a 400.
