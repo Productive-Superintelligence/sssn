@@ -38,8 +38,10 @@ from fastapi.testclient import TestClient
 from pydantic import (
     BaseModel,
     ConfigDict,
+    Field,
     PlainSerializer,
     RootModel,
+    computed_field,
     field_serializer,
 )
 from pydantic.alias_generators import to_camel
@@ -2862,3 +2864,56 @@ def test_custom_endpoints_write_non_finite_numbers_as_null(tmp_path):
     assert body["plain"] == [None, None, None, 1.5]
     assert body["model"] == {"text": "hi", "score": None, "data": {}, "extra": [None]}
     assert body["record"]["payload"] is None
+
+
+# Round 8, item 3: a subclass of a record is written by its own JSON dump
+
+
+class AuditedEvent(Event):
+    """A custom store's record: an Event with fields of its own."""
+
+    note: str = Field(default="", exclude=True)
+    token: str = ""
+
+    @computed_field
+    @property
+    def payload_type(self) -> str:
+        return type(self.payload).__name__
+
+    @field_serializer("token", when_used="json")
+    def _redact(self, value):
+        return "***"
+
+
+def test_record_subclasses_are_written_by_their_own_json(tmp_path):
+    def audited_event():
+        return AuditedEvent(
+            id="audited",
+            channel="notes",
+            timestamp=math.inf,
+            payload={"score": math.nan},
+            note="private",
+            token="s3cret",
+        )
+
+    class AuditingStore(LocalStore):
+        def get_event(self, event_id):
+            return audited_event()
+
+    @endpoint.get("/audited")
+    def audited(store):
+        return audited_event()
+
+    app = create_app(AuditingStore(tmp_path / "store"), custom_endpoints=[audited])
+
+    from_endpoint = request(app, "GET", "/audited")
+    from_route = request(app, "GET", "/events/audited")
+
+    assert from_endpoint.status_code == from_route.status_code == 200
+    assert from_endpoint.content == from_route.content
+    body = strict_json(from_route.content)
+    assert "note" not in body  # excluded
+    assert body["payload_type"] == "dict"  # computed
+    assert body["token"] == "***"  # redacted in JSON
+    assert body["timestamp"] == "inf"  # the record rules still apply
+    assert body["payload"] == {"score": None}

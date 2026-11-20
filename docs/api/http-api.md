@@ -39,7 +39,8 @@ hold a string with a lone surrogate, sent as a JSON escape. A store written
 by sssn 0.2.0 can also hold numbers JSON cannot carry: a non-finite
 timestamp is sent as `"inf"`, `"-inf"`, or `"nan"`, which SSSN's clients
 read back as the float, and any other NaN or infinite number as `null`, as
-0.2.0 sent it.
+0.2.0 sent it. A record of a subclass, such as a custom store's own event
+class, is written by that class's JSON dump, by alias, under the same rules.
 
 FastAPI also serves the OpenAPI schema at `/openapi.json` and interactive docs
 at `/docs`. The server has no authentication.

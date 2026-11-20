@@ -328,11 +328,25 @@ def record_data(record: Any) -> dict[str, Any]:
     stores them: dates and sets become strings and lists, keys strings, a
     model takes its JSON serializers, and NaN outside a model's typed float
     fields becomes None. A value Pydantic cannot write is left to the
-    writer's ``default``.
+    writer's ``default``. An instance of a subclass, such as a custom
+    store's record, is written by its own JSON dump, which skips its
+    excluded fields and adds its computed ones, and then by the timestamp
+    rule.
     """
 
-    data: dict[str, Any] = {}
-    for name, field in type(record).model_fields.items():
+    fields = type(record).model_fields
+    if type(record) not in RECORD_CLASSES:
+        data = record.model_dump(mode="json", by_alias=True)
+        field = fields.get("timestamp")
+        if field is not None:
+            key = _field_key("timestamp", field)
+            if key in data:
+                data[key] = _timestamp(data[key])
+        return data
+    data = {}
+    for name, field in fields.items():
+        if field.exclude:
+            continue
         value = getattr(record, name)
         if name == "timestamp":
             value = _timestamp(value)
@@ -341,8 +355,13 @@ def record_data(record: Any) -> dict[str, Any]:
                 value = _RECORD_VALUES.dump_python(value, mode="json", by_alias=True)
             except (TypeError, ValueError):
                 pass  # left to the writer's default, such as jsonable_encoder
-        data[field.alias or name] = value
+        data[_field_key(name, field)] = value
     return data
+
+
+def _field_key(name: str, field: Any) -> str:
+    # The key Pydantic writes a field under by alias.
+    return field.serialization_alias or field.alias or name
 
 
 def _timestamp(value: Any) -> Any:
