@@ -47,6 +47,7 @@ from sssn import (
     SubscriptionExistsError,
     SubscriptionNotFoundError,
     create_app,
+    endpoint,
 )
 
 STORE_ERRORS = (
@@ -873,3 +874,74 @@ def test_remote_stores_raise_store_busy_error_for_a_locked_store(tmp_path, kind)
             Blocking(client).list_channels()
 
     assert exc_info.value.status_code == 503
+
+
+# 7: the store server runs blocking store calls off the event loop
+
+
+def get_twice_at_once(app, path):
+    async def run():
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app),
+            base_url="http://testserver",
+        ) as client:
+            return await asyncio.gather(client.get(path), client.get(path))
+
+    return asyncio.run(run())
+
+
+def test_store_server_serves_requests_while_a_store_call_blocks(tmp_path):
+    # Each get_channel waits until another request is inside the store too,
+    # which can happen only if a blocked call leaves the event loop free.
+    meeting = threading.Barrier(2, timeout=2)
+
+    class Rendezvous(LocalStore):
+        def get_channel(self, name):
+            meeting.wait()
+            return super().get_channel(name)
+
+    store = Rendezvous(tmp_path / "store")
+    store.create_channel({"name": "events"})
+
+    responses = get_twice_at_once(create_app(store), "/channels/events")
+
+    assert [response.status_code for response in responses] == [200, 200]
+
+
+def test_store_server_runs_sync_custom_endpoints_off_the_event_loop(tmp_path):
+    meeting = threading.Barrier(2, timeout=2)
+
+    @endpoint.get("/meet")
+    def meet(store):
+        meeting.wait()
+        return {"met": True}
+
+    app = create_app(LocalStore(tmp_path / "store"), custom_endpoints=[meet])
+
+    responses = get_twice_at_once(app, "/meet")
+
+    assert [response.json() for response in responses] == [{"met": True}] * 2
+
+
+def test_store_server_serves_an_async_store(tmp_path):
+    backend = LocalStore(tmp_path / "backend")
+    async_store = AsyncRemoteStore(
+        "http://backend", transport=httpx.ASGITransport(app=create_app(backend))
+    )
+    app = create_app(async_store)
+
+    created = request(app, "POST", "/channels", json={"name": "events"})
+    request(app, "POST", "/events", json={"channel": "events", "payload": 1})
+    request(app, "POST", "/subscriptions", json={"channel": "events", "id": "w"})
+    pulled = request(app, "POST", "/subscriptions/w/pull")
+    artifact = request(app, "POST", "/artifacts", json={"data": "hi"}).json()
+    data = request(app, "GET", f"/artifacts/{artifact['id']}")
+    snapshot = request(app, "PUT", "/snapshots/latest", json={"value": 2})
+    missing = request(app, "GET", "/channels/missing")
+
+    assert created.json()["name"] == "events"
+    assert [event["payload"] for event in pulled.json()] == [1]
+    assert data.content == b"hi"
+    assert snapshot.json()["value"] == 2
+    assert missing.status_code == 404
+    assert [channel.name for channel in backend.list_channels()] == ["events"]

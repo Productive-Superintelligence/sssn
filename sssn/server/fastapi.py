@@ -159,28 +159,29 @@ def create_app(
     @app.post("/channels")
     async def create_channel(channel: Channel) -> dict[str, Any]:
         try:
-            return jsonable_encoder(local_store.create_channel(channel))
+            return jsonable_encoder(await _call(local_store.create_channel, channel))
         except Exception as exc:
             raise _http_error(exc) from exc
 
     @app.get("/channels")
     async def list_channels() -> list[dict[str, Any]]:
         try:
-            return [jsonable_encoder(channel) for channel in local_store.list_channels()]
+            channels = await _call(local_store.list_channels)
+            return [jsonable_encoder(channel) for channel in channels]
         except Exception as exc:
             raise _http_error(exc) from exc
 
     @app.get("/channels/{name}")
     async def get_channel(name: str) -> dict[str, Any]:
         try:
-            return jsonable_encoder(local_store.get_channel(name))
+            return jsonable_encoder(await _call(local_store.get_channel, name))
         except Exception as exc:
             raise _http_error(exc) from exc
 
     @app.post("/events")
     async def append_event(event: Event) -> dict[str, Any]:
         try:
-            return jsonable_encoder(local_store.append_event(event))
+            return jsonable_encoder(await _call(local_store.append_event, event))
         except Exception as exc:
             raise _http_error(exc) from exc
 
@@ -192,7 +193,8 @@ def create_app(
         kind: str | None = None,
     ) -> list[dict[str, Any]]:
         try:
-            events = local_store.query_events(
+            events = await _call(
+                local_store.query_events,
                 channel,
                 after_cursor=after_cursor,
                 limit=limit,
@@ -205,7 +207,7 @@ def create_app(
     @app.get("/events/{event_id}")
     async def get_event(event_id: str) -> dict[str, Any]:
         try:
-            return jsonable_encoder(local_store.get_event(event_id))
+            return jsonable_encoder(await _call(local_store.get_event, event_id))
         except Exception as exc:
             raise _http_error(exc) from exc
 
@@ -213,7 +215,8 @@ def create_app(
     async def create_subscription(request: SubscriptionRequest) -> dict[str, Any]:
         try:
             return jsonable_encoder(
-                local_store.create_subscription(
+                await _call(
+                    local_store.create_subscription,
                     request.channel,
                     subscription_id=request.id,
                     consumer=request.consumer,
@@ -228,7 +231,9 @@ def create_app(
     @app.get("/subscriptions/{subscription_id}")
     async def get_subscription(subscription_id: str) -> dict[str, Any]:
         try:
-            return jsonable_encoder(local_store.get_subscription(subscription_id))
+            return jsonable_encoder(
+                await _call(local_store.get_subscription, subscription_id)
+            )
         except Exception as exc:
             raise _http_error(exc) from exc
 
@@ -238,10 +243,10 @@ def create_app(
         limit: int | None = None,
     ) -> list[dict[str, Any]]:
         try:
-            return [
-                jsonable_encoder(event)
-                for event in local_store.pull_subscription(subscription_id, limit=limit)
-            ]
+            events = await _call(
+                local_store.pull_subscription, subscription_id, limit=limit
+            )
+            return [jsonable_encoder(event) for event in events]
         except Exception as exc:
             raise _http_error(exc) from exc
 
@@ -249,7 +254,8 @@ def create_app(
     async def write_artifact(request: ArtifactWriteRequest) -> dict[str, Any]:
         try:
             return jsonable_encoder(
-                local_store.write_artifact(
+                await _call(
+                    local_store.write_artifact,
                     request.bytes(),
                     channel=request.channel,
                     media_type=request.media_type,
@@ -263,8 +269,8 @@ def create_app(
     @app.get("/artifacts/{artifact_id}")
     async def read_artifact(artifact_id: str):
         try:
-            artifact = local_store.get_artifact(artifact_id)
-            data = local_store.read_artifact(artifact_id)
+            artifact = await _call(local_store.get_artifact, artifact_id)
+            data = await _call(local_store.read_artifact, artifact_id)
             return Response(content=data, media_type=artifact.media_type)
         except Exception as exc:
             raise _http_error(exc) from exc
@@ -272,7 +278,7 @@ def create_app(
     @app.get("/artifacts/{artifact_id}/metadata")
     async def get_artifact(artifact_id: str) -> dict[str, Any]:
         try:
-            return jsonable_encoder(local_store.get_artifact(artifact_id))
+            return jsonable_encoder(await _call(local_store.get_artifact, artifact_id))
         except Exception as exc:
             raise _http_error(exc) from exc
 
@@ -282,14 +288,17 @@ def create_app(
             # A dict, so the store reports invalid fields, such as a NaN
             # timestamp, as InvalidPayloadError.
             data = snapshot.model_dump(by_alias=True, exclude_none=True)
-            return jsonable_encoder(local_store.put_snapshot({**data, "name": name}))
+            snapshot_fields = {**data, "name": name}
+            return jsonable_encoder(
+                await _call(local_store.put_snapshot, snapshot_fields)
+            )
         except Exception as exc:
             raise _http_error(exc) from exc
 
     @app.get("/snapshots/{name}")
     async def get_snapshot(name: str) -> dict[str, Any]:
         try:
-            return jsonable_encoder(local_store.get_snapshot(name))
+            return jsonable_encoder(await _call(local_store.get_snapshot, name))
         except Exception as exc:
             raise _http_error(exc) from exc
 
@@ -304,6 +313,25 @@ def create_app(
         _mount_custom_endpoint(app, local_store, spec, fn)
 
     return app
+
+
+async def _call(function: Callable[..., Any], /, *args: Any, **kwargs: Any) -> Any:
+    """Call a store method or an endpoint handler without blocking the loop.
+
+    A coroutine function is awaited. Anything else, such as a ``LocalStore``
+    method that waits on SQLite, runs in a worker thread, so the server
+    keeps answering other requests meanwhile; an awaitable it returns is
+    awaited too.
+    """
+
+    if inspect.iscoroutinefunction(function):
+        return await function(*args, **kwargs)
+    from starlette.concurrency import run_in_threadpool
+
+    result = await run_in_threadpool(function, *args, **kwargs)
+    if inspect.isawaitable(result):
+        result = await result
+    return result
 
 
 def _mount_custom_endpoint(
@@ -323,18 +351,14 @@ def _mount_custom_endpoint(
                     body = await request.json()
                 except Exception:
                     body = None
-            result = fn(
-                **_custom_kwargs(
-                    fn,
-                    store=store,
-                    body=body,
-                    params=dict(request.query_params),
-                    path=request.path_params,
-                )
+            kwargs = _custom_kwargs(
+                fn,
+                store=store,
+                body=body,
+                params=dict(request.query_params),
+                path=request.path_params,
             )
-            if inspect.isawaitable(result):
-                result = await result
-            return jsonable_encoder(result)
+            return jsonable_encoder(await _call(fn, **kwargs))
         except Exception as exc:
             raise _http_error(exc) from exc
 

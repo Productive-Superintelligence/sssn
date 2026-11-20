@@ -94,6 +94,11 @@ store it serves as `app.state.sssn_store`. To serve the channels a package
 declares, use `lllm serve PACKAGE --resource channels.NAME`
 ([Packages and refs](packages.md#serve-a-packages-channels)).
 
+The routes call the store in a worker thread, so while one request waits
+on SQLite the server answers others; SQLite still commits one write at a
+time. The store may also be async, such as an `AsyncRemoteStore` in front
+of another server, and then its methods are awaited.
+
 ## Routes
 
 Each route calls one store method, and the JSON bodies follow the models,
@@ -291,8 +296,10 @@ The decorators take
 defaults to the function's name and `description` to its docstring; both
 appear in the OpenAPI docs. `scope` is an `EndpointScope`:
 `"store"`, `"channel"`, `"subscription"`, `"artifact"`, or `"snapshot"`. It
-says what the route is about and does not change routing. Handlers may be
-`async`.
+says what the route is about and does not change routing. A plain
+function runs in a worker thread, as the store calls of the standard routes
+do, so a slow handler does not hold up other requests. Handlers may also be
+`async`; those run on the event loop and should await rather than block.
 
 `create_app` checks the endpoints when it builds the app and raises
 `ValueError` if two share a name or a method and path, or if one would
