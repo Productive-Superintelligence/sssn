@@ -183,10 +183,11 @@ one `LocalStore` object can also be shared between threads.
   each write is one short transaction. A call that waits more than
   SQLite's 5-second busy timeout for another process fails with
   `sqlite3.OperationalError`.
-- **One reader per subscription.** `pull_subscription` reads the cursor and
-  then moves it, in two steps, so two processes pulling the same
-  subscription at once can receive the same events. Give each worker its
-  own subscription
+- **A pull is one transaction.** `pull_subscription` reads the events and
+  moves the cursor in one step, so processes pulling the same subscription
+  at once get different events. Reading ahead with `query_events` and
+  acknowledging with a pull are two steps, so a worker that does that needs
+  a subscription of its own
   ([Several consumers](subscriptions.md#several-consumers-on-one-channel)).
 - **Share over HTTP, not over a network drive.** SQLite's file locking is
   unreliable on network file systems. To share a store between machines,

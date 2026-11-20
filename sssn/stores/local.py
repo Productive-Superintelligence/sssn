@@ -6,7 +6,8 @@ import hashlib
 import json
 import os
 import sqlite3
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Iterator, Mapping
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, TypeVar
 
@@ -141,22 +142,12 @@ class LocalStore:
         after_cursor = _non_negative_int("after_cursor", after_cursor)
         limit = _positive_int("limit", limit)
         self.get_channel(channel)
-        sql = """
-            select rowid, id, channel, timestamp, source, kind, payload, schema_ref,
-                   metadata, correlation_id, parent_ids
-            from events
-            where channel = ? and rowid > ?
-        """
-        args: list[Any] = [channel, after_cursor]
         if kind is not None:
             _require_token("event.kind", kind)
-            sql += " and kind = ?"
-            args.append(kind)
-        sql += " order by rowid limit ?"
-        args.append(limit)
         with self._connect() as db:
-            rows = db.execute(sql, tuple(args)).fetchall()
-        return tuple(_event(row) for row in rows)
+            return _query_events(
+                db, channel, after_cursor=after_cursor, limit=limit, kind=kind
+            )
 
     def get_event(self, event_id: str) -> Event:
         _require_segment("event.id", event_id)
@@ -237,43 +228,36 @@ class LocalStore:
     ) -> tuple[Event, ...]:
         if limit is not None:
             limit = _positive_int("limit", limit)
-        sub = self.get_subscription(subscription_id)
-        events = self.query_events(
-            sub.channel,
-            after_cursor=sub.cursor,
-            limit=limit if limit is not None else sub.batch_size,
-            kind=_subscription_kind(sub.filters),
-        )
-        if events:
-            last_cursor = events[-1].cursor or self._event_cursor(events[-1].id)
-            with self._connect() as db:
+        _require_segment("subscription.id", subscription_id)
+        # One write transaction reads the events and moves the cursor past
+        # them, so two pulls of one subscription never get the same events.
+        with self._connect(write=True) as db:
+            sub = _find_subscription(db, subscription_id)
+            if sub is None:
+                raise SubscriptionNotFoundError(
+                    f"Subscription not found: {subscription_id}"
+                )
+            events = _query_events(
+                db,
+                sub.channel,
+                after_cursor=sub.cursor,
+                limit=limit if limit is not None else sub.batch_size,
+                kind=_subscription_kind(sub.filters),
+            )
+            if events:
                 db.execute(
                     "update subscriptions set cursor = ? where id = ?",
-                    (last_cursor, subscription_id),
+                    (events[-1].cursor, subscription_id),
                 )
         return events
 
     def get_subscription(self, subscription_id: str) -> Subscription:
         _require_segment("subscription.id", subscription_id)
         with self._connect() as db:
-            row = db.execute(
-                """
-                select id, channel, cursor, consumer, batch_size, filters, metadata
-                from subscriptions where id = ?
-                """,
-                (subscription_id,),
-            ).fetchone()
-        if row is None:
+            sub = _find_subscription(db, subscription_id)
+        if sub is None:
             raise SubscriptionNotFoundError(f"Subscription not found: {subscription_id}")
-        return Subscription(
-            id=row["id"],
-            channel=row["channel"],
-            cursor=row["cursor"],
-            consumer=row["consumer"],
-            batch_size=row["batch_size"],
-            filters=_loads(row["filters"]),
-            metadata=_loads(row["metadata"]),
-        )
+        return sub
 
     def write_artifact(
         self,
@@ -451,10 +435,23 @@ class LocalStore:
         for event_id in event_ids:
             self.get_event(event_id)
 
-    def _connect(self) -> sqlite3.Connection:
+    @contextmanager
+    def _connect(self, *, write: bool = False) -> Iterator[sqlite3.Connection]:
+        """Open a connection for one transaction, committed when the block ends.
+
+        With ``write=True`` the transaction takes the write lock before its
+        first read, so no other connection can write between what the block
+        reads and what it writes. The connection is closed afterwards.
+        """
         db = sqlite3.connect(self.db_path)
         db.row_factory = sqlite3.Row
-        return db
+        try:
+            with db:
+                if write:
+                    db.execute("begin immediate")
+                yield db
+        finally:
+            db.close()
 
     def _artifact_payload_path(self, path: str) -> Path:
         target = (self.root / path).resolve()
@@ -540,6 +537,52 @@ def _event(row: sqlite3.Row) -> Event:
         metadata=_loads(row["metadata"]),
         correlation_id=row["correlation_id"],
         parent_ids=tuple(_loads(row["parent_ids"])),
+    )
+
+
+def _query_events(
+    db: sqlite3.Connection,
+    channel: str,
+    *,
+    after_cursor: int,
+    limit: int,
+    kind: str | None,
+) -> tuple[Event, ...]:
+    sql = """
+        select rowid, id, channel, timestamp, source, kind, payload, schema_ref,
+               metadata, correlation_id, parent_ids
+        from events
+        where channel = ? and rowid > ?
+    """
+    args: list[Any] = [channel, after_cursor]
+    if kind is not None:
+        sql += " and kind = ?"
+        args.append(kind)
+    sql += " order by rowid limit ?"
+    args.append(limit)
+    return tuple(_event(row) for row in db.execute(sql, tuple(args)).fetchall())
+
+
+def _find_subscription(
+    db: sqlite3.Connection, subscription_id: str
+) -> Subscription | None:
+    row = db.execute(
+        """
+        select id, channel, cursor, consumer, batch_size, filters, metadata
+        from subscriptions where id = ?
+        """,
+        (subscription_id,),
+    ).fetchone()
+    if row is None:
+        return None
+    return Subscription(
+        id=row["id"],
+        channel=row["channel"],
+        cursor=row["cursor"],
+        consumer=row["consumer"],
+        batch_size=row["batch_size"],
+        filters=_loads(row["filters"]),
+        metadata=_loads(row["metadata"]),
     )
 
 

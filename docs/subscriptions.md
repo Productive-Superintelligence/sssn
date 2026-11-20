@@ -209,12 +209,15 @@ publish/subscribe: every subscription sees every event (of its kind), as
 billing and shipping do at the top of this page. Add a consumer at any time;
 it starts at the beginning and catches up.
 
-Run one worker per subscription. The store does not lock a subscription
-between reading and moving its cursor, so two workers pulling from the same
-subscription at the same time can receive the same events, and with the
-at-least-once loop above one can acknowledge an event the other has not
-finished. To spread one channel's work over several workers, give each its
-own share: a kind filter per worker, or a channel per worker.
+Workers can share one subscription with plain pulls. A pull reads the
+events and moves the cursor in one transaction, so workers pulling the same
+subscription at once get different events, like workers taking items from
+a queue, with at-most-once delivery. The at-least-once loop above is
+different: reading ahead and acknowledging are separate calls, so two
+workers would run the same event, and one could acknowledge an event the
+other has not finished. Give each such worker its own subscription, and to
+spread one channel's work over several of them, give each its own share: a
+kind filter per worker, or a channel per worker.
 
 ## Over HTTP and on the command line
 
