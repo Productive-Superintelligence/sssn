@@ -2744,6 +2744,12 @@ class TypedKeys(BaseModel):
     labels: dict[str, int]
 
 
+class TypedFloats(BaseModel):
+    text: str
+    values: list[float] = []
+    by_name: dict[str, float] = {}
+
+
 @pytest.mark.parametrize(
     ("make_payload", "stored"),
     [
@@ -2759,9 +2765,34 @@ class TypedKeys(BaseModel):
             id="typed-nan-in-the-fallback-refused",
         ),
         pytest.param(
+            lambda: TypedFloats(text=LONE_SURROGATE, values=[1.0, math.nan]),
+            None,
+            id="list-of-float-nan-in-the-fallback-refused",
+        ),
+        pytest.param(
+            lambda: TypedFloats(text=LONE_SURROGATE, by_name={"x": math.inf}),
+            None,
+            id="dict-of-float-nan-in-the-fallback-refused",
+        ),
+        pytest.param(
             lambda: Message(text=LONE_SURROGATE, score=1.0, extra=math.nan),
             {"text": LONE_SURROGATE, "score": 1.0, "data": {}, "extra": None},
             id="inferred-nan-in-the-fallback-null",
+        ),
+        pytest.param(
+            lambda: Message(
+                text=LONE_SURROGATE,
+                score=1.0,
+                data={"x": math.nan},
+                extra=[-math.inf],
+            ),
+            {
+                "text": LONE_SURROGATE,
+                "score": 1.0,
+                "data": {"x": None},
+                "extra": [None],
+            },
+            id="untyped-dict-and-list-nan-in-the-fallback-null",
         ),
     ],
 )
@@ -3032,3 +3063,31 @@ def test_metadata_must_be_a_mapping_on_every_store(any_store, make_metadata):
     assert any_store.query_events("notes") == ()
     with pytest.raises(SnapshotNotFoundError):
         any_store.get_snapshot("latest")
+
+
+# Round 8, item 6: the fallback for a model that writes NaN as strings
+
+
+@pytest.mark.skipif(
+    PYDANTIC_VERSION < (2, 14),
+    reason="checked against Pydantic 2.14; other versions may differ",
+)
+def test_a_model_writing_nan_as_strings_is_refused_in_the_fallback_on_every_store(
+    any_store,
+):
+    class StringsForNaN(BaseModel):
+        model_config = ConfigDict(ser_json_inf_nan="strings")
+
+        text: str
+        extra: Any = None
+
+    any_store.create_channel({"name": "notes"})
+    plain = StringsForNaN(text="hi", extra=math.nan)
+    held = StringsForNaN(text=LONE_SURROGATE, extra=math.nan)
+
+    stored = any_store.append_event({"channel": "notes", "payload": plain})
+    with pytest.raises(InvalidPayloadError, match="NaN"):
+        any_store.append_event({"channel": "notes", "payload": held})
+
+    assert stored.payload == {"text": "hi", "extra": "NaN"}
+    assert [event.id for event in any_store.query_events("notes")] == [stored.id]

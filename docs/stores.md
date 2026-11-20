@@ -125,9 +125,11 @@ sssn 0.2.0. Pydantic replaces each one in a model's typed dict key with
 three U+FFFD characters, one per UTF-8 byte. A high surrogate directly
 followed by a low one comes back as the single character the pair encodes
 (U+D83D U+DE00 becomes U+1F600), as in 0.2.0. And a value holding one is
-written the way 0.2.0 wrote it, in which a NaN or infinity in a model's
-typed float field is refused, while one in an `Any` or `dict` field is
-written as `null`.
+written the way 0.2.0 wrote it, in which a NaN or infinity that Pydantic
+writes as a float (a `float` field, or the values of a `list[float]` or
+`dict[str, float]`) is refused, while one that Pydantic infers (an `Any`
+field, or an untyped `dict` or `list`) is written as `null`. In a model
+that writes NaN as strings, both are refused.
 Remote stores send values in the same JSON form and raise the same error
 before sending. Readers get plain JSON data, so validate it back into your
 model where you need one, as a

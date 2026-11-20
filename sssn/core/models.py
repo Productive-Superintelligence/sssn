@@ -202,9 +202,11 @@ def json_value(value: Any) -> Any:
     replaces each one in a model's typed dict key with three U+FFFD, one per
     UTF-8 byte; a high surrogate directly followed by a low one comes back
     as the character the pair encodes (U+D83D U+DE00 becomes U+1F600), as in
-    0.2.0; and in a value holding one, a NaN or infinity in a model's typed
-    float field is refused, while one in an Any or dict field is written as
-    null.
+    0.2.0; and in a value holding one, a NaN or infinity that Pydantic
+    writes as a float (a float field, or the values of ``list[float]`` or
+    ``dict[str, float]``) is refused, while one Pydantic infers (an ``Any``
+    field, or an untyped dict or list) is written as null; in a model that
+    writes NaN as strings, both are refused.
     """
 
     try:
@@ -228,8 +230,10 @@ def json_text(adapter: TypeAdapter[Any], value: Any) -> str | bytes:
             raise
         # A lone surrogate, which UTF-8 cannot hold, as in a file name
         # decoded with surrogateescape: Python's json escapes it. In this
-        # rare path a NaN inside a model is refused rather than written as
-        # null.
+        # rare path, a NaN that Pydantic writes as a float (a float field,
+        # or the values of list[float] or dict[str, float]) is refused,
+        # while one it infers (an Any field, an untyped dict or list) is
+        # written as null, unless the model writes NaN as strings.
         return json.dumps(adapter.dump_python(value, mode="json"))
 
 

@@ -7,13 +7,13 @@ folder is created if it does not exist. Every command prints one JSON object
 per line; errors print a message and exit with status 2.
 
 Records print as UTF-8, or as `\u` escapes when the output cannot encode
-them, such as a Windows code page in a pipe; there,
-`read-artifact --encoding text` stops with an error that suggests
-`--encoding base64`. A store written by sssn 0.2.0 can hold values JSON
-cannot carry, and the CLI prints them as the HTTP API sends them: a
-non-finite timestamp as `"inf"`, `"-inf"`, or `"nan"`, any other NaN or
-infinite number as `null`, as 0.2.0 printed it, and a lone surrogate as an
-escape.
+them, such as a Windows code page in a pipe. `read-artifact --encoding text`
+prints the artifact's text as it is, and stops with an error that suggests
+`--encoding base64` when the output cannot encode that text. A store
+written by sssn 0.2.0 can hold values JSON cannot carry, and the CLI prints
+them as the HTTP API sends them: a non-finite timestamp as `"inf"`,
+`"-inf"`, or `"nan"`, any other NaN or infinite number as `null`, as 0.2.0
+printed it, and a lone surrogate as an escape.
 `pull-subscription` moves the cursor before it prints, so output that is
 lost on the way, as to a closed pipe, is not pulled again.
 
